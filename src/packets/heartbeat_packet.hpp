@@ -156,7 +156,7 @@ namespace tair {
             stats = NULL;
          }
 
-         if (size > 0 && stat_info != NULL) {
+         if (size > 0 && stat_info_value != NULL) {
             stat_info_size = size;
             stat_info = (char *)malloc(size);
             memcpy(stat_info, stat_info_value, size);
