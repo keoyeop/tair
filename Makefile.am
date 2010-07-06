@@ -32,7 +32,7 @@ rpms: dist-gzip packages/tair.spec
 		 --define "NAME $(PACKAGE)" \
 		 --define "VERSION $(VERSION)" \
 		 --define "BOOST_DIR $(BOOST_DIR)" \
-		 --define "_prefix $(PREIX)" \
+		 --define "_prefix $(PREFIX)" \
 		-ba $(TMP_DIR)/BUILD/tair-$(VERSION)/packages/tair.spec
 	find $(TMP_DIR)/RPMS/ -name "*.rpm" -exec mv '{}' . \;
 	rm -rf $(TMP_DIR)
