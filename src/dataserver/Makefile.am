@@ -8,6 +8,7 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     -I${top_srcdir}/src/packets \
 	     -I${top_srcdir}/src/storage/fdb \
 	     -I${top_srcdir}/src/storage/mdb \
+	     -I${top_srcdir}/src/plugin \
 	     @BOOST_CPPFLAGS@
 
 AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB}
@@ -24,6 +25,9 @@ LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
       @BOOST_THREAD_LIB@
 
 sbin_PROGRAMS=tair_server
+
+include_HEADERS=item_manager.hpp tair_manager.hpp table_manager.hpp duplicate_manager.hpp duplicate_base.hpp \
+ 		update_log.hpp tinyjson.hpp
 
 tair_server_SOURCES=duplicate_manager.cpp item_manager.cpp request_processor.cpp tair_manager.cpp update_log.cpp \
 		    heartbeat_thread.cpp migrate_manager.cpp table_manager.cpp tair_server.cpp \

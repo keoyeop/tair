@@ -24,15 +24,15 @@
 #include "dump_data_info.hpp"
 #include "util.hpp"
 #include "data_entry.hpp"
-#include "storage/storage_manager.hpp"
-#include "storage/dump_manager.hpp"
-#include "storage/dump_filter.hpp"
+#include "storage_manager.hpp"
+#include "dump_manager.hpp"
+#include "dump_filter.hpp"
 #include "table_manager.hpp"
 #include "duplicate_manager.hpp"
-#include "fdb_manager.hpp"
+//#include "fdb_manager.hpp"
 #include "update_log.hpp"
 #include "stat_helper.hpp"
-#include "plugin/plugin_manager.hpp"
+#include "plugin_manager.hpp"
 
 namespace tair {
    enum {

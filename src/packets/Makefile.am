@@ -10,6 +10,12 @@ LDADD=$(TBLIB_ROOT)/lib/libtbnet.a $(TBLIB_ROOT)/lib/libtbsys.a
 
 AM_LDFLAGS=-lz -lrt -lpthread -ldl  ${GCOV_LIB}
 
+include_HEADERS= packet_factory.hpp base_packet.hpp \
+		 duplicate_packet.hpp \
+		 items_packet.hpp \
+		 put_packet.hpp get_packet.hpp \
+		 response_return_packet.hpp
+
 noinst_LIBRARIES=libtair_packets.a
 libtair_packets_a_SOURCES=packet_factory.cpp	\
 			  base_packet.hpp	\

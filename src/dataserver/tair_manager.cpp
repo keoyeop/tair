@@ -19,6 +19,7 @@
 #include "define.hpp"
 #include "mdb_factory.hpp"
 #include "item_manager.hpp"
+#include "fdb_manager.hpp"
 namespace {
    const int TAIR_OPERATION_VERSION   = 1;
    const int TAIR_OPERATION_DUPLICATE = 2;

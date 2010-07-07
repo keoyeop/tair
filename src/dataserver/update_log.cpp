@@ -26,6 +26,7 @@
 namespace tair {
 
    using namespace std;
+   using namespace tair::storage::fdb;
 
    update_log* update_log::open(const char *dir, const char *name, uint32_t log_file_number, bool is_migrating, uint32_t file_size)
    {

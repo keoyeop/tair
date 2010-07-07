@@ -7,6 +7,7 @@ AM_CPPFLAGS=-I${top_srcdir}/src \
 	    -I${top_srcdir}/src/storage/ \
             -I${top_srcdir}/src/packets \
             -I${top_srcdir}/src/dataserver \
+	    -I${top_srcdir}/src/plugin \
 	    ${BOOST_CPPFLAGS}
 
 LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
