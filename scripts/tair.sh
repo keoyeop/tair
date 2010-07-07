@@ -3,10 +3,6 @@ TAIR_BIN_DIR=./sbin
 TAIR_ETC_DIR=./etc
 SERVER_COUNT=1
 
-echo `dirname $PWD/$0`
-
-exit
-
 cd ${TAIR_DIR}
 
 ulimit -c unlimited
