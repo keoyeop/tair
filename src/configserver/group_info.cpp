@@ -1051,13 +1051,13 @@ namespace tair {
     {
       if(server_id == 0)
         return;
-      stat_info_rw_locker.rdlock();
-      map<uint64_t, node_stat_info>::iterator it =
-        stat_info.find(server_id);
-      if(it == stat_info.end()) {
-        stat_info_rw_locker.unlock();
-        stat_info_rw_locker.wrlock();
-      }
+      stat_info_rw_locker.wrlock();
+      //map<uint64_t, node_stat_info>::iterator it =
+      //  stat_info.find(server_id);
+      //if(it == stat_info.end()) {
+      //  stat_info_rw_locker.unlock();
+      //  stat_info_rw_locker.wrlock();
+      //}
       stat_info[server_id] = node_info;
       stat_info_rw_locker.unlock();
       return;
