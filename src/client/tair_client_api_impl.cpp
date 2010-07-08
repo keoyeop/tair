@@ -1151,7 +1151,7 @@ namespace tair {
       if (my_server_list.size() > 0U) {
          hash %= bucket_count;
          for(uint32_t i=0;i<copy_count && i < my_server_list.size(); ++ i){
-            uint64_t server_id = my_server_list[hash] + i * bucket_count;
+            uint64_t server_id = my_server_list[hash + i * bucket_count];
             if(server_id != 0){
                server.push_back(server_id);
             }
