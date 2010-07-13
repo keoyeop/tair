@@ -61,6 +61,7 @@ namespace tair {
       void  do_cmd_addcount(VSTRING &param);
       void  do_cmd_get(VSTRING &param);
       void  do_cmd_remove(VSTRING &param);
+      void do_cmd_stat(VSTRING &param);
       //void  doCmdAddItems(VSTRING &param);
       void  do_cmd_remove_area(VSTRING &param);
       void  do_cmd_dump_area(VSTRING &param);

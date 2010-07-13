@@ -17,6 +17,7 @@
 #include "item_manager.hpp"
 #include "util.hpp"
 #include "dump_data_info.hpp"
+#include "query_info_packet.hpp"
 
 namespace tair {
 
@@ -46,6 +47,7 @@ namespace tair {
       cmd_map["remove"] = &tair_client::do_cmd_remove;
       cmd_map["delall"] = &tair_client::do_cmd_remove_area;
       cmd_map["dump"] = &tair_client::do_cmd_dump_area;
+      cmd_map["stat"] = &tair_client::do_cmd_stat;
       // cmd_map["additems"] = &tair_client::doCmdAddItems;
    }
 
@@ -294,10 +296,18 @@ namespace tair {
       if (cmd == NULL || strcmp(cmd, "delall") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
+                 "SYNOPSIS   : stat\n"
+                 "DESCRIPTION: get stat info"
+            );
+      }
+      if (cmd == NULL || strcmp(cmd, "stat") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
                  "SYNOPSIS   : delall area\n"
                  "DESCRIPTION: delete all data of [area]"
             );
       }
+
       if (cmd == NULL || strcmp(cmd, "dump") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
@@ -451,6 +461,45 @@ namespace tair {
       if (akey) free(akey);
       return ;
    }
+   
+   
+   void tair_client::do_cmd_stat(VSTRING &param) {
+
+	map<string, string> out_info;
+	map<string, string>::iterator it;
+	string group = group_name;
+	client_helper.query_from_configserver(request_query_info::Q_AREA_CAPACITY, group, out_info);
+	fprintf(stderr,"%20s %20s\n","area","quota");
+	for (it=out_info.begin(); it != out_info.end(); it++) {
+		fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
+	}
+	fprintf(stderr,"\n");
+
+	fprintf(stderr,"%20s %20s\n","server","status");
+	client_helper.query_from_configserver(request_query_info::Q_DATA_SEVER_INFO, group, out_info);
+	for (it=out_info.begin(); it != out_info.end(); it++) {
+		fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
+	}
+
+	fprintf(stderr,"\n");
+
+	for (it=out_info.begin(); it != out_info.end(); it++) {
+		map<string, string> out_info2;
+		map<string, string>::iterator it2;
+		client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info2, tbsys::CNetUtil::strToAddr(it->first.c_str(), 0));
+		for (it2=out_info2.begin(); it2 != out_info2.end(); it2++) {
+			fprintf(stderr,"%s : %s %s\n",it->first.c_str(), it2->first.c_str(), it2->second.c_str());
+		}
+	}
+	map<string, string> out_info2;
+	map<string, string>::iterator it2;
+	client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info2, 0);
+	for (it2=out_info2.begin(); it2 != out_info2.end(); it2++) {
+		fprintf(stderr,"%s %s\n", it2->first.c_str(), it2->second.c_str());
+	}
+
+}
+
 
    void tair_client::do_cmd_remove_area(VSTRING &param)
    {
