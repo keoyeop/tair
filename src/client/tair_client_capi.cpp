@@ -104,3 +104,29 @@ int tair_remove(tair_handler handler, int area, tair_data_pair* key)
 
   return tc->removeArea(area, timeout);
   }*/
+
+
+int tair_incr(tair_handler handler, int area, tair_data_pair* key, int count, int* ret_count, int init_value, int expire)
+{
+   if ( handler == 0 )
+      return EXIT_FAILURE;
+
+   data_entry _key(key->data, key->len, true);
+
+   tair_client_api* tc = (tair_client_api*)handler;
+    
+   return tc->incr(area, _key, count, ret_count, init_value, expire);
+}
+
+int tair_decr(tair_handler handler, int area, tair_data_pair* key, int count, int* ret_count, int init_value, int expire)
+{
+   if ( handler == 0 )
+      return EXIT_FAILURE;
+
+   data_entry _key(key->data, key->len, true);
+
+   tair_client_api* tc = (tair_client_api*)handler;
+    
+   return tc->decr(area, _key, count, ret_count, init_value, expire);
+}
+

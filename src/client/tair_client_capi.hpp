@@ -34,8 +34,10 @@ extern "C"
    int tair_begin(tair_handler handler, const char *master_addr,const char *slave_addr, const char *group_name);
    int tair_put(tair_handler handler, int area, tair_data_pair* key, tair_data_pair* data, int expire, int version);
    int tair_get(tair_handler handler, int area, tair_data_pair* key, tair_data_pair* data);
-   int tair_remove(tair_handler handler, int area, tair_data_pair* key, int* del_count);
+   int tair_remove(tair_handler handler, int area, tair_data_pair* key);
 //int tairRemoveArea(tair_handler handler, int area, int timeout);
+   int tair_incr(tair_handler handler, int area, tair_data_pair* key, int count, int* ret_count, int init_value, int expire);
+   int tair_decr(tair_handler handler, int area, tair_data_pair* key, int count, int* ret_count, int init_value, int expire);
 
 #if __cplusplus
 }
