@@ -608,15 +608,14 @@ namespace tair {
       TBSYS_LOG(DEBUG, "this page is all free:%d,free_nr:%d", info->id,
                 info->free_nr);
       --partial_pages_no;
-      //TODO free_page
+      
       if(free_pages_no + full_pages_no + partial_pages_no <= 1) {
         TBSYS_LOG(DEBUG, "only one page,don't free");
-        this_mem_pool->free_page(info->id);
-      }
-      else {
-        TBSYS_LOG(DEBUG, "send this page to pool");
         link_page(info, free_pages);
         ++free_pages_no;
+      }else {
+        TBSYS_LOG(DEBUG, "send this page to pool");
+        this_mem_pool->free_page(info->id);
       }
     }
     else {
