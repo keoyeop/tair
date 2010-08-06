@@ -101,7 +101,8 @@ namespace tair {
     }
 
     assert(info != 0);
-    clear_page(slab_mng, (char *) info);        //clear_page will send the page into the free pages list
+    clear_page(slab_mng, (char *) info); //clear_page will send the page into the mem_pool
+    return 0;
 
   FREE_PAGE:
     assert(slab_mng->free_pages_no > 0);
