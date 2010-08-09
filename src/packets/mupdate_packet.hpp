@@ -153,7 +153,7 @@ namespace tair {
       bool add_put_key_data(const data_entry &key, const data_entry &data) 
       {
          uint temp = len +  key.get_size() + 1 + data.get_size();
-         if (temp> MAX_MUPDATE_PACKET_SIZE){
+         if (temp> MAX_MUPDATE_PACKET_SIZE && count >0){
             return false;
          }
          if (key_and_values == NULL) {
