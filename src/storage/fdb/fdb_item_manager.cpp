@@ -420,8 +420,8 @@ namespace tair {
       bool fdb_item_manager::read_data(fdb_item & ret_item, char *data,
                                        int read_type)
       {
-        int size = 0;
-        int offset = 0;
+        size_t size = 0;
+        off_t offset = 0;
         switch (read_type) {
         case READ_DATA_META:
           size = FDB_ITEM_DATA_SIZE;
