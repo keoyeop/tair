@@ -2333,6 +2333,74 @@ public class FailOverDataServerTest extends FailOverBaseCase{
 		
 		log.error("end DataServer test Failover case 24");
 	}
+    public  void testFailover_25_kill_oneDataServer_no_rebuild_table()
+    {
+    	//start cluster 
+    	log.error("start DataServer test Failover case 25");
+    	int waitcnt=0;
+		// modify tair config
+		try {
+			if (!modify_config_file((String) csList.get(0), FailOverBaseCase.tair_bin + "etc/group.conf", "_min_data_server_count", "5"))
+				fail("modify configure file failed");
+			if (!control_cluster(csList, dsList, FailOverBaseCase.start, 0))
+				fail("start cluster failed!");
+			log.error("wait system initialize ...");
+			waitto(FailOverBaseCase.down_time);
+			log.error("Start Cluster Successful!");
+
+			// modify test config
+			if (!modify_config_file("local", FailOverBaseCase.test_bin + "DataDebug.conf", "actiontype", "put"))
+				fail("modify configure file failed");
+			if (!modify_config_file("local", FailOverBaseCase.test_bin + "DataDebug.conf", "datasize", "100000"))
+				fail("modify configure file failed");
+			if (!modify_config_file("local", FailOverBaseCase.test_bin + "DataDebug.conf", "filename", "read.kv"))
+				fail("modify configure file failed");
+			// write 100k data to cluster
+			execute_data_verify_tool();
+			// check verify
+			while (check_process("local", "DataDebug") != 2) {
+				waitto(2);
+				if (++waitcnt > 150)
+					break;
+			}
+			if (waitcnt > 150)
+				fail("put data time out!");
+			waitcnt = 0;
+			// verify get result
+			int datacnt = getVerifySuccessful();
+			log.error("put successful=" + datacnt);
+			assertTrue("put successful rate samll than 90%!", datacnt / 100000.0 > 0.9);
+			log.error("Write data over!");
+
+			// close a DS
+			if (!control_ds((String) dsList.get(0), FailOverBaseCase.stop, 0))
+				fail("close 1 data server failed!");
+			waitto(FailOverBaseCase.down_time);
+			// modify test config
+			if (!modify_config_file("local", FailOverBaseCase.test_bin + "DataDebug.conf", "actiontype", "get"))
+				fail("modify configure file failed");
+			execute_data_verify_tool();
+			while (check_process("local", "DataDebug") != 2) {
+				waitto(2);
+				if (++waitcnt > 150)
+					break;
+			}
+			if (waitcnt > 150)
+				fail("Read data time out!");
+			waitcnt = 0;
+			log.error("Read data over!");
+			// verify get result
+			log.error(getVerifySuccessful());
+			assertEquals("verify data failed!", datacnt, getVerifySuccessful());
+			log.error("Successfully Verified data!");
+			
+		} finally {
+			// resume tair config
+			if (!modify_config_file((String) csList.get(0), FailOverBaseCase.tair_bin + "etc/group.conf", "_min_data_server_count", "1"))
+				fail("modify configure file failed");
+		}
+		log.error("end DataServer test Failover case 25");
+    }
     //把系统都启动起来
 	public void setUp()
 	{

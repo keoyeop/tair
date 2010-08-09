@@ -15,7 +15,7 @@ import java.util.List;
 public class FailOverBaseCase extends BaseTestCase {
 	//directory
 	final static String tair_bin="/home/admin/tair_bin/";
-	final static String test_bin="/home/admin/fanggang/oldversion/";
+	final static String test_bin="/home/admin/baoni/recovery/";
 	//Server Operation
 	final static String start="start";
 	final static String stop="stop";
