@@ -112,6 +112,7 @@ namespace tair {
       reader = new log_reader(log_read_buff);
       if(is_migrating) {
          file_manager->reset();
+         ctr_file->reset();
          writer = new log_writer(this, MIN_LSN);
          return;
       }
@@ -925,7 +926,12 @@ namespace tair {
          return ctrl_file;
       }
    }
-
+   
+   void control_file::reset() {
+     memset(ctrl_file_hdr, 0, CTRL_FILE_HDR_SIZE);
+     ctrl_file->write_control_file();
+   }
+   
    void control_file::close()
    {
       write_control_file();

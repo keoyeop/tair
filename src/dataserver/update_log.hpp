@@ -54,7 +54,7 @@ namespace tair {
 
       static control_file* open(const char *path);
       void close();
-
+      void reset();
       bool write_control_file();
    private:
       static string file_name;
