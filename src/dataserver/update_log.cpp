@@ -929,7 +929,7 @@ namespace tair {
    
    void control_file::reset() {
      memset(ctrl_file_hdr, 0, CTRL_FILE_HDR_SIZE);
-     ctrl_file->write_control_file();
+     write_control_file();
    }
    
    void control_file::close()
