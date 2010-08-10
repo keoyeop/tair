@@ -240,7 +240,7 @@ namespace tair {
       }
       char *data = map_meta_data();
 
-      *flag = TAIR_DTM_VERSION;
+      *flag = TAIR_HTM_VERSION;
       *client_version = 1;
       *server_version = 1;
       *plugins_version = 1;
@@ -271,7 +271,7 @@ namespace tair {
       }
       this->file_name = file_name;
       char *data = map_meta_data();
-      if(TAIR_DTM_VERSION != *flag) {
+      if(TAIR_HTM_VERSION != *flag) {
         log_error("flag error");
         close();
         return false;

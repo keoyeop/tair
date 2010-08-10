@@ -54,6 +54,7 @@
 #define TAIR_MAX_AREA_COUNT          1024
 #define TAIR_PACKET_FLAG             0x6D426454
 #define TAIR_DTM_VERSION             0x31766256
+#define TAIR_HTM_VERSION             0x31766257
 
 #define TAIR_FLAG_SERVER            (0x0000ffffffffffffLL)
 #define TAIR_FLAG_CFG_DOWN          (0x4000000000000000LL)

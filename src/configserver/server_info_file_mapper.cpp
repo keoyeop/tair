@@ -60,7 +60,7 @@ namespace tair {
       p_used_counter = (int32_t *) data_start;
       data_start += sizeof(int32_t);
 
-      if(fok || (*p_magic_number) != TAIR_DTM_VERSION) {        //first open
+      if(!file_exist || fok || (*p_magic_number) != TAIR_DTM_VERSION) {        //first open
         if(file_exist) {
           printf("format is error %s\n", file_name.c_str());
           close();

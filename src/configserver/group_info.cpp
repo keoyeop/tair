@@ -451,6 +451,10 @@ namespace tair {
         }
         return true;
       }
+      struct timespec tm;
+      assert(clock_gettime(CLOCK_MONOTONIC, &tm) == 0);
+      time_t now = tm.tv_sec;
+      need_rebuild_hash_table = now;
       interval_seconds =
         config.getInt(group_name, TAIR_STR_REPORT_INTERVAL,
                       TAIR_DEFAULT_REPORT_INTERVAL);
@@ -486,9 +490,6 @@ namespace tair {
       else {
         changed2 = true;
       }
-      struct timespec tm;
-      assert(clock_gettime(CLOCK_MONOTONIC, &tm) == 0);
-      time_t now = tm.tv_sec;
 
       for(node_info_set::iterator it = server_list.begin();
           it != server_list.end(); ++it) {
