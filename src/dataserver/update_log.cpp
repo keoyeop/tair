@@ -974,9 +974,4 @@ namespace tair {
       ctr_file->set_hlsn(lsn);
    }
 
-   void control_file::reset()
-   {
-      memset(ctrl_file_hdr, 0, CTRL_FILE_HDR_SIZE);
-      write_control_file();
-   }
 }
