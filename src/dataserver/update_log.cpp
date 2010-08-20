@@ -795,8 +795,8 @@ namespace tair {
       if (has_read == false) {
          current_file = file_mgr->find_log_file(lsn, true);
          offset = lsn - current_file->get_start_lsn() + LOG_PAGE_HDR_SIZE;
-         uint lsn_offset = (uint)(end_lsn - lsn);
-         uint read_size = size > lsn_offset ? lsn_offset : size;
+         uint64_t lsn_offset = (uint64_t)(end_lsn - lsn);
+         uint read_size =(uint)(size > lsn_offset ? lsn_offset : size);
          read_length = current_file->read(buffer, read_size, offset);
          has_read = true;
       }
@@ -805,8 +805,8 @@ namespace tair {
          current_file = file_mgr->find_log_file(lsn, true);
          buffer_offset = 0;
          offset = LOG_PAGE_HDR_SIZE;
-         uint lsn_offset = (uint)(end_lsn - lsn);
-         uint read_size = size > lsn_offset ? lsn_offset : size;
+         uint64_t lsn_offset = (uint64_t)(end_lsn - lsn);
+         uint read_size =(uint)(size > lsn_offset ? lsn_offset : size);
          read_length = current_file->read(buffer, read_size, offset);
       }
 
@@ -843,16 +843,16 @@ namespace tair {
             return rec;
          } else {
             offset += buffer_offset;
-            uint lsn_offset = (uint)(end_lsn - lsn);
-            uint tsize = size > lsn_offset ? lsn_offset : size;
+            uint64_t lsn_offset = (uint64_t)(end_lsn - lsn);
+            uint tsize = (uint)(size > lsn_offset ? lsn_offset : size);
             read_length = current_file->read(buffer, tsize, offset);
             buffer_offset = 0;
             goto _Restart;
          }
       }else {
          offset += buffer_offset;
-         uint lsn_offset = (uint)(end_lsn - lsn);
-         uint tsize = size > lsn_offset ? lsn_offset : size;
+         uint64_t lsn_offset = (uint64_t)(end_lsn - lsn);
+         uint tsize = (uint)(size > lsn_offset ? lsn_offset : size);
          read_length = current_file->read(buffer, tsize, offset);
          buffer_offset = 0;
          goto _Restart;
@@ -974,4 +974,9 @@ namespace tair {
       ctr_file->set_hlsn(lsn);
    }
 
+   void control_file::reset()
+   {
+      memset(ctrl_file_hdr, 0, CTRL_FILE_HDR_SIZE);
+      write_control_file();
+   }
 }
