@@ -53,3 +53,4 @@ rm -rf $RPM_BUILD_ROOT
 %files devel
 %{_prefix}/include
 %{_prefix}/lib/libtairclientapi.*
+%{_prefix}/lib/libtairclientapi_c.*
