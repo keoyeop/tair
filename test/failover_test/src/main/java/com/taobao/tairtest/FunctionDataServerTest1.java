@@ -6,6 +6,8 @@ package com.taobao.tairtest;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.Test;
+
 import com.ibm.staf.STAFResult;
 
 /**
@@ -13,7 +15,7 @@ import com.ibm.staf.STAFResult;
  *
  */
 public class FunctionDataServerTest1 extends FailOverBaseCase {
-
+	@Test
 	public void testFunction_01_add_ds_and_migration()
 	{
 		log.error("start function test case 01");
@@ -89,6 +91,7 @@ public class FunctionDataServerTest1 extends FailOverBaseCase {
 		
 		log.error("end function test case 01");
 	}
+	@Test
 	public void testFunction_02_add_ds_and_migration_then_write_20w_data()
 	{
 		log.error("start function test case 02");
@@ -189,6 +192,7 @@ public class FunctionDataServerTest1 extends FailOverBaseCase {
 		
 		log.error("end function test case 02");
 	}
+	@Test
 	public void testFunction_03_add_ds_and_migration_then_get_data()
 	{
 		log.error("start function test case 03");
@@ -264,6 +268,7 @@ public class FunctionDataServerTest1 extends FailOverBaseCase {
 		
 		log.error("end function test case 03");
 	}
+	@Test
 	public void testFunction_04_add_ds_and_migration_then_remove_data()
 	{
 		log.error("start function test case 04");
@@ -364,7 +369,7 @@ public class FunctionDataServerTest1 extends FailOverBaseCase {
 		
 		log.error("end function test case 04");
 	}
-	
+	@Test
 	public void testFunction_06_recover__ds_before_rebuild_120s_noRebuild()
 	{
 		log.error("start function test case 06");

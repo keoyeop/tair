@@ -16,10 +16,10 @@ public class TestAll extends TestSuite {
 	{
 //		copycount大于1的容灾
 		TestSuite suite=new TestSuite("Test All");
-//		suite.addTestSuite(FailOverConfigServerTest.class);
-//		suite.addTestSuite(FunctionDataServerTest.class);
-//		suite.addTestSuite(FailOverDataServerTest.class);
-//		suite.addTestSuite(FailoverClusterTest.class);
+		suite.addTestSuite(FailOverConfigServerTest.class);
+		suite.addTestSuite(FunctionDataServerTest.class);
+		suite.addTestSuite(FailOverDataServerTest.class);
+		suite.addTestSuite(FailoverClusterTest.class);
 		
 //		copycount为1的容灾
 		suite.addTestSuite(FailOverConfigServerTest1.class);

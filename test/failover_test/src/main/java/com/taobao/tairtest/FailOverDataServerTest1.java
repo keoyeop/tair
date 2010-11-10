@@ -1,6 +1,9 @@
 package com.taobao.tairtest;
 
 import java.util.*;
+
+import org.junit.Test;
+
 import com.ibm.staf.STAFResult;
 
 import junit.framework.Assert;
@@ -12,6 +15,7 @@ import junit.framework.Assert;
 public class FailOverDataServerTest1 extends FailOverBaseCase{
 	
 	//在恢复时间内关闭dataserver
+	@Test
 	public void testFailover_01_add_ds_stop_in_time()
 	{
 		log.error("start DataServer test Failover case 01");
@@ -101,6 +105,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 	}
 	
     //加入节点不再恢复
+	@Test
     public void testFailover_02_add_one_ds()
     {   
 		log.error("start DataServer test Failover case 02");
@@ -191,6 +196,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
     //在迁移过程中恢复
+	@Test
     public void testFailover_03_add_ds_close_in_migrate()
     { 
     	log.error("start DataServer test Failover case 03");
@@ -304,6 +310,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
     //在迁移后恢复
+	@Test
     public void testFailover_04_add_ds_reclose_after_migrate()
     {
     	log.error("start DataServer test Failover case 04");
@@ -420,6 +427,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     
     }
   //同时添加两台ds
+	@Test
     public void testFailover_05_add_two_ds()
     {
     	log.error("start DataServer test Failover case 05");
@@ -518,6 +526,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     
     }
     //first add one ,and then add another one in migrate
+	@Test
     public void testFailover_06_add_one_inMigrate_add_another_ds()
     {
     	log.error("start DataServer test Failover case 06");
@@ -639,6 +648,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
   //first add one , then add another one and restart it before second migrate
+	@Test
     public void testFailover_07_add_one_inMigrate_inTime()
     {
     	log.error("start DataServer test Failover case 07");
@@ -762,6 +772,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
     //first add one ,and then add another one, and reclose first one
+	@Test
     public void testFailover_08_add_one_inMigrate_reCloseFirst()
     {
     	log.error("start DataServer test Failover case 08");
@@ -882,6 +893,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
     //add another data server ,and reclose both in migrate
+	@Test
     public void testFailover_09_add_one_inMigrate_reCloseBoth()
     {
     	log.error("start DataServer test Failover case 09");
@@ -1007,6 +1019,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
     //add one data server ,and then migrate,add another， reclose first data server
+	@Test
     public void testFailover_10_add_one_afterMigrate_recloseFirst()
     {
     	log.error("start DataServer test Failover case 10");
@@ -1145,6 +1158,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
     //add another data server ,and after second migrate, restop second data server
+	@Test
     public void testFailover_11_add_one_afterMigrate_restartSecond()
     {
     	log.error("start DataServer test Failover case 11");
@@ -1283,6 +1297,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
     //add another data server ,and after second migrate, restop both
+	@Test
     public void testFailover_12_add_one_afterMigrate_reStopBoth()
     {
     	log.error("start DataServer test Failover case 12");
@@ -1420,6 +1435,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     	
     }
   //add another data server,and after migrate finish, restop second data server
+	@Test
     public void testFailover_13_add_one_finishMigrate_reStopSecond()
     {
     	log.error("start DataServer test Failover case 13");
@@ -1554,6 +1570,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
     //kill another data server,and after migrate finish, restart both
+	@Test
     public void testFailover_14_add_one_finishMigrate_restartBoth()
     {
     	log.error("start DataServer test Failover case 14");
@@ -1692,6 +1709,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
   //在迁移过程中关闭另一台ds
+	@Test
     public void testFailover_15_add_ds_close_another_in_migrate()
     { 
     	log.error("start DataServer test Failover case 15");
@@ -1804,6 +1822,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
       
     }
   //在迁移过程中关闭另一台ds,restart ontime
+	@Test
     public void testFailover_16_add_ds_close_another_in_migrate_restart_ontime()
     { 
     	log.error("start DataServer test Failover case 16");
@@ -1917,6 +1936,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
       
     }
   //first kill one ,restart it before build table
+	@Test
     public void testFailover_17_kill_one_restart_inTime()
     {
     	log.error("start DataServer test Failover case 17");
@@ -1993,6 +2013,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 		log.error("end DataServer test Failover case 17");
     }
   //first kill one 
+	@Test
     public void testFailover_18_kill_one_ds()
     {
     	log.error("start DataServer test Failover case 18");
@@ -2076,6 +2097,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 		log.error("end DataServer test Failover case 18");
     }
     //first kill one ,add ds before build table
+	@Test
     public void testFailover_19_kill_one_add_ds_before_rebuild()
     {
     	log.error("start DataServer test Failover case 19");
@@ -2171,6 +2193,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 		log.error("end DataServer test Failover case 19");
     }
     //first kill one ,add ds after build table
+	@Test
     public void testFailover_20_kill_one_add_ds_after_rebuild()
     {
     	log.error("start DataServer test Failover case 20");
@@ -2275,6 +2298,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 		log.error("end DataServer test Failover case 20");
     }
     //kill all data servers, and restart in time
+	@Test
     public void testFailover_21_kill_allDataServrs_restart_inTime()
     {
     	log.error("start DataServer test Failover case 21");
@@ -2349,6 +2373,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
     }
     
     //kill all data servers, and restart out time
+	@Test
     public void testFailover_22_kill_allDataServrs_restart_outTime()
     {
     	log.error("start DataServer test Failover case 22");
@@ -2428,7 +2453,9 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 
 		//end test
 		log.error("end DataServer test Failover case 22");
-    }  //kill another data server,and after migrate finish, restart first data server
+    }  
+	//kill another data server,and after migrate finish, restart first data server
+	@Test
     public void testFailover_23_kill_one_finishMigrate_restartFirst()
     {
     	log.error("start DataServer test Failover case 23");
@@ -2555,7 +2582,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 		log.error("end DataServer test Failover case 23");
     	
     }
-    
+	@Test
     public void testFailover_24_add_ds_finishMigrate_add_ds_finishMigrate_and_kill_one_finishMigrate_kill_one_finishMigration()
 	{
 		log.error("start DataServer test Failover case 24");
@@ -2744,6 +2771,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 		log.error("end DataServer test Failover case 24");
 	}
   //first kill one ,close another ds after build table
+	@Test
     public void testFailover_25_kill_one_close_ds_after_rebuild()
     {
     	log.error("start DataServer test Failover case 25");
@@ -2844,6 +2872,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 		log.error("end DataServer test Failover case 25");
     }
     //kill 80% data servers,and after migrate finish, restart the servers
+	@Test
     public void testFailover_26_kill_twoDataServers_finishMigrate_restart()
     {
     	log.error("start DataServer test Failover case 26");
@@ -2955,6 +2984,7 @@ public class FailOverDataServerTest1 extends FailOverBaseCase{
 		log.error("end DataServer test Failover case 26");
     }
   //kill 80%数量dataserver,迁移之前恢复
+	@Test
     public void testFailover_27_kill_more_servers()
     { 
     	log.error("start DataServer test Failover case 27");

@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Iterator;
 
+import org.junit.Test;
+
 import com.ibm.staf.*;
 
 /**
@@ -13,7 +15,7 @@ import com.ibm.staf.*;
  *
  */
 public class FailOverConfigServerTest extends FailOverBaseCase {
-
+	@Test
 	public void testFailover_01_restart_master_cs()
 	{
 		log.error("start config test Failover case 01");
@@ -101,6 +103,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 01");
 	}
+	@Test
 	public void testFailover_02_restart_slave_cs()
 	{
 		log.error("start config test Failover case 02");
@@ -183,6 +186,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 02");
 	}
+	@Test
 	public void testFailover_03_restart_all_cs()
 	{
 		log.error("start config test Failover case 03");
@@ -251,6 +255,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 03");
 	}
+	@Test
 	public void testFailover_04_recover_master_cs_and_ds_before_rebuild()
 	{
 		log.error("start config test Failover case 04");
@@ -336,6 +341,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 04");
 	}
+	@Test
 	public void testFailover_05_recover_master_cs_when_ds_down_and_rebuild()
 	{
 		log.error("start config test Failover case 05");
@@ -438,6 +444,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 05");
 	}
+	@Test
 	public void testFailover_06_recover_master_cs_after_ds_down_and_rebuild()
 	{
 		log.error("start config test Failover case 06");
@@ -531,6 +538,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 06");
 	}
+	@Test
 	public void testFailover_07_recover_master_cs_when_ds_down_and_rebuild_then_ds_join_again_generate_second_rebuild()
 	{
 		log.error("start config test Failover case 07");
@@ -640,6 +648,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 07");
 	}
+	@Test
 	public void testFailover_08_recover_master_cs_after_ds_down_and_rebuild_then_ds_join_again_generate_second_rebuild()
 	{
 		log.error("start config test Failover case 08");
@@ -751,6 +760,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 08");
 	}
+	@Test
 	public void testFailover_09_shutdown_master_cs_and_slave_cs_one_by_one_then_recover_one_by_one()
 	{
 		log.error("start config test Failover case 09");
@@ -922,6 +932,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		
 		log.error("end config test Failover case 09");
 	}
+	@Test
 	public void testFailover_10_recover_slave_cs_and_ds_before_rebuild()
 	{
 		log.error("start config test Failover case 10");
@@ -1002,6 +1013,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 10");
 	}
+	@Test
 	public void testFailover_11_recover_slave_cs_when_ds_down_and_rebuild()
 	{
 		log.error("start config test Failover case 11");
@@ -1108,6 +1120,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 11");
 	}
+	@Test
 	public void testFailover_12_recover_slave_cs_after_ds_down_and_rebuild()
 	{
 		log.error("start config test Failover case 12");
@@ -1198,6 +1211,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 12");
 	}
+	@Test
 	public void testFailover_13_recover_slave_cs_when_ds_down_and_rebuild_then_ds_join_again_generate_second_rebuild()
 	{
 		log.error("start config test Failover case 13");
@@ -1306,6 +1320,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 13");
 	}
+	@Test
 	public void testFailover_14_recover_slave_cs_after_ds_down_and_rebuild_then_ds_join_again_generate_second_rebuild()
 	{
 		log.error("start config test Failover case 14");
@@ -1422,6 +1437,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		//end test
 		log.error("end config test Failover case 14");
 	}
+	@Test
 	public void testFailover_15_shutdown_master_cs_ds_and_slave_cs_one_by_one_then_recover_one_by_one()
 	{
 		log.error("start config test Failover case 15");
@@ -1589,6 +1605,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		
 		log.error("end config test Failover case 15");
 	}
+	@Test
 	public void testFailover_16_close_master_cs_restart_it_when_add_a_ds_and_begin_migration()
 	{
 		log.error("start config test Failover case 16!");
@@ -1687,6 +1704,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		
 		log.error("stop config test Failover case 16");
 	}
+	@Test
 	public void testFailover_17_close_master_cs_restart_it_after_add_a_ds_and_migration()
 	{
 		log.error("start config test Failover case 17!");
@@ -1774,6 +1792,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		
 		log.error("stop config test Failover case 17");
 	}
+	@Test
 	public void testFailover_18_close_slave_cs_restart_it_when_add_a_ds_and_begin_migration()
 	{
 		log.error("start config test Failover case 18!");
@@ -1871,6 +1890,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 		
 		log.error("stop config test Failover case 18");
 	}
+	@Test
 	public void testFailover_19_close_slave_cs_restart_it_after_add_a_ds_and_migration()
 	{
 		log.error("start config test Failover case 19!");
@@ -1961,6 +1981,7 @@ public class FailOverConfigServerTest extends FailOverBaseCase {
 	/**
 	 * Failover_20_在添加新节点前发生数据迁移
 	 */
+	@Test
 	public void testFailover_20_migrate_before_add_new_ds()
 	{
 		log.error("start config test Failover case 20");

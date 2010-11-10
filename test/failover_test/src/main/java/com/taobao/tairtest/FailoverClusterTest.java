@@ -6,14 +6,17 @@ package com.taobao.tairtest;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.Test;
+
 import com.ibm.staf.STAFResult;
 
 /**
  * @author dongpo
  *
  */
+
 public class FailoverClusterTest extends FailOverBaseCase {
-	
+	@Test
 	public void testFailover_01_restart_all_server()
 	{
 		log.error("start cluster test failover case 01");
@@ -76,6 +79,7 @@ public class FailoverClusterTest extends FailOverBaseCase {
 		
 		log.error("end cluster test failover case 01");
 	}
+	@Test
 	public void testFailover_02_restart_all_server_after_join_ds_and_migration()
 	{
 		log.error("start cluster test failover case 02");
