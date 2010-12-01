@@ -266,6 +266,70 @@ namespace tair {
         return rc;
       }
 
+      bool kdb_bucket::begin_scan() {
+        if (cursor != NULL) {
+          delete cursor;
+        }
+
+        cursor = db.cursor(); // open the cursor
+        return cursor->jump(); // jump to the first record
+      }
+
+      bool kdb_bucket::end_scan() {
+        if (cursor != NULL) {
+          delete cursor;
+          cursor = NULL;
+        }
+        return true;
+      }
+
+      int kdb_bucket::get_next_item(item_data_info* data) {
+        int ret = 0; // 0: SUCCESS; 1: END; 2: FAILED
+
+        size_t key_size = 0;
+        size_t value_size = 0;
+        const char* value = NULL;
+        char* key = cursor->get(&key_size, &value, &value_size, true);
+        if (key == NULL) {
+          ret = 2;
+          const kyotocabinet::BasicDB::Error& err = db.error();
+          if (err == kyotocabinet::BasicDB::Error::NOREC) {
+            ret = 1;
+          }
+        } else {
+          kdb_item item;
+          item.full_value = (char*)value;
+          item.full_value_size = value_size;
+          item.decode();
+
+          data->header.keysize = key_size;
+          data->header.version = item.meta.version;
+          data->header.valsize = value_size;
+          data->header.cdate = item.meta.cdate;
+          data->header.mdate = item.meta.mdate;
+          data->header.edate = item.meta.edate;
+
+          char* p = data->m_data;
+          memcpy(p, key, key_size);
+          p += key_size;
+          memcpy(p, item.value, value_size);
+        }
+
+        if (key != NULL) {
+          delete[] key;
+        }
+        if (value != NULL) {
+          delete[] value;
+        }
+
+        return ret;
+      }
+
+      void kdb_bucket::print_db_error(const char* prefix) {
+        const kyotocabinet::BasicDB::Error& err = db.error();
+        log_error("%s %s\n", prefix, err.message());
+      }
+
       void kdb_bucket::destory()
       {
       }

@@ -117,6 +117,11 @@ namespace tair {
 
           void get_stat(tair_stat* stat);
 
+          bool begin_scan();
+          bool end_scan();
+
+          int get_next_item(item_data_info* data);
+
         private:
           void print_db_error(const char* prefix);
 
@@ -126,6 +131,7 @@ namespace tair {
           locker* locks;
 
           kyotocabinet::HashDB db;
+          kyotocabinet::DB::Cursor* cursor;
       };
     }
   }

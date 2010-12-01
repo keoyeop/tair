@@ -63,6 +63,8 @@ namespace tair {
         private:
           kdb_buckets_map* buckets_map;
           tbsys::CThreadMutex lock;
+
+          kdb_bucket* scan_kdb;
       };
     }
   }

@@ -177,23 +177,59 @@ namespace tair {
 
       void kdb_manager::begin_scan(md_info & info)
       {
+        uint32_t bucket_id = info.db_id;
+
+        scan_kdb = get_bucket(bucket_id);
+
+        if (scan_kdb == NULL) {
+          log_warn("scan bucket[%d] not exist", bucket_id);
+        } else {
+          bool bs = scan_kdb->begin_scan();
+          if (!bs) {
+            log_error("open bucket[%d] for scan failed");
+          }
+        }
       }
 
       void kdb_manager::end_scan(md_info & info)
       {
+        if (scan_kdb != NULL) {
+          scan_kdb->end_scan();
+          scan_kdb = NULL;
+        }
       }
 
       bool kdb_manager::get_next_items(md_info & info, vector <item_data_info *>&list)
       {
-        return false;
+        bool ret = true;
+        if (scan_kdb == NULL)
+        {
+          ret = false;
+          log_error("scan bucket not opened");
+        }
+
+        // get more?
+        if (ret) {
+          item_data_info* data = new item_data_info();
+          int rc = scan_kdb->get_next_item(data);
+          if (rc == 0) {
+            list.push_back(data);
+          } else {
+            ret = false;
+          }
+        }
+
+        return ret;
       }
 
       void kdb_manager::set_area_quota(int area, uint64_t quota)
       {
+        // not support in kdb
       }
 
       void kdb_manager::set_area_quota(std::map<int, uint64_t> &quota_map)
       {
+        // not support in kdb
       }
 
       void kdb_manager::get_stats(tair_stat * stat)
