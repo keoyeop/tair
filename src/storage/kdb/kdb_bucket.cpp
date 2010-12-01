@@ -242,11 +242,14 @@ namespace tair {
             kdb_item item;
             item.full_value = old_value;
             item.full_value_size = val_size;
+            item.decode();
 
             if (version_care && key.data_meta.version != 0
                 && key.data_meta.version != item.meta.version) {
               rc = TAIR_RETURN_VERSION_ERROR;
             }
+
+            delete [] old_value;
           }
         }
 
