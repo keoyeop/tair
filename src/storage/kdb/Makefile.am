@@ -6,4 +6,4 @@ LDADD=$(TBLIB_ROOT)/lib/libtbsys.a ${top_builddir}/src/storage/kdb/kyotocabinet/
 AM_LDFLAGS=-lpthread   ${GCOV_LIB}
 noinst_LIBRARIES=libkdb.a
  
-libkdb_a_SOURCES=kdb_bucket.cpp kdb_manager.cpp
+libkdb_a_SOURCES=kdb_bucket.cpp kdb_manager.cpp locker.cpp

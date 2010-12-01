@@ -16,6 +16,9 @@
 
 #include "kdb_bucket.h"
 
+#include "common/define.hpp"
+#include "common/util.hpp"
+
 namespace {
   const char* TAIR_KDB_SECTION = "kdb";
   const char* KDB_MAP_SIZE = "map_size";
@@ -26,6 +29,8 @@ namespace {
   const uint64_t KDB_RECORD_ALIGN_DEFAULT = 128;
 
   const char* KDB_DATA_DIRECTORY = "data_dir";
+
+  const int LOCKER_SIZE = 128;
 }
 
 namespace tair {
@@ -34,11 +39,16 @@ namespace tair {
 
       kdb_bucket::kdb_bucket()
       {
+        locks = new locker(LOCKER_SIZE);
       }
 
       kdb_bucket::~kdb_bucket()
       {
         stop();
+        if (locks != NULL) {
+          delete locks;
+          locks = NULL;
+        }
       }
 
       bool kdb_bucket::start(int bucket_number)
@@ -107,17 +117,150 @@ namespace tair {
 
       int kdb_bucket::put(common::data_entry& key, common::data_entry& value, bool version_care, uint32_t expire_time)
       {
-        return 0;
+        kdb_item item;
+
+        int cdate = 0;
+        int mdate = 0;
+        int edate = 0;
+
+        if(key.data_meta.cdate == 0 || version_care) {
+          cdate = time(NULL);
+          mdate = cdate;
+          if(expire_time > 0)
+            edate = mdate + expire_time;
+        } else {
+          cdate = key.data_meta.cdate;
+          mdate = key.data_meta.mdate;
+          edate = key.data_meta.edate;
+        }
+
+        int rc = TAIR_RETURN_SUCCESS;
+
+        int li = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % LOCKER_SIZE;
+        if(!locks->lock(li, true)) {
+          log_error("acquire lock failed");
+          return TAIR_RETURN_FAILED;
+        }
+
+        size_t val_size = 0;
+        char* old_value = db.get(key.get_data(), key.get_size(), &val_size);
+        if (old_value != NULL) {
+          // key already exist
+          item.full_value = old_value;
+          item.full_value_size = val_size;
+          item.decode();
+          cdate = item.meta.cdate; // set back the create time
+
+          if (item.is_expired()) {
+            item.meta.version = 0;
+          } else if (version_care) {
+            // item is not expired & care version, check version
+            if (key.data_meta.version != 0
+                && key.data_meta.version != item.meta.version) {
+              rc = TAIR_RETURN_VERSION_ERROR;
+            }
+          }
+        }
+
+        if (old_value != NULL) {
+          // free the memory ASAP
+          delete [] old_value;
+        }
+
+        if (rc == TAIR_RETURN_SUCCESS) {
+          item.meta.cdate = cdate;
+          item.meta.mdate = mdate;
+          item.meta.edate = edate;
+          if (version_care) {
+            item.meta.version++;
+          } else {
+            item.meta.version = key.data_meta.version;
+          }
+
+          item.value = value.get_data();
+          item.value_size = value.get_size();
+
+          item.encode();
+          int dc = db.set(key.get_data(), key.get_size(), item.full_value, item.full_value_size);
+          item.free_full_value(); // free encoded value
+
+          if (dc < 0) {
+            print_db_error("update item failed");
+            rc = TAIR_RETURN_FAILED;
+          }
+        }
+
+        locks->unlock(li);
+
+        return rc;
       }
 
       int kdb_bucket::get(common::data_entry& key, common::data_entry& value)
       {
-        return 0;
+        int rc = TAIR_RETURN_SUCCESS;
+
+        size_t val_size = 0;
+        char* old_value = db.get(key.get_data(), key.get_size(), &val_size);
+        if (old_value == NULL) {
+          rc = TAIR_RETURN_DATA_NOT_EXIST;
+        } else {
+          kdb_item item;
+          item.full_value = old_value;
+          item.full_value_size = val_size;
+          item.decode();
+
+          if (item.is_expired()) {
+            rc = TAIR_RETURN_DATA_EXPIRED;
+          } else {
+            value.set_data(item.value, item.value_size);
+          }
+        }
+
+        if (old_value != NULL) {
+          delete [] old_value;
+        }
+
+        return rc;
       }
 
       int kdb_bucket::remove(common::data_entry& key, bool version_care)
       {
-        return 0;
+        int rc = TAIR_RETURN_SUCCESS;
+
+        int li = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % LOCKER_SIZE;
+        if(!locks->lock(li, true)) {
+          log_error("acquire lock failed");
+          return TAIR_RETURN_FAILED;
+        }
+
+        if (rc == TAIR_RETURN_SUCCESS) {
+          size_t val_size = 0;
+          char* old_value = db.get(key.get_data(), key.get_size(), &val_size);
+          if (old_value == NULL) {
+            rc = TAIR_RETURN_DATA_NOT_EXIST;
+          } else {
+            kdb_item item;
+            item.full_value = old_value;
+            item.full_value_size = val_size;
+
+            if (version_care && key.data_meta.version != 0
+                && key.data_meta.version != item.meta.version) {
+              rc = TAIR_RETURN_VERSION_ERROR;
+            }
+          }
+        }
+
+        if (rc == TAIR_RETURN_SUCCESS) {
+          int dc = db.remove(key.get_data(), key.get_size());
+          if (dc < 0) {
+            print_db_error("remove item failed");
+            rc = TAIR_RETURN_FAILED;
+          }
+        }
+
+        locks->unlock(li);
+
+        return rc;
       }
 
       void kdb_bucket::destory()
@@ -126,11 +269,6 @@ namespace tair {
 
       void kdb_bucket::get_stat(tair_stat* stat)
       {
-      }
-
-      bool kdb_bucket::is_item_expired()
-      {
-        return false;
       }
     }
   }

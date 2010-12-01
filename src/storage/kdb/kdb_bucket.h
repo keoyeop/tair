@@ -21,9 +21,83 @@
 #include "common/data_entry.hpp"
 #include "common/stat_info.hpp"
 
+#include "locker.hpp"
+
 namespace tair {
   namespace storage {
     namespace kdb {
+      struct kdb_item_meta {
+        kdb_item_meta() : cdate(0), mdate(0), edate(0), version(0) {}
+        uint32_t cdate;
+        uint32_t mdate;
+        uint32_t edate;
+        uint32_t version;
+      };
+      const size_t KDB_META_SIZE = sizeof(kdb_item_meta);
+
+      class kdb_item {
+        public:
+          kdb_item() : meta(), value(NULL), value_size(0), full_value(NULL), full_value_size(0) {}
+
+          bool encode() {
+            bool ret = true;
+
+            free_full_value();
+
+            full_value_size = KDB_META_SIZE + value_size;
+            full_value = (char*)malloc(full_value_size);
+            if (full_value == NULL) {
+              ret = false;
+              TBSYS_LOG(ERROR, "alloc memory failed");
+            }
+
+            if (ret) {
+              char* p = full_value;
+              memcpy(p, &meta, KDB_META_SIZE);
+              p += KDB_META_SIZE;
+
+              memcpy(p, value, value_size);
+            }
+
+            return ret;
+          }
+
+          bool decode() {
+            bool ret = true;
+
+            if (full_value == NULL) {
+              ret = false;
+            }
+
+            if (ret) {
+              meta = *((kdb_item_meta*)full_value);
+              value = full_value + KDB_META_SIZE;
+              value_size = full_value_size - KDB_META_SIZE;
+            }
+
+            return ret;
+          }
+
+          bool is_expired() {
+            time_t timeNow = time(NULL);
+            return (meta.edate != 0 && meta.edate < (uint32_t) timeNow);
+          }
+
+          void free_full_value() {
+            if (full_value != NULL) {
+              free(full_value);
+              full_value = NULL;
+            }
+          }
+
+        public:
+          kdb_item_meta meta;
+          char* value;
+          size_t value_size;
+          char* full_value;
+          size_t full_value_size;
+      };
+
       class kdb_bucket {
         const static int PATH_MAX_LENGTH = 1024;
         public:
@@ -49,6 +123,8 @@ namespace tair {
         private:
           char filename[PATH_MAX_LENGTH];
           bool is_item_expired();
+          locker* locks;
+
           kyotocabinet::HashDB db;
       };
     }
