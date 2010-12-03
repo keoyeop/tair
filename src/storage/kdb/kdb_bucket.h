@@ -107,11 +107,11 @@ namespace tair {
           bool start(int bucket_number);
           void stop();
 
-          int put(common::data_entry& key, common::data_entry& value, bool version_care, uint32_t expire_time);
+          int put(tair::common::data_entry& key, tair::common::data_entry& value, bool version_care, uint32_t expire_time);
 
-          int get(common::data_entry& key, common::data_entry& value);
+          int get(tair::common::data_entry& key, tair::common::data_entry& value);
 
-          int remove(common::data_entry& key, bool version_care);
+          int remove(tair::common::data_entry& key, bool version_care);
 
           void destory(); // this will remove the data file
 
