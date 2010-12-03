@@ -289,30 +289,43 @@ namespace tair {
         size_t key_size = 0;
         size_t value_size = 0;
         const char* value = NULL;
-        char* key = cursor->get(&key_size, &value, &value_size, true);
-        if (key == NULL) {
-          ret = 2;
-          const kyotocabinet::BasicDB::Error& err = db.error();
-          if (err == kyotocabinet::BasicDB::Error::NOREC) {
-            ret = 1;
+        char* key = NULL;
+        while (1) {
+          key = cursor->get(&key_size, &value, &value_size, true);
+          if (key == NULL) {
+            ret = 2;
+            const kyotocabinet::BasicDB::Error& err = db.error();
+            if (err == kyotocabinet::BasicDB::Error::NOREC) {
+              ret = 1;
+            }
+          } else {
+            kdb_item item;
+            item.full_value = (char*)value;
+            item.full_value_size = value_size;
+            item.decode();
+            
+            if (item.is_expired()) {
+              if (key != NULL) {
+                delete[] key;
+              }
+              if (value != NULL) {
+                delete[] value;
+              }
+              continue;
+            }
+            data->header.keysize = key_size;
+            data->header.version = item.meta.version;
+            data->header.valsize = value_size;
+            data->header.cdate = item.meta.cdate;
+            data->header.mdate = item.meta.mdate;
+            data->header.edate = item.meta.edate;
+
+            char* p = data->m_data;
+            memcpy(p, key, key_size);
+            p += key_size;
+            memcpy(p, item.value, value_size);
           }
-        } else {
-          kdb_item item;
-          item.full_value = (char*)value;
-          item.full_value_size = value_size;
-          item.decode();
-
-          data->header.keysize = key_size;
-          data->header.version = item.meta.version;
-          data->header.valsize = value_size;
-          data->header.cdate = item.meta.cdate;
-          data->header.mdate = item.meta.mdate;
-          data->header.edate = item.meta.edate;
-
-          char* p = data->m_data;
-          memcpy(p, key, key_size);
-          p += key_size;
-          memcpy(p, item.value, value_size);
+          break;
         }
 
         if (key != NULL) {
@@ -321,7 +334,7 @@ namespace tair {
         if (value != NULL) {
           delete[] value;
         }
-
+        
         return ret;
       }
 
@@ -331,7 +344,13 @@ namespace tair {
       }
 
       void kdb_bucket::destory()
-      {
+      { 
+        stop();
+        if (locks != NULL) {
+          delete locks;
+          locks = NULL;
+        }
+        ::remove(filename);
       }
 
       void kdb_bucket::get_stat(tair_stat* stat)

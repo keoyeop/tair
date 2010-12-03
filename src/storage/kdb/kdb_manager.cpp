@@ -156,7 +156,7 @@ namespace tair {
 
         usleep(1000);
         for (size_t i=0; i<rm_buckets.size(); ++i) {
-          //rm_buckets[i]->backup(); TODO destory
+          rm_buckets[i]->destory();
           delete rm_buckets[i];
         }
 
@@ -210,12 +210,15 @@ namespace tair {
 
         // get more?
         if (ret) {
-          item_data_info* data = new item_data_info();
-          int rc = scan_kdb->get_next_item(data);
-          if (rc == 0) {
-            list.push_back(data);
-          } else {
-            ret = false;
+          while (1) {
+            item_data_info* data = new item_data_info();
+            int rc = scan_kdb->get_next_item(data);
+            if (rc == 0) {
+              list.push_back(data);
+            } else {
+              ret = false;
+              break;
+            }
           }
         }
 
