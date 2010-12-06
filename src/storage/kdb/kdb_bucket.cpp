@@ -376,6 +376,12 @@ namespace tair {
 
       void kdb_bucket::get_stat(tair_stat* stat)
       {
+        tair_pstat *pstat = stat_mgr->get_stat();
+        for(int i = 0; i < TAIR_MAX_AREA_COUNT; i++) {
+          stat[i].data_size_value += pstat[i].data_size();
+          stat[i].use_size_value += pstat[i].use_size();
+          stat[i].item_count_value += pstat[i].item_count();
+        }
       }
     }
   }

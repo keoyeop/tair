@@ -237,6 +237,11 @@ namespace tair {
 
       void kdb_manager::get_stats(tair_stat * stat)
       {
+        tbsys::CThreadGuard guard(&lock);
+        fdb_buckets_map::iterator it = buckets_map->begin();
+        for(; it != buckets_map->end(); ++it) {
+          it->second->get_stat(stat);
+        }
       }
     }
   }
