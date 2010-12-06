@@ -39,6 +39,7 @@ namespace tair {
 
       kdb_bucket::kdb_bucket()
       {
+        cursor = NULL;
         locks = new locker(LOCKER_SIZE);
       }
 
