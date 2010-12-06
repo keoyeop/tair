@@ -102,6 +102,7 @@ namespace tair {
         }
 
         if (ret) {
+          stat_mgr.start(bucket_number, data_dir);
           log_info("kdb [%d] opened", bucket_number);
         }
 
@@ -122,6 +123,7 @@ namespace tair {
         int cdate = 0;
         int mdate = 0;
         int edate = 0;
+        int stat_data_size = 0;
 
         if(key.data_meta.cdate == 0 || version_care) {
           cdate = time(NULL);
@@ -160,6 +162,12 @@ namespace tair {
               rc = TAIR_RETURN_VERSION_ERROR;
             }
           }
+          item.full_value = NULL;
+          item.full_value_size = 0;
+
+          if (rc == TAIR_RETURN_SUCCESS) {
+            stat_data_size -= val_size;
+          }
         }
 
         if (old_value != NULL) {
@@ -181,12 +189,18 @@ namespace tair {
           item.value_size = value.get_size();
 
           item.encode();
+          stat_data_size += item.full_value_size;
+          
           int dc = db.set(key.get_data(), key.get_size(), item.full_value, item.full_value_size);
           item.free_full_value(); // free encoded value
 
           if (dc < 0) {
             print_db_error("update item failed");
             rc = TAIR_RETURN_FAILED;
+          }
+
+          if (rc == TAIR_RETURN_SUCCESS) {
+            stat_mgr.stat_add(key.area, stat_data_size, stat_data_size);
           }
         }
 
@@ -227,6 +241,8 @@ namespace tair {
       {
         int rc = TAIR_RETURN_SUCCESS;
 
+        int stat_data_size = 0;
+
         int li = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % LOCKER_SIZE;
         if(!locks->lock(li, true)) {
           log_error("acquire lock failed");
@@ -242,6 +258,7 @@ namespace tair {
             kdb_item item;
             item.full_value = old_value;
             item.full_value_size = val_size;
+            stat_data_size = val_size;
             item.decode();
 
             if (version_care && key.data_meta.version != 0
@@ -258,6 +275,10 @@ namespace tair {
           if (dc < 0) {
             print_db_error("remove item failed");
             rc = TAIR_RETURN_FAILED;
+          }
+
+          if (rc == TAIR_RETURN_SUCCESS) {
+            stat_mgr.stat_sub(key.area, stat_data_size, stat_data_size);
           }
         }
 

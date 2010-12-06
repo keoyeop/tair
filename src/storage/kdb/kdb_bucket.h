@@ -20,7 +20,7 @@
 #include "storage/kdb/kyotocabinet/kchashdb.h"
 #include "common/data_entry.hpp"
 #include "common/stat_info.hpp"
-
+#include "stat_manager.h"
 #include "locker.hpp"
 
 namespace tair {
@@ -129,7 +129,8 @@ namespace tair {
           char filename[PATH_MAX_LENGTH];
           bool is_item_expired();
           locker* locks;
-
+          stat_manager stat_mgr;
+          
           kyotocabinet::HashDB db;
           kyotocabinet::DB::Cursor* cursor;
       };
