@@ -112,10 +112,10 @@ namespace tair {
         kdb_stat_info temp_stat;
         snprintf(temp_stat.magic, KDBSTATINFO_MAGIC_SIZE, "%s", STAT_MAGIC);
         temp_stat.flag = 0;
-        memset(&temp_stat.stat, 0, sizeof(tair_pstat)); //*TAIR_MAX_AREA_COUNT?
+        memset(&temp_stat.stat, 0, sizeof(tair_pstat)); 
         char data[KDBSTATINFO_SIZE];
-        memset(data, 0, KDBSTATINFO_SIZE);//置0
-        memcpy(data, &temp_stat, KDBSTATINFO_SIZE);//往data中写入header
+        memset(data, 0, KDBSTATINFO_SIZE);
+        memcpy(data, &temp_stat, KDBSTATINFO_SIZE);
         return ::pwrite(fd, data, KDBSTATINFO_SIZE, 0) == (ssize_t) KDBSTATINFO_SIZE;
       }
 
