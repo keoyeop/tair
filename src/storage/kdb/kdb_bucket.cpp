@@ -362,12 +362,15 @@ namespace tair {
 
       void kdb_bucket::destory()
       { 
-        stop();
         if (locks != NULL) {
           delete locks;
           locks = NULL;
         }
-        ::remove(filename);
+        stop();
+        stat_mgr.destory();
+        if (::remove(filename) == -1) {
+          log_error("remove file [%s] failed: %s", filename, strerror(errno));  
+        }
       }
 
       void kdb_bucket::get_stat(tair_stat* stat)

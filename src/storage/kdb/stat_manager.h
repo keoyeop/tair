@@ -39,6 +39,7 @@ namespace tair {
         
           bool start(int bucket_number, const char *file_dir);
           void stop();
+          void destory();
         
           void stat_add(int area, int data_size, int use_size);
           void stat_sub(int area, int data_size, int use_size);

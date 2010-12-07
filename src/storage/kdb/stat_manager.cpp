@@ -58,6 +58,7 @@ namespace tair {
         if(stat_info) {
           msync(stat_info, KDBSTATINFO_SIZE, MS_SYNC);
           munmap(stat_info, KDBSTATINFO_SIZE);
+          stat_info = NULL;
           log_debug("mmap unmapped, size is: [%d]", KDBSTATINFO_SIZE);
         }
         if(fd < 0) {
@@ -65,6 +66,16 @@ namespace tair {
         }
         else if(::close(fd) == -1) {
           log_error("close file [%s] failed: %s", file_name, strerror(errno));
+        } else {
+          fd = -1;
+        }
+      }
+      
+      void stat_manager::destory()
+      {
+        stop();
+        if (::remove(file_name) == -1) {
+          log_error("remove file [%s] failed: %s", file_name, strerror(errno));
         }
       }
 
