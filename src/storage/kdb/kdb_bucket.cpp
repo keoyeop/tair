@@ -329,9 +329,7 @@ namespace tair {
             if (item.is_expired()) {
               if (key != NULL) {
                 delete[] key;
-              }
-              if (value != NULL) {
-                delete[] value;
+                key = NULL;
               }
               continue;
             }
@@ -352,9 +350,6 @@ namespace tair {
 
         if (key != NULL) {
           delete[] key;
-        }
-        if (value != NULL) {
-          delete[] value;
         }
         
         return ret;
