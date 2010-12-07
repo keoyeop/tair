@@ -167,7 +167,7 @@ namespace tair {
           item.full_value_size = 0;
 
           if (rc == TAIR_RETURN_SUCCESS) {
-            stat_data_size -= val_size;
+            stat_data_size -= val_size + key.get_size();
           }
         }
 
@@ -190,7 +190,7 @@ namespace tair {
           item.value_size = value.get_size();
 
           item.encode();
-          stat_data_size += item.full_value_size;
+          stat_data_size += item.full_value_size + key.get_size();
           
           int dc = db.set(key.get_data(), key.get_size(), item.full_value, item.full_value_size);
           item.free_full_value(); // free encoded value
@@ -259,7 +259,7 @@ namespace tair {
             kdb_item item;
             item.full_value = old_value;
             item.full_value_size = val_size;
-            stat_data_size = val_size;
+            stat_data_size = val_size + key.get_size();
             item.decode();
 
             if (version_care && key.data_meta.version != 0
