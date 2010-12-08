@@ -29,8 +29,8 @@
 
 namespace tair {
 
-   typedef hash_map<int, vector<uint64_t>, hash<int> > bucket_server_map;
-   typedef hash_map<int, vector<uint64_t>, hash<int> >::iterator bucket_server_map_it;
+   typedef __gnu_cxx::hash_map<int, vector<uint64_t>, __gnu_cxx::hash<int> > bucket_server_map;
+   typedef __gnu_cxx::hash_map<int, vector<uint64_t>, __gnu_cxx::hash<int> >::iterator bucket_server_map_it;
    using namespace tair::util;
    class table_manager {
    public:
