@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <tbsys.h>
 #include "data_entry.hpp"
+#include <vector>
 
 #define TEST_DATA_COUNT 100
 
@@ -43,10 +44,24 @@ class TestKdbBase: public ::testing::Test
     static void print(data_entry &data) 
     {
       char * temp = data.get_data();
-      int i = (int)temp[0] + ((int)temp[1]) * 10;
-      printf("area:%d\tdata:%s\n", i, temp+2);
+      int i = (int)temp[0] + ((int)temp[1])*10;
+      printf("area:%.3d\tdata:%s\n", i, temp+2);
     }
 
+    static void print(tair::item_data_info &item)
+    {
+      char * key = (char *)malloc(item.header.keysize+1);
+      memcpy(key, item.m_data, item.header.keysize);
+      key[item.header.keysize] = '\0';
+      char * value = (char *)malloc(item.header.valsize+1);
+      memcpy(value, item.m_data + item.header.keysize, item.header.valsize);
+      value[item.header.valsize] = '\0';
+      int karea = (int)key[0] + ((int)key[1])*10;
+      int varea = (int)value[0] + ((int)value[1])*10;
+      printf("key:[%.3d]%s\tvalue:[%.3d]%s\n", karea, key+2, varea, value+2);
+      free(key);
+      free(value);
+    }
 
   protected:
 };
@@ -69,6 +84,9 @@ class TestKdbData
         values[i].set_data(data2, strlen(data2), true);
         values[i].merge_area(i);
       }
+      for(int i = 0; i < 5; i++) {
+        buckets.push_back(i);
+      }
     }
 
     data_entry * get_test_key(int index)
@@ -80,9 +98,15 @@ class TestKdbData
     {
       return values + index;
     }
+
+    std::vector<int> get_buckets()
+    {
+      return buckets;
+    }
  
  private:
     data_entry keys[TEST_DATA_COUNT];
     data_entry values[TEST_DATA_COUNT];
+    std::vector<int> buckets;
 };
 
