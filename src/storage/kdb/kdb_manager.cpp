@@ -211,7 +211,7 @@ namespace tair {
         // get more?
         if (ret) {
           while (1) {
-            item_data_info* data = new item_data_info();
+            item_data_info* data = NULL;
             int rc = scan_kdb->get_next_item(data);
             if (rc == 0) {
               list.push_back(data);

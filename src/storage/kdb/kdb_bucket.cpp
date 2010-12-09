@@ -305,7 +305,7 @@ namespace tair {
         return true;
       }
 
-      int kdb_bucket::get_next_item(item_data_info* data) {
+      int kdb_bucket::get_next_item(item_data_info* &data) {
         int ret = 0; // 0: SUCCESS; 1: END; 2: FAILED
 
         size_t key_size = 0;
@@ -333,6 +333,8 @@ namespace tair {
               }
               continue;
             }
+            int total_size = ITEM_HEADER_LEN + key_size + value_size;
+            data = (item_data_info *) malloc(total_size);
             data->header.keysize = key_size;
             data->header.version = item.meta.version;
             data->header.valsize = value_size;

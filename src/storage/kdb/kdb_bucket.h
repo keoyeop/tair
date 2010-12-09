@@ -120,7 +120,7 @@ namespace tair {
           bool begin_scan();
           bool end_scan();
 
-          int get_next_item(item_data_info* data);
+          int get_next_item(item_data_info* &data);
 
         private:
           void print_db_error(const char* prefix);
