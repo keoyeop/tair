@@ -194,7 +194,15 @@ namespace tair {
           
           int dc = db.set(key.get_data(), key.get_size(), item.full_value, item.full_value_size);
           item.free_full_value(); // free encoded value
-
+            
+          //update key's meta info
+          key.data_meta.cdate = item.meta.cdate;
+          key.data_meta.edate = item.meta.edate;
+          key.data_meta.mdate = item.meta.mdate;
+          key.data_meta.version = item.meta.version;
+          key.data_meta.keysize = key.get_size();
+          key.data_meta.valsize = item.value_size;
+ 
           if (dc < 0) {
             print_db_error("update item failed");
             rc = TAIR_RETURN_FAILED;
@@ -229,6 +237,7 @@ namespace tair {
           } else {
             value.set_data(item.value, item.value_size);
             
+            //update meta info
             value.data_meta.cdate = item.meta.cdate;
             value.data_meta.edate = item.meta.edate;
             value.data_meta.mdate = item.meta.mdate;
