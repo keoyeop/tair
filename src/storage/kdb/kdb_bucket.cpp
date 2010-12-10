@@ -19,20 +19,6 @@
 #include "common/define.hpp"
 #include "common/util.hpp"
 
-namespace {
-  const char* TAIR_KDB_SECTION = "kdb";
-  const char* KDB_MAP_SIZE = "map_size";
-  const uint64_t KDB_MAP_SIZE_DEFAULT = 10 * 1024 * 1024; // 10MB
-  const char* KDB_BUCKET_SIZE = "bucket_size";
-  const uint64_t KDB_BUCKET_SIZE_DEFAULT = 1048583ULL;
-  const char* KDB_RECORD_ALIGN = "record_align";
-  const uint64_t KDB_RECORD_ALIGN_DEFAULT = 128;
-
-  const char* KDB_DATA_DIRECTORY = "data_dir";
-
-  const int LOCKER_SIZE = 128;
-}
-
 namespace tair {
   namespace storage {
     namespace kdb {
@@ -55,17 +41,17 @@ namespace tair {
       bool kdb_bucket::start(int bucket_number)
       {
         bool ret = true;
-        const char* data_dir = TBSYS_CONFIG.getString(TAIR_KDB_SECTION, KDB_DATA_DIRECTORY, NULL);
+        const char* data_dir = TBSYS_CONFIG.getString(TAIRKDB_SECTION, KDB_DATA_DIR, KDB_DEFAULT_DATA_DIR);
         if (data_dir == NULL) {
-          log_error("kdb data dir not config, item: %s.%s", TAIR_KDB_SECTION, KDB_DATA_DIRECTORY);
+          log_error("kdb data dir not config, item: %s.%s", TAIRKDB_SECTION, KDB_DATA_DIR);
           ret  = false;
         }
 
         if (ret) {
           snprintf(filename, PATH_MAX_LENGTH, "%s/tair_kdb_%06d.dat", data_dir, bucket_number);
-          uint64_t map_size = TBSYS_CONFIG.getInt(TAIR_KDB_SECTION, KDB_MAP_SIZE, KDB_MAP_SIZE_DEFAULT);
-          uint64_t bucket_size = TBSYS_CONFIG.getInt(TAIR_KDB_SECTION, KDB_BUCKET_SIZE, KDB_BUCKET_SIZE_DEFAULT);
-          uint64_t record_align = TBSYS_CONFIG.getInt(TAIR_KDB_SECTION, KDB_RECORD_ALIGN, KDB_RECORD_ALIGN_DEFAULT);
+          uint64_t map_size = TBSYS_CONFIG.getInt(TAIRKDB_SECTION, KDB_MAP_SIZE, KDB_MAP_SIZE_DEFAULT);
+          uint64_t bucket_size = TBSYS_CONFIG.getInt(TAIRKDB_SECTION, KDB_BUCKET_SIZE, KDB_BUCKET_SIZE_DEFAULT);
+          uint64_t record_align = TBSYS_CONFIG.getInt(TAIRKDB_SECTION, KDB_RECORD_ALIGN, KDB_RECORD_ALIGN_DEFAULT);
 
           ret = db.tune_map(map_size);
           if (!ret ) {
