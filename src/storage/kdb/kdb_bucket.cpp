@@ -228,6 +228,20 @@ namespace tair {
             rc = TAIR_RETURN_DATA_EXPIRED;
           } else {
             value.set_data(item.value, item.value_size);
+            
+            value.data_meta.cdate = item.meta.cdate;
+            value.data_meta.edate = item.meta.edate;
+            value.data_meta.mdate = item.meta.mdate;
+            value.data_meta.version = item.meta.version;
+            value.data_meta.valsize = item.value_size;
+            value.data_meta.keysize = key.get_size();
+
+            key.data_meta.cdate = item.meta.cdate;
+            key.data_meta.edate = item.meta.edate;
+            key.data_meta.mdate = item.meta.mdate;
+            key.data_meta.version = item.meta.version;
+            key.data_meta.keysize = key.get_size();
+            key.data_meta.valsize = item.value_size;
           }
         }
 
@@ -333,11 +347,11 @@ namespace tair {
               }
               continue;
             }
-            int total_size = ITEM_HEADER_LEN + key_size + value_size;
+            int total_size = ITEM_HEADER_LEN + key_size + item.value_size;
             data = (item_data_info *) malloc(total_size);
             data->header.keysize = key_size;
             data->header.version = item.meta.version;
-            data->header.valsize = value_size;
+            data->header.valsize = item.value_size;
             data->header.cdate = item.meta.cdate;
             data->header.mdate = item.meta.mdate;
             data->header.edate = item.meta.edate;
@@ -345,7 +359,7 @@ namespace tair {
             char* p = data->m_data;
             memcpy(p, key, key_size);
             p += key_size;
-            memcpy(p, item.value, value_size);
+            memcpy(p, item.value, item.value_size);
           }
           break;
         }
