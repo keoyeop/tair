@@ -221,6 +221,8 @@ namespace tair {
           item.decode();
 
           if (item.is_expired()) {
+            int remRc = remove(key, false);
+            log_debug("remove expire data return: %d", remRc);
             rc = TAIR_RETURN_DATA_EXPIRED;
           } else {
             value.set_data(item.value, item.value_size);

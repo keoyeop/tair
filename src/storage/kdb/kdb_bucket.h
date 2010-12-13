@@ -27,7 +27,7 @@ namespace tair {
   namespace storage {
     namespace kdb {
       struct kdb_item_meta {
-        kdb_item_meta() : cdate(0), mdate(0), edate(0), version(0) {}
+        kdb_item_meta() : flag(0), reserved(0), version(0), cdate(0), mdate(0), edate(0) {}
         uint8_t  flag;
         uint8_t  reserved;
         uint16_t version;
