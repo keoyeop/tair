@@ -28,10 +28,12 @@ namespace tair {
     namespace kdb {
       struct kdb_item_meta {
         kdb_item_meta() : cdate(0), mdate(0), edate(0), version(0) {}
+        uint8_t  flag;
+        uint8_t  reserved;
+        uint16_t version;
         uint32_t cdate;
         uint32_t mdate;
         uint32_t edate;
-        uint32_t version;
       };
       const size_t KDB_META_SIZE = sizeof(kdb_item_meta);
 

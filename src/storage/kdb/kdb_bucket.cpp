@@ -163,6 +163,7 @@ namespace tair {
         }
 
         if (rc == TAIR_RETURN_SUCCESS) {
+          item.meta.flag = value.data_meta.flag;
           item.meta.cdate = cdate;
           item.meta.mdate = mdate;
           item.meta.edate = edate;
@@ -182,6 +183,7 @@ namespace tair {
           item.free_full_value(); // free encoded value
             
           //update key's meta info
+          key.data_meta.flag = item.meta.flag;
           key.data_meta.cdate = item.meta.cdate;
           key.data_meta.edate = item.meta.edate;
           key.data_meta.mdate = item.meta.mdate;
@@ -224,6 +226,7 @@ namespace tair {
             value.set_data(item.value, item.value_size);
             
             //update meta info
+            value.data_meta.flag = item.meta.flag;
             value.data_meta.cdate = item.meta.cdate;
             value.data_meta.edate = item.meta.edate;
             value.data_meta.mdate = item.meta.mdate;
@@ -231,6 +234,7 @@ namespace tair {
             value.data_meta.valsize = item.value_size;
             value.data_meta.keysize = key.get_size();
 
+            key.data_meta.flag = item.meta.flag;
             key.data_meta.cdate = item.meta.cdate;
             key.data_meta.edate = item.meta.edate;
             key.data_meta.mdate = item.meta.mdate;
