@@ -37,14 +37,18 @@ TEST_F(TestKdbBase, TestKdbBucketScan)
   }
   ASSERT_EQ(bucket.begin_scan(), true);
   for (int i=0; i<1000; i++) {
-    tair::item_data_info data;
-    int rc = bucket.get_next_item(&data);
+    tair::item_data_info *data = NULL;
+    int rc = bucket.get_next_item(data);
     if (rc == 0){
       printf("item[%.3d]::",i);
-      print(data);
+      print(*data);
     } else {
       if(rc == 1) printf("end of scan!\n");
       else printf("meet a error!\n");
+    }
+    if(data) {
+      free(data);
+      printf("free item!\n");
     }
     if(rc) break;
   }
@@ -164,12 +168,14 @@ TEST_F(TestKdbBase,TestKdbBucket_put6)  //test  put interface version_care param
   key.data_meta.version=1;
   bucket.remove(key,0);
   ASSERT_EQ(bucket.put(key,*db.get_test_value(1),1,10000),TAIR_RETURN_SUCCESS);
+  printf("key's version:%d\n",key.data_meta.version);
   ASSERT_EQ(bucket.put(key,*db.get_test_value(2),1,10000),TAIR_RETURN_SUCCESS);
-  key.data_meta.version++;
+  printf("key's version:%d\n",key.data_meta.version);
   ASSERT_EQ(bucket.put(key,*db.get_test_value(3),1,10000),TAIR_RETURN_SUCCESS);
-  key.data_meta.version++;
+  printf("key's version:%d\n",key.data_meta.version);
   ASSERT_EQ(bucket.get(key,value),TAIR_RETURN_SUCCESS);
   ASSERT_EQ(compareDataValue(value,*db.get_test_value(3)),true);
+  printf("value's version:%d\n",value.data_meta.version);
 }
 
 TEST_F(TestKdbBase,TestKdbBucket_remove7)  //test  remove happy path

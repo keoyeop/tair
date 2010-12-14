@@ -36,7 +36,27 @@ TEST_F(TestKdbBase, TestKdbManagerPut2)
 
 TEST_F(TestKdbBase, TestKdbManagerGet1)
 {
+  using namespace tair::storage::kdb;
+  TestKdbData db;
+  kdb_manager kdb_mgr;
+  tair::common::data_entry key, value;
+  ASSERT_EQ(kdb_mgr.init_buckets(db.get_buckets()), true);
+  key = *db.get_test_key(1);
+  kdb_mgr.remove(1, key, 0);
+  ASSERT_EQ(kdb_mgr.put(1, key, *db.get_test_value(1),0,10000),TAIR_RETURN_SUCCESS);
 
+  ASSERT_EQ(kdb_mgr.put(1,key,*db.get_test_value(2),1,10000),TAIR_RETURN_SUCCESS);  
+  printf("version:key[%d]-value[%d]\n",key.data_meta.version, value.data_meta.version);
+ 
+  //key.data_meta.version++;
+  ASSERT_EQ(kdb_mgr.put(1,key,*db.get_test_value(3),1,10000),TAIR_RETURN_SUCCESS);
+  printf("version:key[%d]-value[%d]\n",key.data_meta.version, value.data_meta.version);
+ 
+  //key.data_meta.version++;
+  ASSERT_EQ(kdb_mgr.put(1,key,*db.get_test_value(4),1,10000),TAIR_RETURN_SUCCESS);
+  ASSERT_EQ(kdb_mgr.get(1,key,value),TAIR_RETURN_SUCCESS);
+  printf("version:key[%d]-value[%d]\n",key.data_meta.version, value.data_meta.version);
+  ASSERT_EQ(compareDataValue(value,*db.get_test_value(4)),true);
 }
 
 TEST_F(TestKdbBase, TestKdbManagerRemove)
