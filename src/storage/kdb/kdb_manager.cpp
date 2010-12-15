@@ -186,7 +186,7 @@ namespace tair {
         } else {
           bool bs = scan_kdb->begin_scan();
           if (!bs) {
-            log_error("open bucket[%d] for scan failed");
+            log_error("open bucket[%d] for scan failed", bucket_id);
           }
         }
       }

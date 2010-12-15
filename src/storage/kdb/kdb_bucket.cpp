@@ -309,7 +309,16 @@ namespace tair {
         }
 
         cursor = db.cursor(); // open the cursor
-        return cursor->jump(); // jump to the first record
+        bool ret = cursor->jump(); // jump to the first record
+        if (ret == false) {
+          const kyotocabinet::BasicDB::Error& err = db.error();
+          if (err == kyotocabinet::BasicDB::Error::NOREC) {
+            ret = true;
+          } else {
+            print_db_error("begin scan error");
+          }
+        }
+        return ret;
       }
 
       bool kdb_bucket::end_scan() {
