@@ -2,6 +2,12 @@ if WITH_KDB
 KDB_CPPFLAGS= -DWITH_KDB -I${top_srcdir}/src/storage/kdb -I${top_srcdir}/src/storage/kdb/kyotocabinet 
 KDB_LDFLAGS= $(top_builddir)/src/storage/kdb/libkdb.a $(top_builddir)/src/storage/kdb/kyotocabinet/libkyotocabinet.a 
 endif
+if WITH_LDB
+LDB_CPPFLAGS= -DWITH_LDB -I${top_srcdir}/src/storage/ldb
+LDB_LDFLAGS= $(top_builddir)/src/storage/ldb/libldb.a $(top_builddir)/src/storage/ldb/leveldb/libleveldb.a \
+	-lsnappy		#TODO: config ... 
+endif
+
 AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     -I$(TBLIB_ROOT)/include/tbnet \
 	     -I${top_srcdir}/src \
@@ -13,6 +19,7 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     -I${top_srcdir}/src/storage/fdb \
 	     -I${top_srcdir}/src/storage/mdb \
 	     $(KDB_CPPFLAGS) \
+	     $(LDB_CPPFLAGS) \
 	     -I${top_srcdir}/src/plugin \
 	     @BOOST_CPPFLAGS@
 
@@ -23,6 +30,7 @@ LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
       $(top_builddir)/src/storage/mdb/libmdb.a \
       $(top_builddir)/src/storage/fdb/libfdb.a \
       $(KDB_LDFLAGS) \
+      $(LDB_LDFLAGS) \
       $(top_builddir)/src/plugin/libtair_plugins.a \
       $(top_builddir)/src/packets/libtair_packets.a \
       $(top_builddir)/src/storage/libdump.a \
@@ -34,7 +42,7 @@ LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
 sbin_PROGRAMS=tair_server
 
 include_HEADERS=item_manager.hpp tair_manager.hpp table_manager.hpp duplicate_manager.hpp duplicate_base.hpp \
- 		update_log.hpp tinyjson.hpp
+		update_log.hpp tinyjson.hpp
 
 tair_server_SOURCES=duplicate_manager.cpp item_manager.cpp request_processor.cpp tair_manager.cpp update_log.cpp \
 		    heartbeat_thread.cpp migrate_manager.cpp table_manager.cpp tair_server.cpp \

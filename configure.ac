@@ -50,6 +50,18 @@ AC_ARG_WITH([kdb],
 	   )
 AM_CONDITIONAL([WITH_KDB],[test x$with_kdb = xyes])
 
+AC_ARG_WITH([ldb],
+		AS_HELP_STRING([--with-ldb],
+			[with ldb (default is NO)]),
+		[
+		if test "$withval" = "yes"; then
+		with_ldb=yes
+		fi
+		],
+		[ with_ldb=no ]
+	   )
+AM_CONDITIONAL([WITH_LDB],[test x$with_ldb = xyes])
+
 AX_BOOST([1.30.0],,exit 1)
 AC_CONFIG_FILES([\
 		 Makefile \
@@ -61,6 +73,8 @@ AC_CONFIG_FILES([\
 		 src/storage/mdb/Makefile \
 		 src/storage/kdb/Makefile \
 		 src/storage/kdb/kyotocabinet/Makefile \
+		 src/storage/ldb/Makefile \
+		 src/storage/ldb/leveldb/Makefile \
 		 src/packets/Makefile \
 		 src/configserver/Makefile \
 		 src/dataserver/Makefile \

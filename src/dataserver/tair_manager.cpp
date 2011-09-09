@@ -17,6 +17,9 @@
 #ifdef WITH_KDB
 #include "kdb_manager.h"
 #endif
+#ifdef WITH_LDB
+#include "ldb_manager.hpp"
+#endif
 #include "tair_manager.hpp"
 #include "migrate_manager.hpp"
 #include "define.hpp"
@@ -93,6 +96,12 @@ namespace tair {
          storage_mgr = new tair::storage::kdb::kdb_manager();
       }
 #endif 
+#ifdef WITH_LDB
+      else if (strcmp(se_name, "ldb") == 0) {
+        log_info("init storage engine ldb");
+        storage_mgr = new tair::storage::ldb::LdbManager();
+      }
+#endif
       else {
          return false;
       }

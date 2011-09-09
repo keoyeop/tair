@@ -77,6 +77,7 @@
 #define CONFSERVER_SECTION           "configserver"
 #define TAIRFDB_SECTION              "fdb"
 #define TAIRKDB_SECTION              "kdb"
+#define TAIRLDB_SECTION              "ldb"
 // TAIR_SERVER
 #define TAIR_PORT                    "port"
 #define TAIR_HEARTBEAT_PORT          "heartbeat_port"
@@ -132,6 +133,10 @@
 #define KDB_DEFAULT_DATA_DIR            "data/kdb"
 #define LOCKER_SIZE                     128
 
+// LDB
+#define LDB_DATA_DIR                    "data_dir"
+#define LDB_DEFAULT_DATA_DIR            "data/ldb"
+#define LDB_DB_INIT_STRATEGY            "db_init_strategy"
 
 // file storage engine config items
 #define FDB_INDEX_MMAP_SIZE             "index_mmap_size"
