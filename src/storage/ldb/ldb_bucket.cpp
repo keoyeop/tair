@@ -26,14 +26,20 @@ namespace tair
     {
       using namespace tair::common;
 
-      LdbBucket::LdbBucket() : db_(NULL)
+      LdbBucket::LdbBucket() : db_(NULL), scan_it_(NULL)
       {
         db_path_[0] = '\0';
+        mutex_ = new tbsys::CThreadMutex[LOCKER_SIZE];
+        scan_end_key_[0] = '\0';
       }
 
       LdbBucket::~LdbBucket()
       {
-        stop();        
+        if (mutex_ != NULL)
+        {
+          delete[] mutex_;
+        }
+        stop();
       }
 
       bool LdbBucket::start(int bucket_number)
@@ -52,14 +58,10 @@ namespace tair
           // leveldb data path
           snprintf(db_path_, PATH_MAX, "%s/tair_ldb_%06d", data_dir, bucket_number);
 
-          // TODO: config options ..
-          // write_buffer_size, max_open_files, block_cache etc.
           leveldb::Options options;
-          options.create_if_missing = true;
-          options.paranoid_checks = true;
-          options.error_if_exists = false; // exist is ok
-          options.max_open_files = 65535;
+          sanitize_option(options);
 
+          log_debug("init ldb : max_open_file: %d, write_buffer: %d", options.max_open_files, options.write_buffer_size);
           leveldb::Status status = leveldb::DB::Open(options, db_path_, &db_);
           if (!status.ok())
           {
@@ -68,6 +70,7 @@ namespace tair
           }
           else
           {
+            stat_manager_.start(bucket_number, db_path_);
             log_debug("ldb init database %d ok", bucket_number);
           }
         }
@@ -100,15 +103,14 @@ namespace tair
         }
       }
 
-      int LdbBucket::put(data_entry& key, data_entry& value, bool version_care, uint32_t expire_time)
+      int LdbBucket::put(int bucket_number, data_entry& key, data_entry& value, bool version_care, uint32_t expire_time)
       {
         assert(db_ != NULL);
-        kdb_item item;
 
         int cdate = 0;
         int mdate = 0;
         int edate = 0;
-        // int stat_data_size = 0;
+        int stat_data_size = 0, stat_use_size = 0;
         int rc = TAIR_RETURN_SUCCESS;
 
         if(key.data_meta.cdate == 0 || version_care)
@@ -127,45 +129,42 @@ namespace tair
           edate = key.data_meta.edate;
         }
 
-        // int li = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % LOCKER_SIZE;
-        // if(!locks->lock(li, true)) {
-        //   log_error("acquire lock failed");
-        //   return TAIR_RETURN_FAILED;
-        // }
+        tbsys::CThreadGuard mutex_guard(get_mutex(key));
 
+        LdbKey ldb_key(bucket_number, key.get_data(), key.get_size());
+        LdbItem ldb_item;
         std::string old_value;
-        leveldb::Status status = db_->Get(leveldb::ReadOptions(), leveldb::Slice(key.get_data(), key.get_size()),
+        leveldb::Status status = db_->Get(leveldb::ReadOptions(), leveldb::Slice(ldb_key.data(), ldb_key.size()),
                                           &old_value);
 
         if (status.ok())
         {
           // key already exist
-          item.full_value = const_cast<char*>(old_value.data());
-          item.full_value_size = old_value.length();
-          item.decode();
-          cdate = item.meta.cdate; // set back the create time
+          ldb_item.assign(const_cast<char*>(old_value.data()), old_value.length());
 
-          if (item.is_expired())
+          if (ldb_item.is_expired())
           {
-            item.meta.version = 0;
+            ldb_item.meta().version_ = 0;
           }
-          else if (version_care)
+          else
           {
-            // item is not expired & care version, check version
-            if (key.data_meta.version != 0
-                && key.data_meta.version != item.meta.version)
+            cdate = ldb_item.meta().cdate_; // set back the create time
+            if (version_care)
             {
-              rc = TAIR_RETURN_VERSION_ERROR;
+              // item is not expired & care version, check version
+              if (key.data_meta.version != 0
+                  && key.data_meta.version != ldb_item.meta().version_)
+              {
+                rc = TAIR_RETURN_VERSION_ERROR;
+              }
             }
           }
 
-          item.full_value = NULL;
-          item.full_value_size = 0;
-
-          // if (rc == TAIR_RETURN_SUCCESS)
-          // {
-          //   stat_data_size -= val_size + key.get_size();
-          // }
+          if (rc == TAIR_RETURN_SUCCESS)
+          {
+            stat_data_size -= ldb_key.key_size() + ldb_item.value_size();
+            stat_use_size -= ldb_key.size() + ldb_item.size();
+          }
         }
         else if (!status.IsNotFound()) // occure error, but not key NotFound
         {
@@ -175,28 +174,24 @@ namespace tair
 
         if (rc == TAIR_RETURN_SUCCESS)
         {
-          item.meta.flag = value.data_meta.flag;
-          item.meta.cdate = cdate;
-          item.meta.mdate = mdate;
-          item.meta.edate = edate;
+          ldb_item.meta().flag_ = value.data_meta.flag;
+          ldb_item.meta().cdate_ = cdate;
+          ldb_item.meta().mdate_ = mdate;
+          ldb_item.meta().edate_ = edate;
           if (version_care)
           {
-            item.meta.version++;
+            ldb_item.meta().version_++;
           }
           else
           {
-            item.meta.version = key.data_meta.version;
+            ldb_item.meta().version_ = key.data_meta.version;
           }
 
-          item.value = value.get_data();
-          item.value_size = value.get_size();
+          ldb_item.set(value.get_data(), value.get_size());
 
-          item.encode();
-          // stat_data_size += item.full_value_size + key.get_size();
-          
           // TODO: option specified ..
-          status = db_->Put(leveldb::WriteOptions(), leveldb::Slice(key.get_data(), key.get_size()),
-                            leveldb::Slice(item.full_value, item.full_value_size));
+          status = db_->Put(leveldb::WriteOptions(), leveldb::Slice(ldb_key.data(), ldb_key.size()),
+                            leveldb::Slice(ldb_item.data(), ldb_item.size()));
 
           if (!status.ok())
           {
@@ -205,36 +200,36 @@ namespace tair
           }
           else
           {
-            // stat_mgr.stat_add(key.area, stat_data_size, stat_data_size);
+            stat_data_size += ldb_key.key_size() + ldb_item.value_size();
+            stat_use_size += ldb_key.size() + ldb_item.size();
+            stat_manager_.stat_add(key.area, stat_data_size, stat_use_size);
           }
 
-          // free encoded value
-          item.free_full_value();
-
           //update key's meta info
-          key.data_meta.flag = item.meta.flag;
-          key.data_meta.cdate = item.meta.cdate;
-          key.data_meta.edate = item.meta.edate;
-          key.data_meta.mdate = item.meta.mdate;
-          key.data_meta.version = item.meta.version;
+          key.data_meta.flag = ldb_item.meta().flag_;
+          key.data_meta.cdate = ldb_item.meta().cdate_;
+          key.data_meta.edate = ldb_item.meta().edate_;
+          key.data_meta.mdate = ldb_item.meta().mdate_;
+          key.data_meta.version = ldb_item.meta().version_;
           key.data_meta.keysize = key.get_size();
-          key.data_meta.valsize = item.value_size;
+          key.data_meta.valsize = value.get_size();
         }
 
-        // locks->unlock(li);
         log_debug("ldb::put %s, key len: %d, value len: %d", TAIR_RETURN_SUCCESS == rc ? "ok" : "fail",
                   key.get_size(), value.get_size());
         return rc;
       }
 
-      int LdbBucket::get(data_entry& key, data_entry& value)
+      int LdbBucket::get(int bucket_number, data_entry& key, data_entry& value)
       {
         assert(db_ != NULL);
 
         int rc = TAIR_RETURN_SUCCESS;
 
         std::string old_value;
-        leveldb::Status status = db_->Get(leveldb::ReadOptions(), leveldb::Slice(key.get_data(), key.get_size()),
+        LdbKey ldb_key(bucket_number, key.get_data(), key.get_size());
+        LdbItem ldb_item;
+        leveldb::Status status = db_->Get(leveldb::ReadOptions(), leveldb::Slice(ldb_key.data(), ldb_key.size()),
                                           &old_value);
 
         if (status.IsNotFound())
@@ -244,36 +239,25 @@ namespace tair
         }
         else if (status.ok())
         {
-          kdb_item item;
-          item.full_value = const_cast<char*>(old_value.data());
-          item.full_value_size = old_value.length();
-          item.decode();
+          ldb_item.assign(const_cast<char*>(old_value.data()), old_value.length());
 
-          if (item.is_expired())
+          if (ldb_item.is_expired())
           {
-            log_debug("remove expire data return: %d", remove(key, false));
+            log_debug("remove expire data return: %d", remove(bucket_number, key, false));
             rc = TAIR_RETURN_DATA_EXPIRED;
           }
           else
           {
-            value.set_data(item.value, item.value_size);
+            value.set_data(ldb_item.value(), ldb_item.value_size());
             
             //update meta info
-            value.data_meta.flag = item.meta.flag;
-            value.data_meta.cdate = item.meta.cdate;
-            value.data_meta.edate = item.meta.edate;
-            value.data_meta.mdate = item.meta.mdate;
-            value.data_meta.version = item.meta.version;
-            value.data_meta.valsize = item.value_size;
-            value.data_meta.keysize = key.get_size();
-
-            key.data_meta.flag = item.meta.flag;
-            key.data_meta.cdate = item.meta.cdate;
-            key.data_meta.edate = item.meta.edate;
-            key.data_meta.mdate = item.meta.mdate;
-            key.data_meta.version = item.meta.version;
-            key.data_meta.keysize = key.get_size();
-            key.data_meta.valsize = item.value_size;
+            key.data_meta.flag = value.data_meta.flag = ldb_item.meta().flag_;
+            key.data_meta.cdate = value.data_meta.cdate = ldb_item.meta().cdate_;
+            key.data_meta.edate = value.data_meta.edate = ldb_item.meta().edate_;
+            key.data_meta.mdate = value.data_meta.mdate = ldb_item.meta().mdate_;
+            key.data_meta.version = value.data_meta.version = ldb_item.meta().version_;
+            key.data_meta.keysize = value.data_meta.keysize = key.get_size();
+            key.data_meta.valsize = value.data_meta.valsize = ldb_item.value_size();
           }
         }
         else                    // get occur error
@@ -288,37 +272,29 @@ namespace tair
         return rc;
       }
 
-      int LdbBucket::remove(data_entry& key, bool version_care)
+      int LdbBucket::remove(int bucket_number, data_entry& key, bool version_care)
       {
         assert(db_ != NULL);
 
         int rc = TAIR_RETURN_SUCCESS;
 
-        // int stat_data_size = 0;
-
-        // int li = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % LOCKER_SIZE;
-        // if(!locks->lock(li, true)) {
-        //   log_error("acquire lock failed");
-        //   return TAIR_RETURN_FAILED;
-        // }
-
+        tbsys::CThreadGuard mutex_guard(get_mutex(key));
+        LdbKey ldb_key(bucket_number, key.get_data(), key.get_size());
+        LdbItem ldb_item;
         leveldb::Status status;
+
         if (version_care)
         {
           std::string old_value;
-          status = db_->Get(leveldb::ReadOptions(), leveldb::Slice(key.get_data(), key.get_size()),
+          status = db_->Get(leveldb::ReadOptions(), leveldb::Slice(ldb_key.data(), ldb_key.size()),
                             &old_value);
 
           if (status.ok())
           {
-            kdb_item item;
-            item.full_value = const_cast<char*>(old_value.data());
-            item.full_value_size = old_value.length();
-            // stat_data_size = val_size + key.get_size();
-            item.decode();
+            ldb_item.assign(const_cast<char*>(old_value.data()), old_value.length());
 
             if (key.data_meta.version != 0
-                && key.data_meta.version != item.meta.version)
+                && key.data_meta.version != ldb_item.meta().version_)
             {
               rc = TAIR_RETURN_VERSION_ERROR;
             }
@@ -332,7 +308,7 @@ namespace tair
 
         if (rc == TAIR_RETURN_SUCCESS)
         {
-          status = db_->Delete(leveldb::WriteOptions(), leveldb::Slice(key.get_data(), key.get_size()));
+          status = db_->Delete(leveldb::WriteOptions(), leveldb::Slice(ldb_key.data(), ldb_key.size()));
           if (!status.ok())
           {
             log_error("remove ldb item fail: %s", status.ToString().c_str()); // ignore return status
@@ -340,33 +316,179 @@ namespace tair
           }
           else
           {
-            // stat_mgr.stat_sub(key.area, stat_data_size, stat_data_size);
+            stat_manager_.stat_sub(key.area, ldb_key.key_size() + ldb_item.value_size(), ldb_key.size() + ldb_item.size());
           }
         }
 
-        // locks->unlock(li);
         log_debug("ldb::get %s, key len: %d", TAIR_RETURN_SUCCESS == rc ? "ok" : "fail",
                   key.get_size());
 
         return rc;
       }
 
-      bool LdbBucket::begin_scan()
+      bool LdbBucket::begin_scan(int bucket_number)
       {
-        return true;
+        bool ret = true;
+        if (scan_it_ != NULL)   // not close previous scan
+        {
+          delete scan_it_;
+          scan_it_ = NULL;
+        }
+
+        char scan_key[LDB_KEY_META_SIZE];
+        LdbKey::build_key_meta(bucket_number, scan_key);
+
+        scan_it_ = db_->NewIterator(leveldb::ReadOptions());
+        if (NULL == scan_it_)
+        {
+          log_error("get ldb scan iterator fail");
+          ret = false;
+        }
+        else
+        {
+          scan_it_->Seek(leveldb::Slice(scan_key, sizeof(scan_key)));
+        }
+        if (ret)
+        {
+          LdbKey::build_key_meta(bucket_number+1, scan_end_key_);
+        }
+        return ret;
       }
 
       bool LdbBucket::end_scan()
       {
+        if (scan_it_ != NULL)
+        {
+          delete scan_it_;
+          scan_it_ = NULL;
+        }
+        scan_end_key_[0] = '\0';
         return true;
       }
 
-      int LdbBucket::get_next_item(item_data_info* &data)
+      bool LdbBucket::get_next_item(item_data_info* &data, bool& still_have)
       {
+        bool ret = true;
+        still_have = false;
+
+        if (NULL == scan_it_)
+        {
+          log_error("not begin_scan");
+          ret = false;
+        }
+        else
+        {
+          while(1)
+          {
+            if (scan_it_->Valid() && scan_it_->key().ToString() < scan_end_key_)
+            {
+              LdbItem ldb_item;
+              ldb_item.assign(const_cast<char*>(scan_it_->value().data()), scan_it_->value().size());
+          
+              if (ldb_item.is_expired())
+              {
+                // TODO: remove
+                continue;
+              }
+              else
+              {
+                int key_size = scan_it_->key().size();
+                int total_size = ITEM_HEADER_LEN + key_size + ldb_item.value_size();
+                data = (item_data_info *) new char[total_size];
+                data->header.keysize = key_size;
+                data->header.version = ldb_item.meta().version_;
+                data->header.valsize = ldb_item.value_size();
+                data->header.cdate = ldb_item.meta().cdate_;
+                data->header.mdate = ldb_item.meta().mdate_;
+                data->header.edate = ldb_item.meta().edate_;
+
+                memcpy(data->m_data, scan_it_->key().data(), key_size);
+                memcpy(data->m_data+key_size, ldb_item.value(), ldb_item.value_size());
+              }
+              scan_it_->Next();
+            }
+          }
+        }
+
         return 0;
       }
 
+      void LdbBucket::get_stat(tair_stat* stat)
+      {
+        if (NULL != db_)        // not init now, no stat
+        {
+          log_debug("ldb bucket get stat %p", stat);
+          std::string stat_value;
+          if (get_db_stat(stat_value))
+          {
+            // maybe return
+            log_info("ldb status: %s", stat_value.c_str());
+          }
+          else
+          {
+            log_error("get ldb status fail, uncompleted status: %s", stat_value.c_str());
+          }
+
+          if (stat != NULL)
+          {
+            tair_pstat *pstat = stat_manager_.get_stat();
+            for(int i = 0; i < TAIR_MAX_AREA_COUNT; i++)
+            {
+              stat[i].data_size_value += pstat[i].data_size();
+              stat[i].use_size_value += pstat[i].use_size();
+              stat[i].item_count_value += pstat[i].item_count();
+            }
+          }
+        }
+      }
+
+      // just string value
+      bool LdbBucket::get_db_stat(std::string& value)
+      {
+        assert(db_ != NULL);
+        value.clear();
+
+        bool ret = true;
+        char name[32];
+        snprintf(name, sizeof(name), "%s", "leveldb.stats");
+        std::string stat_value;
+          
+        if (!(ret = db_->GetProperty(leveldb::Slice(std::string(name)), &stat_value)))
+        {
+          log_error("get db stats fail");
+        }
+        else
+        {
+          value += stat_value;
+        }
+        return ret;
+      }
+
+      void LdbBucket::sanitize_option(leveldb::Options& options)
+      {
+        options.error_if_exists = false; // exist is ok
+        options.create_if_missing = true; // create if not exist
+        options.paranoid_checks = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_INIT_CHECK, 0) > 0;
+        options.max_open_files = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_OPEN_FILES, 655350);
+        options.write_buffer_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_WRITE_BUFFER_SIZE, 4194304); // 4M
+        options.block_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_SIZE, 4096); // 4K
+        options.block_restart_interval = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_RESTART_INTERVAL, 16); // 16
+        options.compression = static_cast<leveldb::CompressionType>(TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_COMPRESSION, leveldb::kSnappyCompression));
+        options.kL0_CompactionTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_COMPACTION_TRIGGER, 4);
+        options.kL0_SlowdownWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_SLOWDOWN_WRITE_TRIGGER, 8);
+        options.kL0_StopWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_STOP_WRITE_TRIGGER, 12);
+        options.kMaxMemCompactLevel = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_MEMCOMPACT_LEVEL, 2);
+        options.kTargetFileSize = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_TARGET_FILE_SIZE, 2097152);
+        options.kBlockSize = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_SIZE, 4096);
+        // remainning avaliable config: comparator, env, block cache.
+      }
+
+      tbsys::CThreadMutex* LdbBucket::get_mutex(tair::common::data_entry& key)
+      {
+        return mutex_ + util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % LOCKER_SIZE;
+      }
 
     }
   }
 }
+

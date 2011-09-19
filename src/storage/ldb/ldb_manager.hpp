@@ -40,6 +40,7 @@ namespace tair
         virtual bool init_buckets(const std::vector <int>& buckets) = 0;
         virtual void close_buckets(const std::vector <int>& buckets) = 0;
         virtual LdbBucket* get_bucket(const int bucket_number) = 0;
+        virtual void get_stats(tair_stat* stat) = 0;
       };
 
       class SingleLdbInstance : public LdbInstance
@@ -51,6 +52,7 @@ namespace tair
         virtual bool init_buckets(const std::vector <int>& buckets);
         virtual void close_buckets(const std::vector <int>& buckets);
         virtual LdbBucket* get_bucket(const int bucket_number);
+        virtual void get_stats(tair_stat* stat);
 
       private:
         LdbBucket* ldb_bucket_;
@@ -68,6 +70,7 @@ namespace tair
         virtual bool init_buckets(const std::vector <int>& buckets);
         virtual void close_buckets(const std::vector <int>& buckets);
         virtual LdbBucket* get_bucket(const int bucket_number);
+        virtual void get_stats(tair_stat* stat);
 
       private:
         LDB_BUCKETS_MAP* buckets_map_;
@@ -102,6 +105,7 @@ namespace tair
 
       private:
         LdbInstance* ldb_instance_;
+        LdbBucket* scan_ldb_;
         tbsys::CThreadMutex lock_;
       };
     }

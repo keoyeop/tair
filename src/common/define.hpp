@@ -136,7 +136,18 @@
 // LDB
 #define LDB_DATA_DIR                    "data_dir"
 #define LDB_DEFAULT_DATA_DIR            "data/ldb"
-#define LDB_DB_INIT_STRATEGY            "db_init_strategy"
+#define LDB_DB_INIT_STRATEGY            "ldb_init_strategy"
+#define LDB_INIT_CHECK                  "ldb_init_check"
+#define LDB_MAX_OPEN_FILES              "ldb_max_open_files" 
+#define LDB_WRITE_BUFFER_SIZE           "ldb_write_buffer_size"
+#define LDB_BLOCK_RESTART_INTERVAL      "ldb_block_restart_interval"
+#define LDB_COMPRESSION                 "ldb_compression"
+#define LDB_L0_COMPACTION_TRIGGER       "ldb_l0_compaction_trigger"
+#define LDB_L0_SLOWDOWN_WRITE_TRIGGER   "ldb_l0_slowdown_write_trigger"
+#define LDB_L0_STOP_WRITE_TRIGGER       "ldb_l0_stop_write_trigger"
+#define LDB_MAX_MEMCOMPACT_LEVEL        "ldb_max_memcompact_level"
+#define LDB_TARGET_FILE_SIZE            "ldb_target_file_size"
+#define LDB_BLOCK_SIZE                  "ldb_block_size"
 
 // file storage engine config items
 #define FDB_INDEX_MMAP_SIZE             "index_mmap_size"

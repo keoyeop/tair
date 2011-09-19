@@ -21,7 +21,15 @@ Options::Options()
       block_cache(NULL),
       block_size(4096),
       block_restart_interval(16),
-      compression(kSnappyCompression) {
+      compression(kSnappyCompression),
+      kL0_CompactionTrigger(4),
+      kL0_SlowdownWritesTrigger(8),
+      kL0_StopWritesTrigger(12),
+      kMaxMemCompactLevel(2),
+      kTargetFileSize(2 * 1048576),
+      kMaxGrandParentOverlapBytes(10 * kTargetFileSize),
+      kBlockSize(4096)
+{
 }
 
 

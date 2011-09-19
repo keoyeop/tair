@@ -87,6 +87,7 @@ Options SanitizeOptions(const std::string& dbname,
     src.env->CreateDir(dbname);  // In case it does not exist
     src.env->RenameFile(InfoLogFileName(dbname), OldInfoLogFileName(dbname));
     Status s = src.env->NewLogger(InfoLogFileName(dbname), &result.info_log);
+
     if (!s.ok()) {
       // No place suitable for logging
       result.info_log = NULL;
@@ -95,6 +96,16 @@ Options SanitizeOptions(const std::string& dbname,
   if (result.block_cache == NULL) {
     result.block_cache = NewLRUCache(8 << 20);
   }
+
+  // config sort of
+  config::kL0_CompactionTrigger = src.kL0_CompactionTrigger;
+  config::kL0_SlowdownWritesTrigger = src.kL0_SlowdownWritesTrigger;
+  config::kL0_StopWritesTrigger = src.kL0_StopWritesTrigger;
+  config::kMaxMemCompactLevel = src.kMaxMemCompactLevel;
+  config::kTargetFileSize = src.kTargetFileSize;
+  config::kMaxGrandParentOverlapBytes = src.kMaxGrandParentOverlapBytes;
+  config::kBlockSize = src.kBlockSize;
+
   return result;
 }
 
@@ -1225,7 +1236,7 @@ bool DBImpl::GetProperty(const Slice& property, std::string* value) {
       }
     }
     return true;
-  }
+  }    
 
   return false;
 }

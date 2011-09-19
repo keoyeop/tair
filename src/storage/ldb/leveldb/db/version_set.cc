@@ -20,12 +20,6 @@
 
 namespace leveldb {
 
-static const int kTargetFileSize = 2 * 1048576;
-
-// Maximum bytes of overlaps in grandparent (i.e., level+2) before we
-// stop building a single file in a level->level+1 compaction.
-static const int64_t kMaxGrandParentOverlapBytes = 10 * kTargetFileSize;
-
 static double MaxBytesForLevel(int level) {
   // Note: the result for level zero is not really used since we set
   // the level-0 compaction threshold based on number of files.
@@ -38,7 +32,7 @@ static double MaxBytesForLevel(int level) {
 }
 
 static uint64_t MaxFileSizeForLevel(int level) {
-  return kTargetFileSize;  // We could vary per level to reduce number of files?
+  return config::kTargetFileSize;  // We could vary per level to reduce number of files?
 }
 
 namespace {
@@ -1223,7 +1217,7 @@ bool Compaction::IsTrivialMove() const {
   // a very expensive merge later on.
   return (num_input_files(0) == 1 &&
           num_input_files(1) == 0 &&
-          TotalFileSize(grandparents_) <= kMaxGrandParentOverlapBytes);
+          TotalFileSize(grandparents_) <= config::kMaxGrandParentOverlapBytes);
 }
 
 void Compaction::AddInputDeletions(VersionEdit* edit) {
@@ -1268,7 +1262,7 @@ bool Compaction::ShouldStopBefore(const Slice& internal_key) {
   }
   seen_key_ = true;
 
-  if (overlapped_bytes_ > kMaxGrandParentOverlapBytes) {
+  if (overlapped_bytes_ > config::kMaxGrandParentOverlapBytes) {
     // Too much overlap for current output; start new output
     overlapped_bytes_ = 0;
     return true;

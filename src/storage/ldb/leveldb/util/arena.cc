@@ -3,11 +3,10 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "util/arena.h"
+#include "util/config.h"
 #include <assert.h>
 
 namespace leveldb {
-
-static const int kBlockSize = 4096;
 
 Arena::Arena() {
   blocks_memory_ = 0;
@@ -22,7 +21,7 @@ Arena::~Arena() {
 }
 
 char* Arena::AllocateFallback(size_t bytes) {
-  if (bytes > kBlockSize / 4) {
+  if (bytes > config::kBlockSize / 4) {
     // Object is more than a quarter of our block size.  Allocate it separately
     // to avoid wasting too much space in leftover bytes.
     char* result = AllocateNewBlock(bytes);
@@ -30,8 +29,8 @@ char* Arena::AllocateFallback(size_t bytes) {
   }
 
   // We waste the remaining space in the current block.
-  alloc_ptr_ = AllocateNewBlock(kBlockSize);
-  alloc_bytes_remaining_ = kBlockSize;
+  alloc_ptr_ = AllocateNewBlock(config::kBlockSize);
+  alloc_bytes_remaining_ = config::kBlockSize;
 
   char* result = alloc_ptr_;
   alloc_ptr_ += bytes;

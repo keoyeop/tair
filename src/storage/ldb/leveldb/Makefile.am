@@ -17,4 +17,4 @@ libleveldb_a_SOURCES= \
 	./table/merger.cc ./table/table.cc ./table/table_builder.cc ./table/two_level_iterator.cc \
 	./util/arena.cc ./util/cache.cc ./util/coding.cc ./util/comparator.cc ./util/crc32c.cc \
 	./util/env.cc ./util/env_posix.cc ./util/hash.cc ./util/histogram.cc ./util/logging.cc \
-	./util/options.cc ./util/status.cc
+	./util/options.cc ./util/status.cc ./util/config.h ./util/config.cc

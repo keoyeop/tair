@@ -99,6 +99,11 @@ namespace tair
         return ret;
       }
 
+      void SingleLdbInstance::get_stats(tair_stat* stat)
+      {
+        return ldb_bucket_->get_stat(stat);
+      }
+
       // MultiLdbInstance
       MultiLdbInstance::MultiLdbInstance()
       {
@@ -199,8 +204,17 @@ namespace tair
         return ret;
       }
 
+      void MultiLdbInstance::get_stats(tair_stat* stat)
+      {
+        for (LDB_BUCKETS_MAP::iterator it = buckets_map_->begin();
+             it != buckets_map_->end(); ++it)
+        {
+          it->second->get_stat(stat);          
+        }
+      }
+
       //////////// LdbManager
-      LdbManager::LdbManager()
+      LdbManager::LdbManager() : scan_ldb_(NULL)
       {
         // for test which one is better
         int strategy = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DB_INIT_STRATEGY, 0);
@@ -233,7 +247,7 @@ namespace tair
         }
         else
         {
-          rc = bucket->put(key, value, version_care, expire_time);  
+          rc = bucket->put(bucket_number, key, value, version_care, expire_time);
         }
 
         return rc;
@@ -252,7 +266,7 @@ namespace tair
         }
         else
         {
-          rc = bucket->get(key, value);
+          rc = bucket->get(bucket_number, key, value);
         }
 
         return rc;
@@ -271,7 +285,7 @@ namespace tair
         }
         else
         {
-          rc = bucket->remove(key, version_care);
+          rc = bucket->remove(bucket_number, key, version_care);
         }
 
         return rc;
@@ -297,19 +311,50 @@ namespace tair
         return ldb_instance_->close_buckets(buckets);
       }
 
+      // only one bucket can scan at any time ?
       void LdbManager::begin_scan(md_info& info)
       {
-          
+        if ((scan_ldb_ = ldb_instance_->get_bucket(info.db_id)) == NULL)
+        {
+          log_error("scan bucket[%u] not exist", info.db_id);
+        }
+        else
+        {
+          if (!scan_ldb_->begin_scan(info.db_id))
+          {
+            log_error("begin scan bucket[%u] fail", info.db_id);
+          }
+        }
       }
 
       void LdbManager::end_scan(md_info& info)
       {
-          
+        if (scan_ldb_ != NULL)
+        {
+          scan_ldb_->end_scan();
+          scan_ldb_ = NULL;
+        }
       }
 
+      // only get one item once
       bool LdbManager::get_next_items(md_info& info, std::vector <item_data_info *>& list)
       {
-        return true;          
+        bool ret = true;
+        if (NULL == scan_ldb_)
+        {
+          ret = false;
+          log_error("scan bucket not opened");
+        }
+        else
+        {
+          item_data_info* data = NULL;
+          bool still_have = false;
+          if ((ret = scan_ldb_->get_next_item(data, still_have)))
+          {
+            list.push_back(data);
+          }
+        }
+        return ret;
       }
 
       void LdbManager::set_area_quota(int area, uint64_t quota)
@@ -322,8 +367,16 @@ namespace tair
 
       void LdbManager::get_stats(tair_stat* stat)
       {
-          
+        tbsys::CThreadGuard guard(&lock_);
+        log_debug("ldbmanager get stats");
+        ldb_instance_->get_stats(stat);
+        if (stat != NULL)
+        {
+          log_info("stats: datasize: %"PRI64_PREFIX"u, usesize: %"PRI64_PREFIX"u, itemcount: %"PRI64_PREFIX"u",
+                    stat->data_size_value, stat->use_size_value, stat->item_count_value);
+        }
       }
+
     }
   }
 }

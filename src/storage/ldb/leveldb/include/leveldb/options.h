@@ -6,6 +6,7 @@
 #define STORAGE_LEVELDB_INCLUDE_OPTIONS_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 namespace leveldb {
 
@@ -126,6 +127,35 @@ struct Options {
   // incompressible, the kSnappyCompression implementation will
   // efficiently detect that and will switch to uncompressed mode.
   CompressionType compression;
+
+  // sort of config that is used in db but not get by passed option ..
+
+// Level-0 compaction is started when we hit this many files.
+  int kL0_CompactionTrigger;
+
+// Soft limit on number of level-0 files.  We slow down writes at this point.
+  int kL0_SlowdownWritesTrigger;
+
+// Maximum number of level-0 files.  We stop writes at this point.
+  int kL0_StopWritesTrigger;
+
+// Maximum level to which a new compacted memtable is pushed if it
+// does not create overlap.  We try to push to level 2 to avoid the
+// relatively expensive level 0=>1 compactions and to avoid some
+// expensive manifest file operations.  We do not push all the way to
+// the largest level since that can generate a lot of wasted disk
+// space if the same key space is being repeatedly overwritten.
+  int kMaxMemCompactLevel;
+
+// sstable size
+  int kTargetFileSize;
+
+// Maximum bytes of overlaps in grandparent (i.e., level+2) before we
+// stop building a single file in a level->level+1 compaction.
+  int64_t kMaxGrandParentOverlapBytes;
+
+// arena block size
+  int kBlockSize;
 
   // Create an Options object with default values for all fields.
   Options();
