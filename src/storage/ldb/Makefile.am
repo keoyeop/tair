@@ -7,4 +7,8 @@ LDADD=$(TBLIB_ROOT)/lib/libtbsys.a ${top_builddir}/src/storage/ldb/leveldb/lible
 AM_LDFLAGS=-lpthread   ${GCOV_LIB}
 noinst_LIBRARIES=libldb.a
 
-libldb_a_SOURCES=ldb_manager.cpp ldb_manager.hpp ldb_bucket.hpp ldb_bucket.cpp stat_manager.cpp stat_manager.hpp
+libldb_a_SOURCES=ldb_manager.cpp ldb_manager.hpp ldb_bucket.hpp ldb_bucket.cpp stat_manager.cpp stat_manager.hpp ldb_define.h
+
+# test_ldb_LDADD=libldb.a
+# noinst_PROGRAMS=test_ldb
+# test_ldb_SOURCES=test_ldb.cpp
