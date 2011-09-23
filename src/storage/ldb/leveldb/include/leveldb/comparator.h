@@ -57,7 +57,6 @@ class Comparator {
 // ordering.  The result remains the property of this module and
 // must not be deleted.
 extern const Comparator* BytewiseComparator();
-
 }
 
 #endif  // STORAGE_LEVELDB_INCLUDE_COMPARATOR_H_

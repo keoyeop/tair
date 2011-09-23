@@ -21,6 +21,7 @@
 
 #include "common/data_entry.hpp"
 #include "ldb_define.hpp"
+#include "bg_task.hpp"
 #include "stat_manager.hpp"
 
 namespace tair
@@ -37,7 +38,7 @@ namespace tair
 
         bool start(int bucket_number);
         void stop();
-        void destory();
+        void destroy();
 
         int put(int bucket_number, tair::common::data_entry& key, tair::common::data_entry& value, bool version_care, uint32_t expire_time);
         int get(int bucket_number, tair::common::data_entry& key, tair::common::data_entry& value);
@@ -47,19 +48,17 @@ namespace tair
         bool end_scan();
         bool get_next_item(item_data_info* &data, bool& still_have);
         void get_stat(tair_stat* stat);
-        bool get_db_stat(std::string& value);
 
       private:
         void sanitize_option(leveldb::Options& options);
-        tbsys::CThreadMutex* get_mutex(tair::common::data_entry& key);
 
       private:
         char db_path_[PATH_MAX];
         leveldb::DB* db_;
         leveldb::Iterator* scan_it_;
-        char scan_end_key_[LDB_KEY_META_SIZE];
-        tbsys::CThreadMutex* mutex_;
+        std::string scan_end_key_;
         stat_manager stat_manager_;
+        BgTask bg_task_;
       };
     }
   }

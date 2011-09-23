@@ -17,6 +17,7 @@
 #ifndef TAIR_STORAGE_LDB_DEFINE_H
 #define TAIR_STORAGE_LDB_DEFINE_H
 
+class leveldb::DB;
 namespace tair
 {
   namespace storage
@@ -24,7 +25,7 @@ namespace tair
     namespace ldb
     {
       const static int LDB_KEY_META_SIZE = 3;
-      const static int MAX_SCAN_KEY = (1 << 24 - 2);
+      const static int MAX_SCAN_KEY = (1 << 24) - 2;
 
       class LdbKey
       {
@@ -33,7 +34,8 @@ namespace tair
         {
         }
 
-        LdbKey(const int32_t bucket_number, const char* key_data, const int32_t key_size)
+        LdbKey(const int32_t bucket_number, const char* key_data, const int32_t key_size) :
+          data_(NULL), data_size_(0), alloc_(false)
         {
           set(bucket_number, key_data, key_size);
         }
@@ -59,6 +61,7 @@ namespace tair
           free();
           data_ = data;
           data_size_ = data_size;
+          alloc_ = false;
         }
         inline void free()
         {
@@ -90,7 +93,9 @@ namespace tair
         static void build_key_meta(const int32_t bucket_number, char* buf)
         {
           // consistent key len SCAN_KEY_LEN
-          // maybe dynamic
+          // big-endian to use default bitewise comparator.
+          // consider: varintint may be space-saved,
+          // but user defined comparator need caculate datalen every time.
           assert(bucket_number < MAX_SCAN_KEY);
           for (int i = 0; i < LDB_KEY_META_SIZE; ++i)
           {
@@ -106,13 +111,12 @@ namespace tair
 
       struct LdbItemMeta
       {
-        LdbItemMeta() : flag_(0), reserved_(0), version_(0), cdate_(0), mdate_(0), edate_(0) {}
+        LdbItemMeta() : flag_(0), version_(0), cdate_(0), mdate_(0) {}
         uint8_t  flag_;         // flag
-        uint8_t  reserved_;     // just reserved
         uint16_t version_;      // version
-        uint32_t cdate_;  // create time
-        uint32_t mdate_;  // modify time
-        uint32_t edate_;  // time when item is expired
+        uint32_t cdate_;        // create time
+        uint32_t mdate_;        // modify time (expired time encode in key)
+        uint8_t  reserved_;     // just reserved
       };
 
       const int32_t LDB_ITEM_META_SIZE = sizeof(LdbItemMeta);
@@ -178,11 +182,6 @@ namespace tair
         {
           return meta_;
         }
-        inline bool is_expired()
-        {
-          uint32_t expired_time = meta().edate_;
-          return expired_time != 0 && expired_time < time(NULL);
-        }
 
       private:
         LdbItemMeta meta_;
@@ -191,6 +190,9 @@ namespace tair
         bool alloc_;
       };
 
+      bool get_db_stat(leveldb::DB* db, std::string& value, const char* property);
+      int32_t get_level_num(leveldb::DB* db);
+      bool get_level_range(leveldb::DB* db, int32_t level, std::string* smallest, std::string* largest);
     }
   }
 }

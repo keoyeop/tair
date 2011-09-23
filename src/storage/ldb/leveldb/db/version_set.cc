@@ -201,7 +201,7 @@ void Version::AddIterators(const ReadOptions& options,
 // If "*iter" points at a value or deletion for user_key, store
 // either the value, or a NotFound error and return true.
 // Else return false.
-static bool GetValue(Iterator* iter, const Slice& user_key,
+bool Version::GetValue(Iterator* iter, const Slice& user_key,
                      std::string* value,
                      Status* s) {
   if (!iter->Valid()) {
@@ -212,17 +212,29 @@ static bool GetValue(Iterator* iter, const Slice& user_key,
     *s = Status::Corruption("corrupted key for ", user_key);
     return true;
   }
-  if (parsed_key.user_key != user_key) {
+  // @ use user defined comparator
+  // if (parsed_key.user_key != user_key) {
+  //   return false;
+  // }
+  if (vset_->icmp_.user_comparator()->Compare(parsed_key.user_key, user_key) != 0) {
     return false;
   }
+
   switch (parsed_key.type) {
     case kTypeDeletion:
       *s = Status::NotFound(Slice());  // Use an empty error message for speed
       break;
     case kTypeValue: {
-      Slice v = iter->value();
-      value->assign(v.data(), v.size());
-      break;
+      // @ check expired time
+      fprintf(stderr, "== etime: %u, now : %u\n", parsed_key.expired_time, vset_->env_->NowSecs());
+      if (parsed_key.expired_time > 0 && parsed_key.expired_time < vset_->env_->NowSecs()) {
+        *s = Status::NotFound(Slice());
+        break;
+      } else {
+        Slice v = iter->value();
+        value->assign(v.data(), v.size());
+        break;
+      }
     }
   }
   return true;
@@ -357,6 +369,35 @@ bool Version::OverlapInLevel(int level,
   return SomeFileOverlapsRange(vset_->icmp_, files_[level],
                                smallest_user_key,
                                largest_user_key);
+}
+
+bool Version::Range(int level, std::string* smallest, std::string* largest) {
+  if (level < 0 || level > config::kNumLevels) {
+    return false;
+  }
+  smallest->clear();
+  largest->clear();
+  const std::vector<FileMetaData*>& files = files_[level];
+
+  fprintf(stderr, "== range level file %d\n", files.size());
+  if (files.empty()) {
+    return true;
+  }
+
+  Slice tmp_smallest = files[0]->smallest.Encode();
+  Slice tmp_largest = files[0]->largest.Encode();
+
+  for (size_t i = 1; i < files.size(); i++) {
+    if (files[i]->smallest.Encode().compare(tmp_smallest) < 0) {
+      tmp_smallest = files[i]->smallest.Encode();
+    }
+    if (files[i]->largest.Encode().compare(tmp_largest) > 0) {
+      tmp_largest = files[i]->largest.Encode();
+    }
+  }
+  smallest->assign(tmp_smallest.data(), tmp_smallest.size());
+  largest->assign(tmp_largest.data(), tmp_largest.size());
+  return true;
 }
 
 std::string Version::DebugString() const {

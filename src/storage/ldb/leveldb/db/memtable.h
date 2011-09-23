@@ -21,7 +21,7 @@ class MemTable {
  public:
   // MemTables are reference counted.  The initial reference count
   // is zero and the caller must call Ref() at least once.
-  explicit MemTable(const InternalKeyComparator& comparator);
+  explicit MemTable(const InternalKeyComparator& comparator, Env* env);
 
   // Increase reference count.
   void Ref() { ++refs_; }
@@ -53,7 +53,7 @@ class MemTable {
   // Add an entry into memtable that maps key to value at the
   // specified sequence number and with the specified type.
   // Typically value will be empty if type==kTypeDeletion.
-  void Add(SequenceNumber seq, ValueType type,
+  void Add(SequenceNumber seq, ValueType type, uint32_t expired_time,
            const Slice& key,
            const Slice& value);
 
@@ -80,6 +80,7 @@ class MemTable {
   int refs_;
   Arena arena_;
   Table table_;
+  Env* const env_;
 
   // No copying allowed
   MemTable(const MemTable&);

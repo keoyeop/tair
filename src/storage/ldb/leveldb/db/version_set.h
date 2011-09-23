@@ -67,6 +67,10 @@ class Version {
   Status Get(const ReadOptions&, const LookupKey& key, std::string* val,
              GetStats* stats);
 
+  bool GetValue(Iterator* iter, const Slice& user_key,
+                std::string* value,
+                Status* s);
+
   // Adds "stats" into the current state.  Returns true if a new
   // compaction may need to be triggered, false otherwise.
   // REQUIRES: lock is held
@@ -84,6 +88,9 @@ class Version {
                       const Slice& largest_user_key);
 
   int NumFiles(int level) const { return files_[level].size(); }
+
+  // return smallest and largest key in level
+  bool Range(int level, std::string* smallest, std::string* largest);
 
   // Return a human readable string that describes this version's contents.
   std::string DebugString() const;

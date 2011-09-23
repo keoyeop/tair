@@ -27,7 +27,7 @@ class DBImpl : public DB {
   virtual ~DBImpl();
 
   // Implementations of the DB interface
-  virtual Status Put(const WriteOptions&, const Slice& key, const Slice& value);
+  virtual Status Put(const WriteOptions&, const Slice& key, const Slice& value, const uint32_t expired_time);
   virtual Status Delete(const WriteOptions&, const Slice& key);
   virtual Status Write(const WriteOptions& options, WriteBatch* updates);
   virtual Status Get(const ReadOptions& options,
@@ -37,15 +37,14 @@ class DBImpl : public DB {
   virtual const Snapshot* GetSnapshot();
   virtual void ReleaseSnapshot(const Snapshot* snapshot);
   virtual bool GetProperty(const Slice& property, std::string* value);
+  virtual bool GetLevelRange(int level, std::string* smallest, std::string* largest);
   virtual void GetApproximateSizes(const Range* range, int n, uint64_t* sizes);
+  // Compact any files in the named level that overlap [begin,end]
+  virtual void CompactRange(int level,
+                            const std::string& begin,
+                            const std::string& end);
 
   // Extra methods (for testing) that are not in the public DB interface
-
-  // Compact any files in the named level that overlap [begin,end]
-  void TEST_CompactRange(
-      int level,
-      const std::string& begin,
-      const std::string& end);
 
   // Force current memtable contents to be compacted.
   Status TEST_CompactMemTable();

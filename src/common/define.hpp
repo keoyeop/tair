@@ -148,6 +148,8 @@
 #define LDB_MAX_MEMCOMPACT_LEVEL        "ldb_max_memcompact_level"
 #define LDB_TARGET_FILE_SIZE            "ldb_target_file_size"
 #define LDB_BLOCK_SIZE                  "ldb_block_size"
+#define LDB_COMPACT_RANGE               "ldb_compact_range"
+#define LDB_CHECK_COMPACT_INTERVAL      "ldb_check_compact_interval"
 
 // file storage engine config items
 #define FDB_INDEX_MMAP_SIZE             "index_mmap_size"

@@ -4,11 +4,12 @@ AM_CPPFLAGS=-I${top_builddir}/src/storage/ldb/leveldb/include -I${top_srcdir}/sr
 
 LDADD=$(TBLIB_ROOT)/lib/libtbsys.a ${top_builddir}/src/storage/ldb/leveldb/libleveldb.a
 
-AM_LDFLAGS=-lpthread   ${GCOV_LIB}
+AM_LDFLAGS=-lpthread -lrt ${GCOV_LIB}
 noinst_LIBRARIES=libldb.a
 
-libldb_a_SOURCES=ldb_manager.cpp ldb_manager.hpp ldb_bucket.hpp ldb_bucket.cpp stat_manager.cpp stat_manager.hpp ldb_define.h
+libldb_a_SOURCES=ldb_manager.cpp ldb_manager.hpp ldb_bucket.hpp ldb_bucket.cpp stat_manager.cpp stat_manager.hpp ldb_define.hpp ldb_define.cpp bg_task.hpp bg_task.cpp
 
-# test_ldb_LDADD=libldb.a
-# noinst_PROGRAMS=test_ldb
-# test_ldb_SOURCES=test_ldb.cpp
+
+test_ldb_LDADD=libldb.a $(TBLIB_ROOT)/lib/libtbsys.a ${top_builddir}/src/storage/ldb/leveldb/libleveldb.a -lgtest -lsnappy
+noinst_PROGRAMS=test_ldb
+test_ldb_SOURCES=test_ldb.cpp

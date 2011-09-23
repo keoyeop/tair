@@ -22,6 +22,11 @@
 #include "util/coding.h"
 
 namespace leveldb {
+void EncodeInternalUserKey(std::string* dst, const Slice& key, const uint32_t expired_time) {
+  PutVarint32(dst, key.size() + 4);
+  dst->append(key.data(), key.size());
+  PutFixed32(dst, expired_time);
+}
 
 WriteBatch::WriteBatch() {
   Clear();
@@ -49,11 +54,14 @@ Status WriteBatch::Iterate(Handler* handler) const {
     found++;
     char tag = input[0];
     input.remove_prefix(1);
+    uint32_t expired_time = 0;
     switch (tag) {
       case kTypeValue:
+        expired_time = DecodeFixed32(input.data()); // @ expired time
+        input.remove_prefix(4);
         if (GetLengthPrefixedSlice(&input, &key) &&
             GetLengthPrefixedSlice(&input, &value)) {
-          handler->Put(key, value);
+          handler->Put(key, value, expired_time);
         } else {
           return Status::Corruption("bad WriteBatch Put");
         }
@@ -92,9 +100,10 @@ void WriteBatchInternal::SetSequence(WriteBatch* b, SequenceNumber seq) {
   EncodeFixed64(&b->rep_[0], seq);
 }
 
-void WriteBatch::Put(const Slice& key, const Slice& value) {
+void WriteBatch::Put(const Slice& key, const Slice& value, const uint32_t expired_time) {
   WriteBatchInternal::SetCount(this, WriteBatchInternal::Count(this) + 1);
   rep_.push_back(static_cast<char>(kTypeValue));
+  PutFixed32(&rep_, expired_time); // @ add expired time, maybe varient32
   PutLengthPrefixedSlice(&rep_, key);
   PutLengthPrefixedSlice(&rep_, value);
 }
@@ -102,6 +111,7 @@ void WriteBatch::Put(const Slice& key, const Slice& value) {
 void WriteBatch::Delete(const Slice& key) {
   WriteBatchInternal::SetCount(this, WriteBatchInternal::Count(this) + 1);
   rep_.push_back(static_cast<char>(kTypeDeletion));
+  PutFixed32(&rep_, 0);      // @ mock expired time
   PutLengthPrefixedSlice(&rep_, key);
 }
 
@@ -111,12 +121,12 @@ class MemTableInserter : public WriteBatch::Handler {
   SequenceNumber sequence_;
   MemTable* mem_;
 
-  virtual void Put(const Slice& key, const Slice& value) {
-    mem_->Add(sequence_, kTypeValue, key, value);
+  virtual void Put(const Slice& key, const Slice& value, const uint32_t expired_time) {
+    mem_->Add(sequence_, kTypeValue, expired_time, key, value);
     sequence_++;
   }
   virtual void Delete(const Slice& key) {
-    mem_->Add(sequence_, kTypeDeletion, key, Slice());
+    mem_->Add(sequence_, kTypeDeletion, 0, key, Slice());
     sequence_++;
   }
 };

@@ -59,7 +59,8 @@ class DB {
   // Note: consider setting options.sync = true.
   virtual Status Put(const WriteOptions& options,
                      const Slice& key,
-                     const Slice& value) = 0;
+                     const Slice& value,
+                     const uint32_t expired_time) = 0;
 
   // Remove the database entry (if any) for "key".  Returns OK on
   // success, and a non-OK status on error.  It is not an error if "key"
@@ -125,8 +126,13 @@ class DB {
   virtual void GetApproximateSizes(const Range* range, int n,
                                    uint64_t* sizes) = 0;
 
-  // Possible extensions:
-  // (1) Add a method to compact a range of keys
+  // Get key range in level.
+  virtual bool GetLevelRange(int level, std::string* smallest, std::string* largest) = 0;
+
+  // Compact a range of keys
+  virtual void CompactRange(int level,
+                            const std::string& begin,
+                            const std::string& end) = 0;
 
  private:
   // No copying allowed

@@ -76,6 +76,11 @@ class DBIter: public Iterator {
     }
   }
 
+  virtual uint32_t ExpiredTime() const {
+    assert(valid_);
+    return (direction_ == kForward) ? ExtractExpiredTime(iter_->key()) : 0; // @ TODO: pre direction, save expired time
+  }
+
   virtual void Next();
   virtual void Prev();
   virtual void Seek(const Slice& target);
@@ -167,8 +172,8 @@ void DBIter::FindNextUserEntry(bool skipping, std::string* skip) {
           skipping = true;
           break;
         case kTypeValue:
-          if (skipping &&
-              user_comparator_->Compare(ikey.user_key, *skip) <= 0) {
+          if ((skipping &&
+               user_comparator_->Compare(ikey.user_key, *skip) <= 0)/* @@ TODO: expired */ ) {
             // Entry hidden
           } else {
             valid_ = true;
@@ -258,7 +263,7 @@ void DBIter::Seek(const Slice& target) {
   ClearSavedValue();
   saved_key_.clear();
   AppendInternalKey(
-      &saved_key_, ParsedInternalKey(target, sequence_, kValueTypeForSeek));
+      &saved_key_, ParsedInternalKey(target, sequence_, kValueTypeForSeek, 0)); // @ expired time
   iter_->Seek(saved_key_);
   if (iter_->Valid()) {
     FindNextUserEntry(false, &saved_key_ /* temporary storage */);

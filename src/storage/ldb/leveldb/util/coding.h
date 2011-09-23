@@ -99,6 +99,15 @@ inline const char* GetVarint32Ptr(const char* p,
   return GetVarint32PtrFallback(p, limit, value);
 }
 
+// @ for exired time convenience
+inline void EncodeExpiredTime(char* p, uint32_t expired_time) {
+    // fixed int. to avoid get varintlength every time.
+    EncodeFixed32(p, expired_time);
+}
+
+inline uint32_t DecodeExpiredTime(const char* p) {
+    return DecodeFixed32(p);
+}
 }
 
 #endif  // STORAGE_LEVELDB_UTIL_CODING_H_

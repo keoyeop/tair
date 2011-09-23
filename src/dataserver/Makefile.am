@@ -25,15 +25,15 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 
 AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB}
 
-LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
-      $(TBLIB_ROOT)/lib/libtbsys.a \
-      $(top_builddir)/src/storage/mdb/libmdb.a \
+LDADD=$(top_builddir)/src/storage/mdb/libmdb.a \
       $(top_builddir)/src/storage/fdb/libfdb.a \
       $(KDB_LDFLAGS) \
       $(LDB_LDFLAGS) \
       $(top_builddir)/src/plugin/libtair_plugins.a \
       $(top_builddir)/src/packets/libtair_packets.a \
       $(top_builddir)/src/storage/libdump.a \
+      $(TBLIB_ROOT)/lib/libtbnet.a \
+      $(TBLIB_ROOT)/lib/libtbsys.a \
       -lz -lrt -lpthread \
       -ldl \
       @BOOST_THREAD_LIB@

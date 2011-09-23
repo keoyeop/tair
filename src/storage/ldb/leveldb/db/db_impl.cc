@@ -119,7 +119,7 @@ DBImpl::DBImpl(const Options& options, const std::string& dbname)
       db_lock_(NULL),
       shutting_down_(NULL),
       bg_cv_(&mutex_),
-      mem_(new MemTable(internal_comparator_)),
+      mem_(new MemTable(internal_comparator_, env_)),
       imm_(NULL),
       logfile_(NULL),
       logfile_number_(0),
@@ -395,7 +395,7 @@ Status DBImpl::RecoverLogFile(uint64_t log_number,
     WriteBatchInternal::SetContents(&batch, record);
 
     if (mem == NULL) {
-      mem = new MemTable(internal_comparator_);
+      mem = new MemTable(internal_comparator_, env_);
       mem->Ref();
     }
     status = WriteBatchInternal::InsertInto(&batch, mem);
@@ -517,7 +517,7 @@ Status DBImpl::CompactMemTable() {
   return s;
 }
 
-void DBImpl::TEST_CompactRange(
+void DBImpl::CompactRange(
     int level,
     const std::string& begin,
     const std::string& end) {
@@ -811,6 +811,9 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   std::string current_user_key;
   bool has_current_user_key = false;
   SequenceNumber last_sequence_for_key = kMaxSequenceNumber;
+  // @ caculate expired end time only once for speed
+  // @ consider cost time of one compaction (range matters), the precision (maybe) is tolerable
+  ExpiredTime expired_end_time = env_->NowSecs();
   for (; input->Valid() && !shutting_down_.Acquire_Load(); ) {
     // Prioritize immutable compaction work
     if (has_imm_.NoBarrier_Load() != NULL) {
@@ -853,7 +856,8 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
       if (last_sequence_for_key <= compact->smallest_snapshot) {
         // Hidden by an newer entry for same user key
         drop = true;    // (A)
-      } else if (ikey.type == kTypeDeletion &&
+      } else if ((ikey.type == kTypeDeletion || // deleted or ..
+                  (ikey.expired_time > 0 && ikey.expired_time < expired_end_time)) && // .. expired
                  ikey.sequence <= compact->smallest_snapshot &&
                  compact->compaction->IsBaseLevelForKey(ikey.user_key)) {
         // For this user key:
@@ -863,6 +867,7 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
         //     smaller sequence numbers will be dropped in the next
         //     few iterations of this loop (by rule (A) above).
         // Therefore this deletion marker is obsolete and can be dropped.
+        fprintf(stderr, "drop %d : %u\n", ikey.type, ikey.expired_time);
         drop = true;
       }
 
@@ -1026,10 +1031,13 @@ Status DBImpl::Get(const ReadOptions& options,
     // First look in the memtable, then in the immutable memtable (if any).
     LookupKey lkey(key, snapshot);
     if (mem->Get(lkey, value, &s)) {
+      Log(options_.info_log, "get from memtable\n");
       // Done
     } else if (imm != NULL && imm->Get(lkey, value, &s)) {
+      Log(options_.info_log, "get from immemtable\n");
       // Done
     } else {
+      Log(options_.info_log, "get from sstable\n");
       s = current->Get(options, lkey, value, &stats);
       have_stat_update = true;
     }
@@ -1066,8 +1074,8 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
 }
 
 // Convenience methods
-Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val) {
-  return DB::Put(o, key, val);
+Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val, const uint32_t expired_time) {
+  return DB::Put(o, key, val, expired_time);
 }
 
 Status DBImpl::Delete(const WriteOptions& options, const Slice& key) {
@@ -1181,7 +1189,7 @@ Status DBImpl::MakeRoomForWrite(bool force) {
       log_ = new log::Writer(lfile);
       imm_ = mem_;
       has_imm_.Release_Store(imm_);
-      mem_ = new MemTable(internal_comparator_);
+      mem_ = new MemTable(internal_comparator_, env_);
       mem_->Ref();
       force = false;   // Do not force another compaction if have room
       MaybeScheduleCompaction();
@@ -1236,9 +1244,25 @@ bool DBImpl::GetProperty(const Slice& property, std::string* value) {
       }
     }
     return true;
-  }    
+  } else if (in == "ranges") {
+    *value = versions_->current()->DebugString();
+    return true;
+  } else if (in == "levelnums") {
+    char buf[10];
+    snprintf(buf, sizeof(buf), "%d", config::kNumLevels);
+    value->append(buf);
+    return true;
+  }
 
   return false;
+}
+
+bool DBImpl::GetLevelRange(int level, std::string* smallest, std::string* largest) {
+  MutexLock l(&mutex_);
+  if (level < 0 || level > config::kNumLevels) {
+    return false;
+  }
+  return versions_->current()->Range(level, smallest, largest);
 }
 
 void DBImpl::GetApproximateSizes(
@@ -1269,9 +1293,9 @@ void DBImpl::GetApproximateSizes(
 
 // Default implementations of convenience methods that subclasses of DB
 // can call if they wish
-Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value) {
+Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value, const uint32_t expired_time) {
   WriteBatch batch;
-  batch.Put(key, value);
+  batch.Put(key, value, expired_time);
   return Write(opt, &batch);
 }
 

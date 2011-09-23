@@ -225,7 +225,7 @@ namespace tair
          }
 
          char *get_data() const
-          {
+         {
             return data;
          }
 

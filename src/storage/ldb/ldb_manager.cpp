@@ -19,7 +19,7 @@
 
 namespace tair
 {
-  namespace storage 
+  namespace storage
   {
     namespace ldb
     {
@@ -86,6 +86,10 @@ namespace tair
           {
             log_info("bucket [%d] not exist", bucket_number);
           }
+        }
+        if (bucket_set_.none())
+        {
+          ldb_bucket_->destroy(); // TODO ..
         }
       }
 
@@ -182,7 +186,7 @@ namespace tair
         usleep(1000);
         for (size_t i = 0; i < rm_buckets.size(); ++i)
         {
-          rm_buckets[i]->destory();
+          rm_buckets[i]->destroy();
           delete rm_buckets[i];
         }
 
@@ -209,7 +213,7 @@ namespace tair
         for (LDB_BUCKETS_MAP::iterator it = buckets_map_->begin();
              it != buckets_map_->end(); ++it)
         {
-          it->second->get_stat(stat);          
+          it->second->get_stat(stat);
         }
       }
 
@@ -300,7 +304,7 @@ namespace tair
       bool LdbManager::init_buckets(const std::vector<int>& buckets)
       {
         log_debug("ldb::init buckets");
-        tbsys::CThreadGuard guard(&lock_);        
+        tbsys::CThreadGuard guard(&lock_);
         return ldb_instance_->init_buckets(buckets);
       }
 
