@@ -1,11 +1,12 @@
 if WITH_KDB
-KDB_CPPFLAGS= -DWITH_KDB -I${top_srcdir}/src/storage/kdb -I${top_srcdir}/src/storage/kdb/kyotocabinet 
-KDB_LDFLAGS= $(top_builddir)/src/storage/kdb/libkdb.a $(top_builddir)/src/storage/kdb/kyotocabinet/libkyotocabinet.a 
+KDB_CPPFLAGS= -DWITH_KDB -I${top_srcdir}/src/storage/kdb -I${top_srcdir}/src/storage/kdb/kyotocabinet
+KDB_LDFLAGS= $(top_builddir)/src/storage/kdb/libkdb.a $(top_builddir)/src/storage/kdb/kyotocabinet/libkyotocabinet.a
 endif
 if WITH_LDB
 LDB_CPPFLAGS= -DWITH_LDB -I${top_srcdir}/src/storage/ldb
-LDB_LDFLAGS= $(top_builddir)/src/storage/ldb/libldb.a $(top_builddir)/src/storage/ldb/leveldb/libleveldb.a \
-	-lsnappy		#TODO: config ... 
+LDB_LDFLAGS= $(top_builddir)/src/storage/ldb/libldb.a \
+             $(top_builddir)/src/storage/ldb/leveldb/libleveldb.a \
+             $(top_builddir)/src/storage/ldb/leveldb/libsnappy.a
 endif
 
 AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
