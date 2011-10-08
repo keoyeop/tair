@@ -14,8 +14,6 @@
  *
  */
 
-#include "leveldb/db.h"
-
 #include "common/log.hpp"
 #include "ldb_define.hpp"
 
@@ -49,15 +47,23 @@ namespace tair
         return ret;
       }
 
+      bool get_db_stat(leveldb::DB* db, int64_t& value, const char* property)
+      {
+        std::string str_value;
+        bool ret = false;
+        if ((ret = get_db_stat(db, str_value, property)))
+        {
+          value = atoll(str_value.c_str());
+        }
+
+        return ret;
+      }
+
       int32_t get_level_num(leveldb::DB* db)
       {
-        int32_t ret = -1;
-        std::string value;
-        if (get_db_stat(db, value, "levelnums"))
-        {
-          ret = atoi(value.c_str());
-        }
-        return ret;
+        int64_t level = 0;
+        get_db_stat(db, level, "levelnums");
+        return static_cast<int32_t>(level);
       }
 
       bool get_level_range(leveldb::DB* db, int32_t level, std::string* smallest, std::string* largest)

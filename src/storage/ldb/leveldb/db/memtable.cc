@@ -80,8 +80,8 @@ Iterator* MemTable::NewIterator() {
   return new MemTableIterator(&table_);
 }
 
-void MemTable::Add(SequenceNumber s, ValueType type, uint32_t expired_time,
-                   const Slice& key, // @ this key actually has expired time
+void MemTable::Add(SequenceNumber s, ValueType type,
+                   const Slice& key,
                    const Slice& value) {
   // Format of an entry is concatenation of:
   //  key_size     : varint32 of internal_key.size()
@@ -90,7 +90,7 @@ void MemTable::Add(SequenceNumber s, ValueType type, uint32_t expired_time,
   //  value bytes  : char[value.size()]
   size_t key_size = key.size();
   size_t val_size = value.size();
-  size_t internal_key_size = key_size + 8 + 4; // @ expired time
+  size_t internal_key_size = key_size + kInternalKeySeqSize;
   const size_t encoded_len =
       VarintLength(internal_key_size) + internal_key_size +
       VarintLength(val_size) + val_size;
@@ -98,9 +98,6 @@ void MemTable::Add(SequenceNumber s, ValueType type, uint32_t expired_time,
   char* p = EncodeVarint32(buf, internal_key_size);
   memcpy(p, key.data(), key_size);
   p += key_size;
-  fprintf(stderr, "== mem add %u\n", expired_time);
-  EncodeFixed32(p, expired_time); // @ expired time
-  p += 4;
   EncodeFixed64(p, (s << 8) | type);
   p += 8;
   p = EncodeVarint32(p, val_size);
@@ -133,10 +130,7 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s) {
       const uint64_t tag = DecodeFixed64(key_ptr + key_length - kInternalKeySeqSize);
       switch (static_cast<ValueType>(tag & 0xff)) {
         case kTypeValue: {
-          // @ check expired time
-          uint32_t expired_time = DecodeFixed32(key_ptr + key_length - kInternalKeyBaseSize); // @ expired time offset
-          fprintf(stderr, "== etime: %u, now : %u\n", expired_time, env_->NowSecs());
-          if (expired_time > 0 && expired_time < env_->NowSecs()) {
+          if (comparator_.comparator.user_comparator()->ShouldDrop(key_ptr, (tag >> 8))) {
             *s = Status::NotFound(Slice());
             return true;
           } else {

@@ -34,13 +34,10 @@ enum ValueType {
 // ValueType, not the lowest).
 static const ValueType kValueTypeForSeek = kTypeValue;
 
-static const size_t kInternalKeyExpSize = 4;
 static const size_t kInternalKeySeqSize = 8;
-static const size_t kInternalKeyBaseSize = kInternalKeyExpSize + kInternalKeySeqSize;
+static const size_t kInternalKeyBaseSize = kInternalKeySeqSize;
 
 typedef uint64_t SequenceNumber;
-// @fixed uint32_t expired time. varint32 NEED decode varintlength every compare.
-typedef uint32_t ExpiredTime;
 
 // We leave eight bits empty at the bottom so a type and sequence#
 // can be packed together into 64-bits.
@@ -51,11 +48,10 @@ struct ParsedInternalKey {
   Slice user_key;
   SequenceNumber sequence;
   ValueType type;
-  ExpiredTime expired_time;
 
   ParsedInternalKey() { }  // Intentionally left uninitialized (for speed)
-  ParsedInternalKey(const Slice& u, const SequenceNumber& seq, ValueType t, ExpiredTime exp)
-      : user_key(u), sequence(seq), type(t), expired_time(exp) { }
+  ParsedInternalKey(const Slice& u, const SequenceNumber& seq, ValueType t)
+    : user_key(u), sequence(seq), type(t) { }
 
   std::string DebugString() const;
 };
@@ -75,12 +71,6 @@ extern void AppendInternalKey(std::string* result,
 // On error, returns false, leaves "*result" in an undefined state.
 extern bool ParseInternalKey(const Slice& internal_key,
                              ParsedInternalKey* result);
-
-// @ return the expired time of an internal key.
-inline ExpiredTime ExtractExpiredTime(const Slice& internal_key) {
-  assert(internal_key.size() >= kInternalKeyBaseSize);
-  return DecodeFixed32(internal_key.data() + internal_key.size() - kInternalKeyBaseSize);
-}
 
 // Returns the user key portion of an internal key.
 inline Slice ExtractUserKey(const Slice& internal_key) {
@@ -124,7 +114,7 @@ class InternalKey {
  public:
   InternalKey() { }   // Leave rep_ as empty to indicate it is invalid
   InternalKey(const Slice& user_key, SequenceNumber s, ValueType t) {
-    AppendInternalKey(&rep_, ParsedInternalKey(user_key, s, t, 0)); // @ expired time
+    AppendInternalKey(&rep_, ParsedInternalKey(user_key, s, t));
   }
 
   void DecodeFrom(const Slice& s) { rep_.assign(s.data(), s.size()); }
@@ -152,8 +142,6 @@ inline bool ParseInternalKey(const Slice& internal_key,
                              ParsedInternalKey* result) {
   const size_t n = internal_key.size();
   if (n < kInternalKeyBaseSize) return false;
-  // @ decode expired time
-  result->expired_time = DecodeFixed32(internal_key.data() + n - kInternalKeyBaseSize);
   uint64_t num = DecodeFixed64(internal_key.data() + n - kInternalKeySeqSize);
   unsigned char c = num & 0xff;
   result->sequence = num >> 8;
@@ -178,7 +166,7 @@ class LookupKey {
   Slice internal_key() const { return Slice(kstart_, end_ - kstart_); }
 
   // Return the user key
-  Slice user_key() const { return Slice(kstart_, end_ - kstart_ - 8 - 4); }
+  Slice user_key() const { return Slice(kstart_, end_ - kstart_ - kInternalKeyBaseSize); }
 
  private:
   // We construct a char array of the form:

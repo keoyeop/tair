@@ -813,7 +813,7 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   SequenceNumber last_sequence_for_key = kMaxSequenceNumber;
   // @ caculate expired end time only once for speed
   // @ consider cost time of one compaction (range matters), the precision (maybe) is tolerable
-  ExpiredTime expired_end_time = env_->NowSecs();
+  uint32_t expired_end_time = env_->NowSecs();
   for (; input->Valid() && !shutting_down_.Acquire_Load(); ) {
     // Prioritize immutable compaction work
     if (has_imm_.NoBarrier_Load() != NULL) {
@@ -856,9 +856,10 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
       if (last_sequence_for_key <= compact->smallest_snapshot) {
         // Hidden by an newer entry for same user key
         drop = true;    // (A)
-      } else if ((ikey.type == kTypeDeletion || // deleted or ..
-                  (ikey.expired_time > 0 && ikey.expired_time < expired_end_time)) && // .. expired
-                 ikey.sequence <= compact->smallest_snapshot &&
+      } else if (ikey.sequence <= compact->smallest_snapshot &&
+                 (ikey.type == kTypeDeletion || // deleted or ..
+                  user_comparator()->ShouldDrop(ikey.user_key.data(),
+                                                ikey.sequence, expired_end_time)) && // .. user-defined should drop
                  compact->compaction->IsBaseLevelForKey(ikey.user_key)) {
         // For this user key:
         // (1) there is no data in higher levels
@@ -867,7 +868,7 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
         //     smaller sequence numbers will be dropped in the next
         //     few iterations of this loop (by rule (A) above).
         // Therefore this deletion marker is obsolete and can be dropped.
-        fprintf(stderr, "drop %d : %u\n", ikey.type, ikey.expired_time);
+        fprintf(stderr, "drop %d\n", ikey.type);
         drop = true;
       }
 
@@ -1074,8 +1075,8 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
 }
 
 // Convenience methods
-Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val, const uint32_t expired_time) {
-  return DB::Put(o, key, val, expired_time);
+Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val) {
+  return DB::Put(o, key, val);
 }
 
 Status DBImpl::Delete(const WriteOptions& options, const Slice& key) {
@@ -1252,6 +1253,11 @@ bool DBImpl::GetProperty(const Slice& property, std::string* value) {
     snprintf(buf, sizeof(buf), "%d", config::kNumLevels);
     value->append(buf);
     return true;
+  } else if (in == "sequence") {
+    char buf[10];
+    snprintf(buf, sizeof(buf), "%lld", versions_->LastSequence());
+    value->append(buf);
+    return true;
   }
 
   return false;
@@ -1293,9 +1299,9 @@ void DBImpl::GetApproximateSizes(
 
 // Default implementations of convenience methods that subclasses of DB
 // can call if they wish
-Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value, const uint32_t expired_time) {
+Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value) {
   WriteBatch batch;
-  batch.Put(key, value, expired_time);
+  batch.Put(key, value);
   return Write(opt, &batch);
 }
 

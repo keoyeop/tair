@@ -126,10 +126,9 @@ void leveldb_put(
     const leveldb_writeoptions_t* options,
     const char* key, size_t keylen,
     const char* val, size_t vallen,
-    const uint32_t expired_time,
     char** errptr) {
   SaveError(errptr,
-            db->rep->Put(options->rep, Slice(key, keylen), Slice(val, vallen), expired_time));
+            db->rep->Put(options->rep, Slice(key, keylen), Slice(val, vallen)));
 }
 
 void leveldb_delete(
@@ -293,9 +292,8 @@ void leveldb_writebatch_clear(leveldb_writebatch_t* b) {
 void leveldb_writebatch_put(
     leveldb_writebatch_t* b,
     const char* key, size_t klen,
-    const char* val, size_t vlen,
-    const uint32_t expired_time) {
-  b->rep.Put(Slice(key, klen), Slice(val, vlen), expired_time);
+    const char* val, size_t vlen) {
+  b->rep.Put(Slice(key, klen), Slice(val, vlen));
 }
 
 void leveldb_writebatch_delete(
@@ -307,15 +305,15 @@ void leveldb_writebatch_delete(
 void leveldb_writebatch_iterate(
     leveldb_writebatch_t* b,
     void* state,
-    void (*put)(void*, const char* k, size_t klen, const char* v, size_t vlen, uint32_t expired_time),
+    void (*put)(void*, const char* k, size_t klen, const char* v, size_t vlen),
     void (*deleted)(void*, const char* k, size_t klen)) {
   class H : public WriteBatch::Handler {
    public:
     void* state_;
-    void (*put_)(void*, const char* k, size_t klen, const char* v, size_t vlen, uint32_t expired_time);
+    void (*put_)(void*, const char* k, size_t klen, const char* v, size_t vlen);
     void (*deleted_)(void*, const char* k, size_t klen);
-    virtual void Put(const Slice& key, const Slice& value, uint32_t expired_time) {
-      (*put_)(state_, key.data(), key.size(), value.data(), value.size(), expired_time);
+    virtual void Put(const Slice& key, const Slice& value) {
+      (*put_)(state_, key.data(), key.size(), value.data(), value.size());
     }
     virtual void Delete(const Slice& key) {
       (*deleted_)(state_, key.data(), key.size());

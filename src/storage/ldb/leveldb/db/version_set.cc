@@ -225,9 +225,7 @@ bool Version::GetValue(Iterator* iter, const Slice& user_key,
       *s = Status::NotFound(Slice());  // Use an empty error message for speed
       break;
     case kTypeValue: {
-      // @ check expired time
-      fprintf(stderr, "== etime: %u, now : %u\n", parsed_key.expired_time, vset_->env_->NowSecs());
-      if (parsed_key.expired_time > 0 && parsed_key.expired_time < vset_->env_->NowSecs()) {
+      if (vset_->icmp_.user_comparator()->ShouldDrop(parsed_key.user_key.data(), parsed_key.sequence)) {
         *s = Status::NotFound(Slice());
         break;
       } else {

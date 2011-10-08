@@ -5,6 +5,7 @@
 #ifndef STORAGE_LEVELDB_INCLUDE_COMPARATOR_H_
 #define STORAGE_LEVELDB_INCLUDE_COMPARATOR_H_
 
+#include <stdint.h>
 #include <string>
 
 namespace leveldb {
@@ -51,6 +52,10 @@ class Comparator {
   // Simple comparator implementations may return with *key unchanged,
   // i.e., an implementation of this method that does nothing is correct.
   virtual void FindShortSuccessor(std::string* key) const = 0;
+
+  // whether this key should drop with sequence number @sequence
+  // and when @now (seconds), cause some condition (user-defined)
+  virtual bool ShouldDrop(const char* key, int64_t sequence, uint32_t now = 0) const { return false;}
 };
 
 // Return a builtin comparator that uses lexicographic byte-wise

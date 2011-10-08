@@ -14,6 +14,7 @@
  *
  */
 
+#include "storage/mdb/mdb_factory.hpp"
 #include "ldb_manager.hpp"
 #include "ldb_bucket.hpp"
 
@@ -23,9 +24,9 @@ namespace tair
   {
     namespace ldb
     {
-      SingleLdbInstance::SingleLdbInstance()
+      SingleLdbInstance::SingleLdbInstance(storage::storage_manager* cache_)
       {
-        ldb_bucket_ = new LdbBucket();
+        ldb_bucket_ = new LdbBucket(cache_);
         bucket_set_.resize(10240, false);
       }
 
@@ -81,6 +82,7 @@ namespace tair
           {
             bucket_set_.reset(bucket_number);
             // TODO: destroy specified bucket
+            ldb_bucket_->clear_bucket(bucket_number);
           }
           else
           {
@@ -108,8 +110,13 @@ namespace tair
         return ldb_bucket_->get_stat(stat);
       }
 
+      int SingleLdbInstance::clear(int32_t area)
+      {
+        return ldb_bucket_->clear_area(area);
+      }
+
       // MultiLdbInstance
-      MultiLdbInstance::MultiLdbInstance()
+      MultiLdbInstance::MultiLdbInstance(storage_manager* cache) : cache_(cache)
       {
         buckets_map_ = new LDB_BUCKETS_MAP();
       }
@@ -140,7 +147,7 @@ namespace tair
             continue;
           }
 
-          LdbBucket* new_bucket = new LdbBucket();
+          LdbBucket* new_bucket = new LdbBucket(cache_);
           if (!(ret = new_bucket->start(bucket_number)))
           {
             log_error("init bucket[%d] failed", bucket_number);
@@ -217,25 +224,48 @@ namespace tair
         }
       }
 
+      int MultiLdbInstance::clear(int32_t area)
+      {
+        int ret = TAIR_RETURN_SUCCESS;
+        for (LDB_BUCKETS_MAP::iterator it = buckets_map_->begin();
+             it != buckets_map_->end(); ++it)
+        {
+          int tmp_ret = it->second->clear_area(area);
+          if (tmp_ret != TAIR_RETURN_SUCCESS)
+          {
+            ret = TAIR_RETURN_FAILED;
+            log_warn("clear area [%d] fail when op bucket [%d]", area, it->first);
+          }
+        }
+        return ret;
+      }
+
       //////////// LdbManager
       LdbManager::LdbManager() : scan_ldb_(NULL)
       {
-        // for test which one is better
+        int cache_size =
+          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_SIZE, 256); // 256M
+        cache_ = mdb_factory::create_embedded_mdb(cache_size, 1.2);
+
         int strategy = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DB_INIT_STRATEGY, 0);
         if (strategy != 0)
         {
-          ldb_instance_ = new SingleLdbInstance();
+          ldb_instance_ = new SingleLdbInstance(cache_);
         }
         else
         {
-          ldb_instance_ = new MultiLdbInstance();
+          ldb_instance_ = new MultiLdbInstance(cache_);
         }
-        log_debug("ldb storage engine construct %d", strategy);
+        log_debug("ldb storage engine construct %d, with cache size: %dM", strategy, cache_size);
       }
 
       LdbManager::~LdbManager()
       {
         delete ldb_instance_;
+        if (cache_ != NULL)
+        {
+          delete cache_;
+        }
       }
 
       int LdbManager::put(int bucket_number, data_entry& key, data_entry& value, bool version_care, int expire_time)
@@ -295,10 +325,10 @@ namespace tair
         return rc;
       }
 
-      int LdbManager::clear(int area)
+      int LdbManager::clear(int32_t area)
       {
-        log_debug("ldb::clear");
-        return 0;
+        log_debug("ldb::clear %d", area);
+        return ldb_instance_->clear(area);
       }
 
       bool LdbManager::init_buckets(const std::vector<int>& buckets)

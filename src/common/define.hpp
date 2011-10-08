@@ -150,6 +150,7 @@
 #define LDB_BLOCK_SIZE                  "ldb_block_size"
 #define LDB_COMPACT_RANGE               "ldb_compact_range"
 #define LDB_CHECK_COMPACT_INTERVAL      "ldb_check_compact_interval"
+#define LDB_CACHE_SIZE                  "ldb_cache_size"
 
 // file storage engine config items
 #define FDB_INDEX_MMAP_SIZE             "index_mmap_size"

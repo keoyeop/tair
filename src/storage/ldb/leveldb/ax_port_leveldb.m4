@@ -14,19 +14,19 @@ check_cflags="${CPPFLAGS} -std=c++0x -x c++"
 # 2. If g++ returns error code, we know to use port_posix.h
 AC_CACHE_CHECK(
 	[if C++0x (cstdatomic) is supported],
-	[ac_cxx0x_supported],
+	[ac_cv_cxx0x_supported],
 	[
 	 AC_LANG_PUSH([C++])
 	 AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[@%:@include <cstdatomic>]],
 			      [[return 0;]]),
-			      [ac_cxx0x_supported="yes"],
-			      [ac_cxx0x_supported="no"])
+			      [ac_cv_cxx0x_supported="yes"],
+			      [ac_cv_cxx0x_supported="no"])
          AC_LANG_POP([C++])
   ])
 
 CPPFLAGS="$save_cppflags"
 
-if test "x$ac_cxx0x_supported" = "xyes"; then
+if test "x$ac_cv_cxx0x_supported" = "xyes"; then
      LEVELDB_PORT_CFLAGS="-DLEVELDB_PLATFORM_POSIX -DLEVELDB_CSTDATOMIC_PRESENT -std=c++0x"
 else
      LEVELDB_PORT_CFLAGS="-DLEVELDB_PLATFORM_POSIX"

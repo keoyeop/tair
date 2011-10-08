@@ -34,7 +34,7 @@ class WriteBatch {
   ~WriteBatch();
 
   // Store the mapping "key->value" in the database.
-  void Put(const Slice& key, const Slice& value, const uint32_t expired_time);
+  void Put(const Slice& key, const Slice& value);
 
   // If the database contains a mapping for "key", erase it.  Else do nothing.
   void Delete(const Slice& key);
@@ -46,7 +46,7 @@ class WriteBatch {
   class Handler {
    public:
     virtual ~Handler();
-    virtual void Put(const Slice& key, const Slice& value, uint32_t expired_time) = 0;
+    virtual void Put(const Slice& key, const Slice& value) = 0;
     virtual void Delete(const Slice& key) = 0;
   };
   Status Iterate(Handler* handler) const;

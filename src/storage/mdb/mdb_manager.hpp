@@ -49,6 +49,17 @@ namespace tair {
 
     int remove(int bucket_num, data_entry & key, bool version_care);
 
+    // raw put/get/remove for embedded cache use
+    // Not consider any meta, just key ==> value, cause operating those stuff is up to cache-user.
+  public:
+    int raw_put(const char* key, int32_t key_len, const char* value, int32_t value_len, int flag, uint32_t expired);
+    int raw_get(const char* key, int32_t key_len, std::string& value);
+    int raw_remove(const char* key, int32_t key_len);
+  private:
+    bool raw_remove_if_exists(const char* key, int32_t key_len);
+    bool raw_remove_if_expired(const char* key, int32_t key_len, mdb_item*& item);
+
+  public:
     int clear(int area);
 
     void begin_scan(md_info & info);

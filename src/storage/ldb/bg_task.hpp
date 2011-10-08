@@ -19,7 +19,10 @@
 
 #include "Timer.h"
 
-class leveldb::DB;
+namespace leveldb
+{
+  class DB;
+}
 
 namespace tair
 {
@@ -27,6 +30,7 @@ namespace tair
   {
     namespace ldb
     {
+      class LdbBucket;
       class LdbCompact;
 
       class LdbCompactTask : public tbutil::TimerTask
@@ -38,7 +42,7 @@ namespace tair
         virtual ~LdbCompactTask();
         virtual void runTimerTask();
 
-        bool init(leveldb::DB* db);
+        bool init(LdbBucket* db);
 
       private:
         bool is_compact_time();
@@ -50,12 +54,12 @@ namespace tair
         bool is_in_range(int32_t min, int32_t max);
 
       private:
-        leveldb::DB* db_;
+        LdbBucket* db_;
         int32_t min_time_;
         int32_t max_time_;
-        tbsys::CThreadMutex mutex_;
+        tbsys::CThreadMutex lock_;
         bool is_compacting_;
-        uint32_t last_compact_time_;
+        uint32_t last_compact_round_over_time_;
         int32_t should_compact_level_;
       };
       typedef tbutil::Handle<LdbCompactTask> LdbCompactTaskPtr;
@@ -66,11 +70,11 @@ namespace tair
         BgTask();
         ~BgTask();
 
-        bool start(leveldb::DB* db);
+        bool start(LdbBucket* db);
         void stop();
 
       private:
-        bool init_compact_task(leveldb::DB* db);
+        bool init_compact_task(LdbBucket* db);
         void stop_compact_task();
 
       private:

@@ -41,18 +41,20 @@ namespace tair
         virtual void close_buckets(const std::vector <int>& buckets) = 0;
         virtual LdbBucket* get_bucket(const int bucket_number) = 0;
         virtual void get_stats(tair_stat* stat) = 0;
+        virtual int clear(int32_t area) = 0;
       };
 
       class SingleLdbInstance : public LdbInstance
       {
       public:
-        SingleLdbInstance();
+        SingleLdbInstance(storage::storage_manager* cache);
         virtual ~SingleLdbInstance();
 
         virtual bool init_buckets(const std::vector <int>& buckets);
         virtual void close_buckets(const std::vector <int>& buckets);
         virtual LdbBucket* get_bucket(const int bucket_number);
         virtual void get_stats(tair_stat* stat);
+        virtual int clear(int32_t area);
 
       private:
         LdbBucket* ldb_bucket_;
@@ -64,16 +66,18 @@ namespace tair
       public:
         typedef __gnu_cxx::hash_map <int, LdbBucket*> LDB_BUCKETS_MAP;
 
-        MultiLdbInstance();
+        MultiLdbInstance(storage_manager* cache);
         virtual ~MultiLdbInstance();
 
         virtual bool init_buckets(const std::vector <int>& buckets);
         virtual void close_buckets(const std::vector <int>& buckets);
         virtual LdbBucket* get_bucket(const int bucket_number);
         virtual void get_stats(tair_stat* stat);
+        virtual int clear(int32_t area);
 
       private:
         LDB_BUCKETS_MAP* buckets_map_;
+        storage_manager* cache_;
       };
 
       // just close to kdb_manager.
@@ -105,6 +109,7 @@ namespace tair
 
       private:
         LdbInstance* ldb_instance_;
+        storage_manager* cache_;
         LdbBucket* scan_ldb_;
         tbsys::CThreadMutex lock_;
       };

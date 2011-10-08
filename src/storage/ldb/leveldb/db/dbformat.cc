@@ -17,16 +17,14 @@ static uint64_t PackSequenceAndType(uint64_t seq, ValueType t) {
 
 void AppendInternalKey(std::string* result, const ParsedInternalKey& key) {
   result->append(key.user_key.data(), key.user_key.size());
-  PutFixed32(result, key.expired_time);
   PutFixed64(result, PackSequenceAndType(key.sequence, key.type));
 }
 
 std::string ParsedInternalKey::DebugString() const {
   char buf[50];
-  snprintf(buf, sizeof(buf), "' @ %llu : %d : %u",
+  snprintf(buf, sizeof(buf), "' @ %llu : %d",
            (unsigned long long) sequence,
-           int(type),
-           expired_time);
+           int(type));
   std::string result = "'";
   result += user_key.ToString();
   result += buf;
@@ -42,7 +40,6 @@ int InternalKeyComparator::Compare(const Slice& akey, const Slice& bkey) const {
   //    increasing user key (according to user-supplied comparator)
   //    decreasing sequence number
   //    decreasing type (though sequence# should be enough to disambiguate)
-  //    @ expired time has nothing to do with compare
   int r = user_comparator_->Compare(ExtractUserKey(akey), ExtractUserKey(bkey));
   if (r == 0) {
     const uint64_t anum = DecodeFixed64(akey.data() + akey.size() - kInternalKeySeqSize);
@@ -67,7 +64,6 @@ void InternalKeyComparator::FindShortestSeparator(
   if (user_comparator_->Compare(*start, tmp) < 0) {
     // User key has become larger.  Tack on the earliest possible
     // number to the shortened user key.
-    PutFixed32(&tmp, 0);
     PutFixed64(&tmp, PackSequenceAndType(kMaxSequenceNumber,kValueTypeForSeek));
     assert(this->Compare(*start, tmp) < 0);
     assert(this->Compare(tmp, limit) < 0);
@@ -82,7 +78,6 @@ void InternalKeyComparator::FindShortSuccessor(std::string* key) const {
   if (user_comparator_->Compare(user_key, tmp) < 0) {
     // User key has become larger.  Tack on the earliest possible
     // number to the shortened user key.
-    PutFixed32(&tmp, 0);
     PutFixed64(&tmp, PackSequenceAndType(kMaxSequenceNumber,kValueTypeForSeek));
     assert(this->Compare(*key, tmp) < 0);
     key->swap(tmp);
@@ -99,10 +94,10 @@ LookupKey::LookupKey(const Slice& user_key, SequenceNumber s) {
     dst = new char[needed];
   }
   start_ = dst;
-  dst = EncodeVarint32(dst, usize + 4 + 8); // @ expired time. TODO: must..?
+  dst = EncodeVarint32(dst, usize + kInternalKeyBaseSize);
   kstart_ = dst;
   memcpy(dst, user_key.data(), usize);
-  dst += usize + 4;             // @ just skip expired time, cause it has noting to do with compare.
+  dst += usize;
   EncodeFixed64(dst, PackSequenceAndType(s, kValueTypeForSeek));
   dst += 8;
   end_ = dst;

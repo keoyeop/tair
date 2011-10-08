@@ -17,15 +17,23 @@
 #ifndef TAIR_STORAGE_LDB_DEFINE_H
 #define TAIR_STORAGE_LDB_DEFINE_H
 
-class leveldb::DB;
+#include "leveldb/db.h"
+
+namespace leveldb
+{
+  class DB;
+}
+
 namespace tair
 {
   namespace storage
   {
     namespace ldb
     {
-      const static int LDB_KEY_META_SIZE = 3;
-      const static int MAX_SCAN_KEY = (1 << 24) - 2;
+      const static int LDB_EXPIRED_TIME_SIZE = sizeof(uint32_t);
+      const static int LDB_KEY_BUCKET_NUM_SIZE = 3;
+      const static int LDB_KEY_META_SIZE = LDB_KEY_BUCKET_NUM_SIZE + LDB_EXPIRED_TIME_SIZE;
+      const static int MAX_BUCKET_NUMBER = (1 << 24) - 2;
 
       class LdbKey
       {
@@ -34,24 +42,24 @@ namespace tair
         {
         }
 
-        LdbKey(const int32_t bucket_number, const char* key_data, const int32_t key_size) :
+        LdbKey(const char* key_data, int32_t key_size, int32_t bucket_number, uint32_t expired_time = 0) :
           data_(NULL), data_size_(0), alloc_(false)
         {
-          set(bucket_number, key_data, key_size);
+          set(key_data, key_size, bucket_number, expired_time);
         }
         ~LdbKey()
         {
           free();
         }
 
-        inline void set(const int32_t bucket_number, const char* key_data, const int32_t key_size)
+        inline void set(const char* key_data, int32_t key_size, int32_t bucket_number, uint32_t expired_time)
         {
           if (key_data != NULL && key_size > 0)
           {
             free();
             data_size_ = key_size + LDB_KEY_META_SIZE;
             data_ = new char[data_size_];
-            build_key_meta(bucket_number, data_);
+            build_key_meta(data_, bucket_number, expired_time);
             memcpy(data_ + LDB_KEY_META_SIZE, key_data, key_size);
             alloc_ = true;
           }
@@ -90,16 +98,65 @@ namespace tair
           return data_size_ > LDB_KEY_META_SIZE ? (data_size_ - LDB_KEY_META_SIZE) : 0;
         }
 
-        static void build_key_meta(const int32_t bucket_number, char* buf)
+        static void build_key_meta(char* buf, int32_t bucket_number, uint32_t expired_time = 0)
         {
           // consistent key len SCAN_KEY_LEN
           // big-endian to use default bitewise comparator.
           // consider: varintint may be space-saved,
           // but user defined comparator need caculate datalen every time.
-          assert(bucket_number < MAX_SCAN_KEY);
-          for (int i = 0; i < LDB_KEY_META_SIZE; ++i)
+
+          // encode expired time
+          encode_fixed32(buf, expired_time);
+          encode_bucket_number(buf + LDB_EXPIRED_TIME_SIZE, bucket_number);
+        }
+
+        static void encode_bucket_number(char* buf, int bucket_number)
+        {
+          assert(bucket_number < MAX_BUCKET_NUMBER);
+          for (int i = 0; i < LDB_KEY_BUCKET_NUM_SIZE; ++i)
           {
-            buf[LDB_KEY_META_SIZE - i - 1] = (bucket_number >> (i*8)) & 0xFF;
+            buf[LDB_KEY_BUCKET_NUM_SIZE - i - 1] = (bucket_number >> (i*8)) & 0xFF;
+          }
+        }
+
+        static int decode_bucket_number(const char* buf)
+        {
+          int bucket_number = 0;
+          for (int i = 0; i < LDB_KEY_BUCKET_NUM_SIZE; ++i)
+          {
+            bucket_number |= buf[i] << (LDB_KEY_BUCKET_NUM_SIZE - i - 1);
+          }
+          assert(bucket_number < MAX_BUCKET_NUMBER);
+          return bucket_number;
+        }
+
+        static void encode_fixed32(char* buf, uint32_t value)
+        {
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+          memcpy(buf, &value, sizeof(value));
+#else
+          buf[0] = value & 0xff;
+          buf[1] = (value >> 8) & 0xff;
+          buf[2] = (value >> 16) & 0xff;
+          buf[3] = (value >> 24) & 0xff;
+#endif           
+        }
+
+        static uint32_t decode_fixed32(const char* buf)
+        {
+          if (1)
+          {
+            // Load the raw bytes
+            uint32_t result;
+            memcpy(&result, buf, sizeof(result));  // gcc optimizes this to a plain load
+            return result;
+          }
+          else
+          {
+            return ((static_cast<uint32_t>(buf[0]))
+                    | (static_cast<uint32_t>(buf[1]) << 8)
+                    | (static_cast<uint32_t>(buf[2]) << 16)
+                    | (static_cast<uint32_t>(buf[3]) << 24));
           }
         }
 
@@ -115,7 +172,8 @@ namespace tair
         uint8_t  flag_;         // flag
         uint16_t version_;      // version
         uint32_t cdate_;        // create time
-        uint32_t mdate_;        // modify time (expired time encode in key)
+        uint32_t mdate_;        // modify time
+        uint32_t edate_;        // expired time(for meta when get value. dummy with key)
         uint8_t  reserved_;     // just reserved
       };
 
@@ -191,6 +249,7 @@ namespace tair
       };
 
       bool get_db_stat(leveldb::DB* db, std::string& value, const char* property);
+      bool get_db_stat(leveldb::DB* db, int64_t& value, const char* property);
       int32_t get_level_num(leveldb::DB* db);
       bool get_level_range(leveldb::DB* db, int32_t level, std::string* smallest, std::string* largest);
     }

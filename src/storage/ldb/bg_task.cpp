@@ -14,10 +14,9 @@
  *
  */
 
-#include "leveldb/db.h"
-
 #include "common/define.hpp"
 #include "common/log.hpp"
+#include "ldb_bucket.hpp"
 #include "ldb_define.hpp"
 #include "bg_task.hpp"
 
@@ -30,13 +29,12 @@ namespace tair
       ////////// LdbCompactTask
       LdbCompactTask::LdbCompactTask()
         : db_(NULL), min_time_(0), max_time_(0),
-          is_compacting_(false), last_compact_time_(0), should_compact_level_(0)
+          is_compacting_(false), last_compact_round_over_time_(0), should_compact_level_(0)
       {
       }
 
       LdbCompactTask::~LdbCompactTask()
       {
-        // db_ is not delete here
       }
 
       void LdbCompactTask::runTimerTask()
@@ -48,7 +46,7 @@ namespace tair
         }
       }
 
-      bool LdbCompactTask::init(leveldb::DB* db)
+      bool LdbCompactTask::init(LdbBucket* db)
       {
         bool ret = db != NULL;
         if (ret)
@@ -71,7 +69,7 @@ namespace tair
 
       bool LdbCompactTask::should_compact()
       {
-        tbsys::CThreadGuard guard(&mutex_);
+        tbsys::CThreadGuard guard(&lock_);
         return !is_compacting_ && is_compact_time() && can_compact();
       }
 
@@ -84,13 +82,13 @@ namespace tair
       // leveldb compact has its's own mutex
       void LdbCompactTask::do_compact()
       {
-        log_debug("do compact now level: %d, last time: %u, is_compacting: %d", should_compact_level_, last_compact_time_, is_compacting_);
+        log_debug("do compact now level: %d, last time: %u, is_compacting: %d", should_compact_level_, last_compact_round_over_time_, is_compacting_);
         // level count does not change once db started.
-        static int32_t level_num = get_level_num(db_) - 1;
+        static int32_t level_num = get_level_num(db_->db()) - 1;
 
         bool can_compact = false;
         {
-          tbsys::CThreadGuard guard(&mutex_);
+          tbsys::CThreadGuard guard(&lock_);
           can_compact = !is_compacting_;
           if (!is_compacting_)
           {
@@ -100,38 +98,48 @@ namespace tair
 
         if (can_compact)
         {
-          std::string range_smallest, range_largest;
-          if (!get_level_range(db_, should_compact_level_, &range_smallest, &range_largest))
+          if (0 == last_compact_round_over_time_ && 0 == should_compact_level_) // first compact
           {
-            log_error("compact fail when get level [%d] range.", should_compact_level_);
+            last_compact_round_over_time_ = time(NULL);
           }
-          else
+
+          std::string range_smallest, range_largest;
+          while (should_compact_level_ < level_num)
           {
-            if (!range_smallest.empty() && !range_largest.empty())
+            if (!get_level_range(db_->db(), should_compact_level_, &range_smallest, &range_largest))
+            {
+              log_error("compact fail when get level [%d] range.", should_compact_level_);
+              break;
+            }
+            else if (!range_smallest.empty() && !range_largest.empty()) // can compact
             {
               // compact each level.
               // TODO: Test compaction's load to tune other strategy
               uint32_t start_time = time(NULL);
               log_debug("compact [%d] start %u", should_compact_level_, start_time);
-              db_->CompactRange(should_compact_level_, range_smallest, range_largest);
+              db_->db()->CompactRange(should_compact_level_, range_smallest, range_largest);
               log_debug("compact [%d] end cost: %u", should_compact_level_, time(NULL) - start_time);
+
+              ++should_compact_level_;
+              break;
             }
             else
             {
               log_debug("current level [%d] has no file.", should_compact_level_);
-            }
-
-            last_compact_time_ = time(NULL);
-            if (should_compact_level_ + 1 >= level_num)
-            {
-              // finish today
-              should_compact_level_ = -1;
-            }
-            else
-            {
               ++should_compact_level_;
             }
           }
+
+          if (should_compact_level_ >= level_num)
+          {
+            // finish today
+            should_compact_level_ = -1;
+            uint32_t save_last_compact_round_over_time = last_compact_round_over_time_;
+            last_compact_round_over_time_ = time(NULL);
+            // finish gc
+            db_->gc_factory()->finish(save_last_compact_round_over_time);
+          }
+
           is_compacting_ = false;
         }
       }
@@ -139,7 +147,7 @@ namespace tair
       bool LdbCompactTask::is_compact_time()
       {
         bool ret = false;
-        if (!(ret = (should_compact_level_ >= 0)) && (time(NULL) - last_compact_time_ > COMPACT_PAUSE_TIME))
+        if (!(ret = (should_compact_level_ >= 0)) && (time(NULL) - last_compact_round_over_time_ > COMPACT_PAUSE_TIME))
         {
           ret = true;
           should_compact_level_ = 0;
@@ -208,7 +216,7 @@ namespace tair
         stop();
       }
 
-      bool BgTask::start(leveldb::DB* db)
+      bool BgTask::start(LdbBucket* db)
       {
         bool ret = db != NULL;
         if (ret && timer_ == 0)
@@ -228,7 +236,7 @@ namespace tair
         }
       }
 
-      bool BgTask::init_compact_task(leveldb::DB* db)
+      bool BgTask::init_compact_task(LdbBucket* db)
       {
         bool ret = false;
         if (timer_ != 0)

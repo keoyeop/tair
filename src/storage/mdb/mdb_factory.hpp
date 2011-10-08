@@ -15,7 +15,7 @@
 #ifndef TAIR_STORAGE_MDB_FACTORY_H
 #define TAIR_STORAGE_MDB_FACTORY_H
 
-#include "storage_manager.hpp"
+#include "storage/storage_manager.hpp"
 namespace tair {
 
   class mdb_factory {
