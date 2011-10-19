@@ -35,6 +35,16 @@ namespace tair
       const static int LDB_KEY_META_SIZE = LDB_KEY_BUCKET_NUM_SIZE + LDB_EXPIRED_TIME_SIZE;
       const static int MAX_BUCKET_NUMBER = (1 << 24) - 2;
 
+      extern bool get_db_stat(leveldb::DB* db, std::string& value, const char* property);
+      extern bool get_db_stat(leveldb::DB* db, uint64_t& value, const char* property);
+      extern int32_t get_level_num(leveldb::DB* db);
+      extern bool get_level_range(leveldb::DB* db, int32_t level, std::string* smallest, std::string* largest);
+
+      extern uint32_t decode_fixed32(const char* buf);
+      extern void encode_fixed32(char* buf, uint32_t value);
+      extern uint64_t decode_fixed64(const char* buf);
+      extern void encode_fixed64(char* buf, uint64_t value);
+
       class LdbKey
       {
       public:
@@ -112,52 +122,53 @@ namespace tair
 
         static void encode_bucket_number(char* buf, int bucket_number)
         {
-          assert(bucket_number < MAX_BUCKET_NUMBER);
           for (int i = 0; i < LDB_KEY_BUCKET_NUM_SIZE; ++i)
           {
             buf[LDB_KEY_BUCKET_NUM_SIZE - i - 1] = (bucket_number >> (i*8)) & 0xFF;
           }
         }
 
-        static int decode_bucket_number(const char* buf)
+        static int32_t decode_bucket_number(const char* buf)
         {
           int bucket_number = 0;
           for (int i = 0; i < LDB_KEY_BUCKET_NUM_SIZE; ++i)
           {
             bucket_number |= buf[i] << (LDB_KEY_BUCKET_NUM_SIZE - i - 1);
           }
-          assert(bucket_number < MAX_BUCKET_NUMBER);
           return bucket_number;
         }
 
-        static void encode_fixed32(char* buf, uint32_t value)
+        static void encode_area(char* buf, int32_t area)
         {
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-          memcpy(buf, &value, sizeof(value));
-#else
-          buf[0] = value & 0xff;
-          buf[1] = (value >> 8) & 0xff;
-          buf[2] = (value >> 16) & 0xff;
-          buf[3] = (value >> 24) & 0xff;
-#endif           
+          buf[0] = area & 0xff;
+          buf[1] = (area >> 8) & 0xff;
         }
 
-        static uint32_t decode_fixed32(const char* buf)
+        static int32_t decode_area(const char* buf)
         {
-          if (1)
-          {
-            // Load the raw bytes
-            uint32_t result;
-            memcpy(&result, buf, sizeof(result));  // gcc optimizes this to a plain load
-            return result;
-          }
-          else
-          {
-            return ((static_cast<uint32_t>(buf[0]))
-                    | (static_cast<uint32_t>(buf[1]) << 8)
-                    | (static_cast<uint32_t>(buf[2]) << 16)
-                    | (static_cast<uint32_t>(buf[3]) << 24));
-          }
+          return (static_cast<int32_t>(buf[1]) << 8) | buf[0];
+        }
+
+        static void build_scan_key(int32_t bucket_number, std::string& start_key, std::string& end_key)
+        {
+          char buf[LDB_KEY_META_SIZE];
+          build_key_meta(buf, bucket_number);
+          start_key.assign(buf, LDB_KEY_META_SIZE);
+          build_key_meta(buf, bucket_number+1);
+          end_key.assign(buf, LDB_KEY_META_SIZE);
+        }
+
+        static void build_scan_key_with_area(int32_t area, std::string& start_key, std::string& end_key)
+        {
+          char buf[LDB_KEY_META_SIZE + 2];
+
+          build_key_meta(buf, 0);
+          encode_area(buf + LDB_KEY_META_SIZE, area);
+          start_key.assign(buf, sizeof(buf));
+
+          build_key_meta(buf, MAX_BUCKET_NUMBER);
+          encode_area(buf + LDB_KEY_META_SIZE, area + 1);
+          end_key.assign(buf, sizeof(buf));
         }
 
       private:
@@ -166,16 +177,18 @@ namespace tair
         bool alloc_;
       };
 
+#pragma pack(4)
       struct LdbItemMeta
       {
         LdbItemMeta() : flag_(0), version_(0), cdate_(0), mdate_(0) {}
+        uint8_t  reserved_;     // just reserved
         uint8_t  flag_;         // flag
         uint16_t version_;      // version
         uint32_t cdate_;        // create time
         uint32_t mdate_;        // modify time
         uint32_t edate_;        // expired time(for meta when get value. dummy with key)
-        uint8_t  reserved_;     // just reserved
       };
+#pragma pack()
 
       const int32_t LDB_ITEM_META_SIZE = sizeof(LdbItemMeta);
 
@@ -247,11 +260,6 @@ namespace tair
         int32_t data_size_;
         bool alloc_;
       };
-
-      bool get_db_stat(leveldb::DB* db, std::string& value, const char* property);
-      bool get_db_stat(leveldb::DB* db, int64_t& value, const char* property);
-      int32_t get_level_num(leveldb::DB* db);
-      bool get_level_range(leveldb::DB* db, int32_t level, std::string* smallest, std::string* largest);
     }
   }
 }

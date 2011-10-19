@@ -9,7 +9,7 @@
 
 namespace tair {
   namespace storage {
-  namespace ldb {
+    namespace ldb {
       stat_manager::stat_manager()
       {
         fd = -1;
@@ -24,7 +24,7 @@ namespace tair {
       bool stat_manager::start(int bucket_number, const char *file_dir)
       {
         // open file
-        snprintf(file_name, PATH_MAX_LENGTH, "%s/tair_db_%06d.stat", file_dir, bucket_number);
+        snprintf(file_name, PATH_MAX, "%s/tair_db_%06d.stat", file_dir, bucket_number);
         fd =::open(file_name, O_RDWR | O_CREAT | O_LARGEFILE, 0600);
         if(fd < 0) {
           log_error("open file [%s] failed: %s", file_name, strerror(errno));
@@ -70,8 +70,8 @@ namespace tair {
           fd = -1;
         }
       }
-      
-      void stat_manager::destory()
+
+      void stat_manager::destroy()
       {
         stop();
         if (::remove(file_name) == -1) {
@@ -86,22 +86,29 @@ namespace tair {
         return msync(stat_info, DBSTATINFO_SIZE, MS_ASYNC) == 0;
       }
 
-      void stat_manager::stat_add(int area, int data_size, int use_size)
+      void stat_manager::stat_add(int area, int data_size, int use_size, int item_count)
       {
         assert(area < TAIR_MAX_AREA_COUNT);
         tbsys::CThreadGuard guard(&stat_lock);
         stat_info->stat[area].add_data_size(data_size);
         stat_info->stat[area].add_use_size(use_size);
-        stat_info->stat[area].add_item_count();
-      } 
+        stat_info->stat[area].add_item_count(item_count);
+      }
 
-      void stat_manager::stat_sub(int area, int data_size, int use_size)
+      void stat_manager::stat_sub(int area, int data_size, int use_size, int item_count)
       {
         assert(area < TAIR_MAX_AREA_COUNT);
         tbsys::CThreadGuard guard(&stat_lock);
         stat_info->stat[area].sub_data_size(data_size);
         stat_info->stat[area].sub_use_size(use_size);
-        stat_info->stat[area].sub_item_count();
+        stat_info->stat[area].sub_item_count(item_count);
+      }
+
+      void stat_manager::stat_reset(int area)
+      {
+        assert(area < TAIR_MAX_AREA_COUNT);
+        tbsys::CThreadGuard guard(&stat_lock);
+        stat_info->stat[area].reset();
       }
 
       tair_pstat* stat_manager::get_stat() const

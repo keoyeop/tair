@@ -112,13 +112,6 @@ namespace tair {
 
       calculate_release_bucket(temp_holding_buckets);
 
-#ifdef TAIR_DEBUG
-      log_debug("release bucket size = %d ", release_buckets.size());
-      for (size_t i = 0; i < release_buckets.size(); ++i) {
-         log_debug("relase serverTable[%d] = %s", i, tbsys::CNetUtil::addrToString(release_buckets[i]).c_str() );
-      }
-#endif
-
       holding_buckets = temp_holding_buckets;
       this->table_version = table_version;
 #ifdef TAIR_DEBUG

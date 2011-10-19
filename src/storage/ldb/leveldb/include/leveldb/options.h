@@ -155,7 +155,7 @@ struct Options {
   int64_t kMaxGrandParentOverlapBytes;
 
 // arena block size
-  int kBlockSize;
+  int kBaseLevelSize;
 
   // Create an Options object with default values for all fields.
   Options();

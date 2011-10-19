@@ -170,7 +170,8 @@ void DBIter::FindNextUserEntry(bool skipping, std::string* skip) {
           if ((skipping &&
                user_comparator_->Compare(ikey.user_key, *skip) <= 0)) {
             // Entry hidden
-          } else if (user_comparator_->ShouldDrop(ikey.user_key.data(), ikey.sequence)) {
+          } else if (user_comparator_->ShouldDrop(ikey.user_key.data(), ikey.sequence) ||
+                     user_comparator_->ShouldDropMaybe(ikey.user_key.data(), ikey.sequence)) {
             // should drop, skip all upcoming entries for this key.
             SaveKey(ikey.user_key, skip);
             skipping = true;

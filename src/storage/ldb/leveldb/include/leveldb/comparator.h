@@ -53,9 +53,10 @@ class Comparator {
   // i.e., an implementation of this method that does nothing is correct.
   virtual void FindShortSuccessor(std::string* key) const = 0;
 
-  // whether this key should drop with sequence number @sequence
-  // and when @now (seconds), cause some condition (user-defined)
+  // should drop this key no matter what condition.(user defined)
   virtual bool ShouldDrop(const char* key, int64_t sequence, uint32_t now = 0) const { return false;}
+  // should drop this key based on some condition. (user defined)
+  virtual bool ShouldDropMaybe(const char* key, int64_t sequence, uint32_t now = 0) const { return false;}
 };
 
 // Return a builtin comparator that uses lexicographic byte-wise

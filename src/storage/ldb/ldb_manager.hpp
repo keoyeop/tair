@@ -17,8 +17,6 @@
 #ifndef TAIR_STORAGE_LDB_MANAGER_H
 #define TAIR_STORAGE_LDB_MANAGER_H
 
-#include <boost/dynamic_bitset.hpp>
-
 #include "storage/storage_manager.hpp"
 #include "common/data_entry.hpp"
 #include "common/stat_info.hpp"
@@ -29,59 +27,9 @@ namespace tair
   {
     namespace ldb
     {
-      class LdbBucket;
-      // for test single or multi leveldb instance
-      class LdbInstance
-      {
-      public:
-        LdbInstance(){}
-        virtual ~LdbInstance(){}
 
-        virtual bool init_buckets(const std::vector <int>& buckets) = 0;
-        virtual void close_buckets(const std::vector <int>& buckets) = 0;
-        virtual LdbBucket* get_bucket(const int bucket_number) = 0;
-        virtual void get_stats(tair_stat* stat) = 0;
-        virtual int clear(int32_t area) = 0;
-      };
-
-      class SingleLdbInstance : public LdbInstance
-      {
-      public:
-        SingleLdbInstance(storage::storage_manager* cache);
-        virtual ~SingleLdbInstance();
-
-        virtual bool init_buckets(const std::vector <int>& buckets);
-        virtual void close_buckets(const std::vector <int>& buckets);
-        virtual LdbBucket* get_bucket(const int bucket_number);
-        virtual void get_stats(tair_stat* stat);
-        virtual int clear(int32_t area);
-
-      private:
-        LdbBucket* ldb_bucket_;
-        boost::dynamic_bitset<> bucket_set_;
-      };
-
-      class MultiLdbInstance : public LdbInstance
-      {
-      public:
-        typedef __gnu_cxx::hash_map <int, LdbBucket*> LDB_BUCKETS_MAP;
-
-        MultiLdbInstance(storage_manager* cache);
-        virtual ~MultiLdbInstance();
-
-        virtual bool init_buckets(const std::vector <int>& buckets);
-        virtual void close_buckets(const std::vector <int>& buckets);
-        virtual LdbBucket* get_bucket(const int bucket_number);
-        virtual void get_stats(tair_stat* stat);
-        virtual int clear(int32_t area);
-
-      private:
-        LDB_BUCKETS_MAP* buckets_map_;
-        storage_manager* cache_;
-      };
-
-      // just close to kdb_manager.
-      // manager hold buckets. single or multi leveldb instance based on config for test 
+      class LdbInstance;
+      // manager hold buckets. single or multi leveldb instance based on config for test
       // it works, maybe make it common manager level.
       class LdbManager : public tair::storage::storage_manager
       {
@@ -108,9 +56,13 @@ namespace tair
         void get_stats(tair_stat* stat);
 
       private:
-        LdbInstance* ldb_instance_;
+        LdbInstance* get_db_instance(int bucket_number);
+
+      private:
+        LdbInstance** ldb_instance_;
+        int32_t db_count_;
         storage_manager* cache_;
-        LdbBucket* scan_ldb_;
+        LdbInstance* scan_ldb_;
         tbsys::CThreadMutex lock_;
       };
     }

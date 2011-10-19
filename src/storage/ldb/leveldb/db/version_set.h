@@ -43,12 +43,17 @@ extern int FindFile(const InternalKeyComparator& icmp,
                     const Slice& key);
 
 // Returns true iff some file in "files" overlaps the user key range
-// [smallest,largest].
-extern bool SomeFileOverlapsRange(
+// [*smallest,*largest].
+// smallest==NULL represents a key smaller than all keys in the DB.
+// largest==NULL represents a key largest than all keys in the DB.
+// REQUIRES: If disjoint_sorted_files, files[] contains disjoint ranges
+//           in sorted order.
+  extern bool SomeFileOverlapsRange(
     const InternalKeyComparator& icmp,
+    bool disjoint_sorted_files,
     const std::vector<FileMetaData*>& files,
-    const Slice& smallest_user_key,
-    const Slice& largest_user_key);
+    const Slice* smallest_user_key,
+    const Slice* largest_user_key);
 
 class Version {
  public:
@@ -81,11 +86,31 @@ class Version {
   void Ref();
   void Unref();
 
+  void GetOverlappingInputs(
+    int level,
+    const InternalKey* begin,         // NULL means before all keys
+    const InternalKey* end,           // NULL means after all keys
+    std::vector<FileMetaData*>* inputs);
+
+  void GetOverlappingInputsOneLevel(
+    int level,
+    uint64_t limit_filenumber,
+    const InternalKey* begin,
+    const InternalKey* end,
+    std::vector<FileMetaData*>* inputs);
+
   // Returns true iff some file in the specified level overlaps
-  // some part of [smallest_user_key,largest_user_key].
+  // some part of [*smallest_user_key,*largest_user_key].
+  // smallest_user_key==NULL represents a key smaller than all keys in the DB.
+  // largest_user_key==NULL represents a key largest than all keys in the DB.
   bool OverlapInLevel(int level,
-                      const Slice& smallest_user_key,
-                      const Slice& largest_user_key);
+                      const Slice* smallest_user_key,
+                      const Slice* largest_user_key);
+
+  // Return the level at which we should place a new memtable compaction
+  // result that covers the range [smallest_user_key,largest_user_key].
+  int PickLevelForMemTableOutput(const Slice& smallest_user_key,
+                                 const Slice& largest_user_key);
 
   int NumFiles(int level) const { return files_[level].size(); }
 
@@ -162,6 +187,12 @@ class VersionSet {
   // Allocate and return a new file number
   uint64_t NewFileNumber() { return next_file_number_++; }
 
+  // Return the next filenumber
+  uint64_t NextFileNumber() const { return next_file_number_; }
+
+  // Return the smallest filenumber
+  uint64_t SmallestFileNumber() const;
+
   // Return the number of Table files at the specified level.
   int NumLevelFiles(int level) const;
 
@@ -199,8 +230,19 @@ class VersionSet {
   // the result.
   Compaction* CompactRange(
       int level,
-      const InternalKey& begin,
-      const InternalKey& end);
+      const InternalKey* begin,
+      const InternalKey* end);
+
+  // Return a compaction object for compacting the range [begin,end] and
+  // whose filenumber is less than limit_filenumber in
+  // the specified level.  Returns NULL if there is nothing in that
+  // level that overlaps the specified range.  Caller should delete
+  // the result.
+  Compaction* CompactRangeOneLevel(
+    int level,
+    uint64_t limit_filenumber,
+    const InternalKey* begin,
+    const InternalKey* end);
 
   // Return the maximum overlapping data (in bytes) at next level for any
   // file at a level >= 1.
@@ -238,12 +280,6 @@ class VersionSet {
   friend class Version;
 
   void Finalize(Version* v);
-
-  void GetOverlappingInputs(
-      int level,
-      const InternalKey& begin,
-      const InternalKey& end,
-      std::vector<FileMetaData*>* inputs);
 
   void GetRange(const std::vector<FileMetaData*>& inputs,
                 InternalKey* smallest,

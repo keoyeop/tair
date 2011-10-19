@@ -129,9 +129,10 @@ class DB {
   virtual bool GetLevelRange(int level, std::string* smallest, std::string* largest) = 0;
 
   // Compact a range of keys
-  virtual void CompactRange(int level,
-                            const std::string& begin,
-                            const std::string& end) = 0;
+  virtual void CompactRange(const Slice* begin, const Slice* end) = 0;
+
+  // Compact a range of keys only in one level and files whoes filenumer is less than limit_filenumber
+  virtual Status CompactRangeSelfLevel(uint64_t limit_filenumber, const Slice* begin, const Slice* end) = 0;
 
  private:
   // No copying allowed

@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 namespace leveldb {
+class Options;
 struct config {
 
 static const int kNumLevels = 7;
@@ -38,6 +39,13 @@ static int64_t kMaxGrandParentOverlapBytes;
 // arena block size
 static int kBlockSize;
 
+// base size for each level.
+// level-0 & level-1 : kBaseLevelSize
+// level-2.. : kBaseLevelSize * 10 * (level - 1)
+static int kBaseLevelSize;
+
+// get config from user option.
+static void setConfig(const Options& option);
 };
 }
 #endif  // STORAGE_LEVELDB_UTIL_CONFIG_H_

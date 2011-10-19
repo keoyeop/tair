@@ -16,7 +16,7 @@
 
 #include "storage/mdb/mdb_factory.hpp"
 #include "ldb_manager.hpp"
-#include "ldb_bucket.hpp"
+#include "ldb_instance.hpp"
 
 namespace tair
 {
@@ -24,244 +24,46 @@ namespace tair
   {
     namespace ldb
     {
-      SingleLdbInstance::SingleLdbInstance(storage::storage_manager* cache_)
+      LdbManager::LdbManager() : cache_(NULL), scan_ldb_(NULL)
       {
-        ldb_bucket_ = new LdbBucket(cache_);
-        bucket_set_.resize(10240, false);
-      }
-
-      SingleLdbInstance::~SingleLdbInstance()
-      {
-        delete ldb_bucket_;
-        ldb_bucket_ = NULL;
-      }
-
-      bool SingleLdbInstance::init_buckets(const std::vector <int>& buckets)
-      {
-        bool ret = true;
-        int bucket_number = 0;
-
-        if (!buckets.empty())
+        int cache_size = 0;
+        bool put_fill_cache = false;
+        if (TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_USE_CACHE, 1) > 0)
         {
-          if (!(ret = ldb_bucket_->start(buckets[0])))
+          cache_size =
+            TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_SIZE, 256); // 256M
+          cache_ = mdb_factory::create_embedded_mdb(cache_size, 1.2);
+          if (NULL == cache_)
           {
-            log_error("init single ldb failed");
+            log_error("init ldb memory cache fail. cache_size: %d", cache_size);
           }
-          else
-          {
-            for (size_t i = 0; i < buckets.size(); i++)
-            {
-              bucket_number = buckets[i];
-              // dynamic resize
-              if (bucket_number > static_cast<int>(bucket_set_.size()))
-              {
-                bucket_set_.resize(bucket_number, false);
-              }
-              if (bucket_set_.test(bucket_number))
-              {
-                log_info("bucket [%d] already exist", bucket_number);
-              }
-              else
-              {
-                bucket_set_.set(bucket_number);
-              }
-            }
-          }
+          put_fill_cache = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_PUT_FILL_CACHE, 0) > 0;
         }
 
-        return ret;
-      }
-
-      void SingleLdbInstance::close_buckets(const std::vector <int>& buckets)
-      {
-        int bucket_number = 0;
-        for (size_t i = 0; i< buckets.size(); i++)
+        bool db_version_care = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DB_VERSION_CARE, 1) > 0;
+        db_count_ = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DB_INSTANCE_COUNT, 1);
+        ldb_instance_ = new LdbInstance*[db_count_];
+        for (int32_t i = 0; i < db_count_; ++i)
         {
-          bucket_number = buckets[i];
-          if (bucket_set_.test(bucket_number))
-          {
-            bucket_set_.reset(bucket_number);
-            // TODO: destroy specified bucket
-            ldb_bucket_->clear_bucket(bucket_number);
-          }
-          else
-          {
-            log_info("bucket [%d] not exist", bucket_number);
-          }
-        }
-        if (bucket_set_.none())
-        {
-          ldb_bucket_->destroy(); // TODO ..
-        }
-      }
-
-      LdbBucket* SingleLdbInstance::get_bucket(const int bucket_number)
-      {
-        LdbBucket* ret = NULL;
-        if (bucket_set_.test(bucket_number))
-        {
-          ret = ldb_bucket_;
-        }
-        return ret;
-      }
-
-      void SingleLdbInstance::get_stats(tair_stat* stat)
-      {
-        return ldb_bucket_->get_stat(stat);
-      }
-
-      int SingleLdbInstance::clear(int32_t area)
-      {
-        return ldb_bucket_->clear_area(area);
-      }
-
-      // MultiLdbInstance
-      MultiLdbInstance::MultiLdbInstance(storage_manager* cache) : cache_(cache)
-      {
-        buckets_map_ = new LDB_BUCKETS_MAP();
-      }
-
-      MultiLdbInstance::~MultiLdbInstance()
-      {
-        LDB_BUCKETS_MAP::iterator it;
-        for (it = buckets_map_->begin(); it != buckets_map_->end(); ++it)
-        {
-          delete it->second;
+          ldb_instance_[i] = new LdbInstance(i, db_version_care, cache_, put_fill_cache);
         }
 
-        delete buckets_map_;
-      }
-
-      bool MultiLdbInstance::init_buckets(const std::vector <int>& buckets)
-      {
-        LDB_BUCKETS_MAP* temp_buckets_map = new LDB_BUCKETS_MAP(*buckets_map_);
-        bool ret = true;
-
-        for (size_t i = 0; i < buckets.size(); i++)
-        {
-          int bucket_number = buckets[i];
-          LdbBucket* bucket = get_bucket(bucket_number);
-          if (bucket != NULL)
-          {
-            log_info("bucket [%d] already exist", bucket_number);
-            continue;
-          }
-
-          LdbBucket* new_bucket = new LdbBucket(cache_);
-          if (!(ret = new_bucket->start(bucket_number)))
-          {
-            log_error("init bucket[%d] failed", bucket_number);
-            delete new_bucket;
-            break;
-          }
-
-          (*temp_buckets_map)[bucket_number] = new_bucket;
-        }
-
-        if (ret)
-        {
-          LDB_BUCKETS_MAP* old_bucket_map = buckets_map_;
-          buckets_map_ = temp_buckets_map;
-          usleep(100);
-          delete old_bucket_map;
-        }
-
-        return ret;
-      }
-
-      void MultiLdbInstance::close_buckets(const std::vector <int>& buckets)
-      {
-        LDB_BUCKETS_MAP* temp_buckets_map = new LDB_BUCKETS_MAP(*buckets_map_);
-        std::vector<LdbBucket*> rm_buckets;
-
-        for (size_t i = 0; i < buckets.size(); ++i)
-        {
-          int bucket_number = buckets[i];
-          LdbBucket* bucket = get_bucket(bucket_number);
-          if (bucket == NULL)
-          {
-            log_info("bucket [%d] not exist", bucket_number);
-            continue;
-          }
-
-          temp_buckets_map->erase(bucket_number);
-          rm_buckets.push_back(bucket);
-        }
-
-        LDB_BUCKETS_MAP* old_buckets_map = buckets_map_;
-        buckets_map_ = temp_buckets_map;
-        usleep(1000);
-        for (size_t i = 0; i < rm_buckets.size(); ++i)
-        {
-          rm_buckets[i]->destroy();
-          delete rm_buckets[i];
-        }
-
-        delete old_buckets_map;
-      }
-
-      LdbBucket* MultiLdbInstance::get_bucket(const int bucket_number)
-      {
-        log_debug("get bucket %d", bucket_number);
-
-        LdbBucket* ret = NULL;
-
-        LDB_BUCKETS_MAP::iterator it = buckets_map_->find(bucket_number);
-        if (it != buckets_map_->end())
-        {
-          ret = it->second;
-        }
-
-        return ret;
-      }
-
-      void MultiLdbInstance::get_stats(tair_stat* stat)
-      {
-        for (LDB_BUCKETS_MAP::iterator it = buckets_map_->begin();
-             it != buckets_map_->end(); ++it)
-        {
-          it->second->get_stat(stat);
-        }
-      }
-
-      int MultiLdbInstance::clear(int32_t area)
-      {
-        int ret = TAIR_RETURN_SUCCESS;
-        for (LDB_BUCKETS_MAP::iterator it = buckets_map_->begin();
-             it != buckets_map_->end(); ++it)
-        {
-          int tmp_ret = it->second->clear_area(area);
-          if (tmp_ret != TAIR_RETURN_SUCCESS)
-          {
-            ret = TAIR_RETURN_FAILED;
-            log_warn("clear area [%d] fail when op bucket [%d]", area, it->first);
-          }
-        }
-        return ret;
-      }
-
-      //////////// LdbManager
-      LdbManager::LdbManager() : scan_ldb_(NULL)
-      {
-        int cache_size =
-          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_SIZE, 256); // 256M
-        cache_ = mdb_factory::create_embedded_mdb(cache_size, 1.2);
-
-        int strategy = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DB_INIT_STRATEGY, 0);
-        if (strategy != 0)
-        {
-          ldb_instance_ = new SingleLdbInstance(cache_);
-        }
-        else
-        {
-          ldb_instance_ = new MultiLdbInstance(cache_);
-        }
-        log_debug("ldb storage engine construct %d, with cache size: %dM", strategy, cache_size);
+        log_warn("ldb storage engine construct count: %d, db version care: %s, with cache size: %dM, put_fill_cache: %s",
+                 db_count_, db_version_care ? "yes" : "no", cache_size, put_fill_cache ? "yes" : "no");
       }
 
       LdbManager::~LdbManager()
       {
-        delete ldb_instance_;
+        if (ldb_instance_ != NULL)
+        {
+          for (int32_t i = 0; i < db_count_; ++i)
+          {
+            delete ldb_instance_[i];
+          }
+        }
+
+        delete[] ldb_instance_;
+
         if (cache_ != NULL)
         {
           delete cache_;
@@ -272,16 +74,16 @@ namespace tair
       {
         log_debug("ldb::put");
         int rc = TAIR_RETURN_SUCCESS;
-        LdbBucket* bucket = ldb_instance_->get_bucket(bucket_number);
+        LdbInstance* db_instance = get_db_instance(bucket_number);
 
-        if (bucket == NULL)
+        if (db_instance == NULL)
         {
           log_error("ldb_bucket[%d] not exist", bucket_number);
           rc = TAIR_RETURN_FAILED;
         }
         else
         {
-          rc = bucket->put(bucket_number, key, value, version_care, expire_time);
+          rc = db_instance->put(bucket_number, key, value, version_care, expire_time);
         }
 
         return rc;
@@ -291,16 +93,16 @@ namespace tair
       {
         log_debug("ldb::get");
         int rc = TAIR_RETURN_SUCCESS;
-        LdbBucket* bucket = ldb_instance_->get_bucket(bucket_number);
+        LdbInstance* db_instance = get_db_instance(bucket_number);
 
-        if (bucket == NULL)
+        if (db_instance == NULL)
         {
           log_error("ldb_bucket[%d] not exist", bucket_number);
           rc = TAIR_RETURN_FAILED;
         }
         else
         {
-          rc = bucket->get(bucket_number, key, value);
+          rc = db_instance->get(bucket_number, key, value);
         }
 
         return rc;
@@ -310,16 +112,16 @@ namespace tair
       {
         log_debug("ldb::remove");
         int rc = TAIR_RETURN_SUCCESS;
-        LdbBucket* bucket = ldb_instance_->get_bucket(bucket_number);
+        LdbInstance* db_instance = get_db_instance(bucket_number);
 
-        if (bucket == NULL)
+        if (db_instance == NULL)
         {
           log_error("ldb_bucket[%d] not exist", bucket_number);
           rc = TAIR_RETURN_FAILED;
         }
         else
         {
-          rc = bucket->remove(bucket_number, key, version_care);
+          rc = db_instance->remove(bucket_number, key, version_care);
         }
 
         return rc;
@@ -328,27 +130,81 @@ namespace tair
       int LdbManager::clear(int32_t area)
       {
         log_debug("ldb::clear %d", area);
-        return ldb_instance_->clear(area);
+        int ret = TAIR_RETURN_SUCCESS;
+        for (int32_t i = 0; i < db_count_; ++i)
+        {
+          int tmp_ret = ldb_instance_[i]->clear_area(area);
+          if (tmp_ret != TAIR_RETURN_SUCCESS)
+          {
+            ret = tmp_ret;
+            log_error("clear area %d for instance %d fail.", area, i); // just continue
+          }
+        }
+        return ret;
       }
 
       bool LdbManager::init_buckets(const std::vector<int>& buckets)
       {
         log_debug("ldb::init buckets");
         tbsys::CThreadGuard guard(&lock_);
-        return ldb_instance_->init_buckets(buckets);
+        bool ret = false;
+
+        if (1 == db_count_)
+        {
+          ret = ldb_instance_[0]->init_buckets(buckets);
+        }
+        else
+        {
+          std::vector<int32_t>* tmp_buckets = new std::vector<int32_t>[db_count_];
+
+          for (std::vector<int>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
+          {
+            tmp_buckets[*it % db_count_].push_back(*it);
+          }
+
+          for (int32_t i = 0; i < db_count_; ++i)
+          {
+            ret = ldb_instance_[i]->init_buckets(tmp_buckets[i]);
+            if (!ret)
+            {
+              log_error("init buckets for db instance %d", i);
+              break;
+            }
+          }
+          delete tmp_buckets;
+        }
+
+        return ret;
       }
 
       void LdbManager::close_buckets(const std::vector<int>& buckets)
       {
         log_debug("ldb::close buckets");
         tbsys::CThreadGuard guard(&lock_);
-        return ldb_instance_->close_buckets(buckets);
+        if (1 == db_count_)
+        {
+          ldb_instance_[0]->close_buckets(buckets);
+        }
+        else
+        {
+          std::vector<int32_t>* tmp_buckets = new std::vector<int32_t>[db_count_];
+          for (std::vector<int>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
+          {
+            tmp_buckets[*it % db_count_].push_back(*it);
+          }
+
+          for (int32_t i = 0; i < db_count_; ++i)
+          {
+            ldb_instance_[i]->close_buckets(tmp_buckets[i]);
+          }
+          delete tmp_buckets;
+        }
       }
 
       // only one bucket can scan at any time ?
       void LdbManager::begin_scan(md_info& info)
       {
-        if ((scan_ldb_ = ldb_instance_->get_bucket(info.db_id)) == NULL)
+        if ((scan_ldb_ = get_db_instance(info.db_id)) == NULL)
         {
           log_error("scan bucket[%u] not exist", info.db_id);
         }
@@ -370,8 +226,7 @@ namespace tair
         }
       }
 
-      // only get one item once
-      bool LdbManager::get_next_items(md_info& info, std::vector <item_data_info *>& list)
+      bool LdbManager::get_next_items(md_info& info, std::vector<item_data_info*>& list)
       {
         bool ret = true;
         if (NULL == scan_ldb_)
@@ -381,34 +236,45 @@ namespace tair
         }
         else
         {
-          item_data_info* data = NULL;
-          bool still_have = false;
-          if ((ret = scan_ldb_->get_next_item(data, still_have)))
-          {
-            list.push_back(data);
-          }
+          ret = scan_ldb_->get_next_items(list);
+          log_debug("get items %d", list.size());
         }
         return ret;
       }
 
       void LdbManager::set_area_quota(int area, uint64_t quota)
       {
+        // we consider set area quota to cache
+        if (cache_ != NULL)
+        {
+          cache_->set_area_quota(area, quota);
+        }
       }
 
       void LdbManager::set_area_quota(std::map<int, uint64_t>& quota_map)
       {
+        if (cache_ != NULL)
+        {
+          cache_->set_area_quota(quota_map);
+        }
       }
 
       void LdbManager::get_stats(tair_stat* stat)
       {
         tbsys::CThreadGuard guard(&lock_);
         log_debug("ldbmanager get stats");
-        ldb_instance_->get_stats(stat);
-        if (stat != NULL)
+
+        for (int32_t i = 0; i < db_count_; ++i)
         {
-          log_info("stats: datasize: %"PRI64_PREFIX"u, usesize: %"PRI64_PREFIX"u, itemcount: %"PRI64_PREFIX"u",
-                    stat->data_size_value, stat->use_size_value, stat->item_count_value);
+          ldb_instance_[i]->get_stats(stat);
         }
+      }
+
+      LdbInstance* LdbManager::get_db_instance(const int bucket_number)
+      {
+        LdbInstance* ret = ldb_instance_[bucket_number % db_count_];
+        assert(ret != NULL);
+        return ret->exist(bucket_number) ? ret : NULL;
       }
 
     }

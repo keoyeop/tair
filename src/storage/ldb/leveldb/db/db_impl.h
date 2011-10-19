@@ -39,10 +39,11 @@ class DBImpl : public DB {
   virtual bool GetProperty(const Slice& property, std::string* value);
   virtual bool GetLevelRange(int level, std::string* smallest, std::string* largest);
   virtual void GetApproximateSizes(const Range* range, int n, uint64_t* sizes);
+  virtual void CompactRange(const Slice* begin, const Slice* end);
+  virtual Status CompactRangeSelfLevel(uint64_t limit_filenumber, const Slice* begin, const Slice* end);
+
   // Compact any files in the named level that overlap [begin,end]
-  virtual void CompactRange(int level,
-                            const std::string& begin,
-                            const std::string& end);
+  void TEST_CompactRange(int level, const Slice* begin, const Slice* end);
 
   // Extra methods (for testing) that are not in the public DB interface
 
@@ -104,7 +105,11 @@ class DBImpl : public DB {
 
   Status OpenCompactionOutputFile(CompactionState* compact);
   Status FinishCompactionOutputFile(CompactionState* compact, Iterator* input);
-  Status InstallCompactionResults(CompactionState* compact);
+  Status InstallCompactionResults(CompactionState* compact, bool uppen_level = true);
+
+  // specified selflevel compaction
+  void BackgroundCompactionSelfLevel();
+  Status DoCompactionWorkSelfLevel(CompactionState* compact);
 
   // Constant after construction
   Env* const env_;
@@ -142,13 +147,20 @@ class DBImpl : public DB {
   bool bg_compaction_scheduled_;
 
   // Information for a manual compaction
+  typedef void (leveldb::DBImpl::* BgCompactionFunc)();
   struct ManualCompaction {
     int level;
-    std::string begin;
-    std::string end;
+    bool done;
+    const InternalKey* begin;   // NULL means beginning of key range
+    const InternalKey* end;     // NULL means end of key range
+    InternalKey tmp_storage;    // Used to keep track of compaction progress
+    uint64_t limit_filenumber;  // just specified for special use
+    BgCompactionFunc bg_compaction_func; // specified compaction function
+    bool reschedule;            // whether re-schecheled other compaction when this compaction is completed
+    Status compaction_status;
+    ManualCompaction() : bg_compaction_func(NULL), reschedule(true) {}
   };
   ManualCompaction* manual_compaction_;
-
   VersionSet* versions_;
 
   // Have we encountered a background error in paranoid mode?

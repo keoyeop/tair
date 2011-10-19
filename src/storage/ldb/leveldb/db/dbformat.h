@@ -131,7 +131,10 @@ class InternalKey {
   }
 
   void Clear() { rep_.clear(); }
+
+  std::string DebugString() const;
 };
+
 
 inline int InternalKeyComparator::Compare(
     const InternalKey& a, const InternalKey& b) const {

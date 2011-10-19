@@ -136,21 +136,30 @@
 // LDB
 #define LDB_DATA_DIR                    "data_dir"
 #define LDB_DEFAULT_DATA_DIR            "data/ldb"
-#define LDB_DB_INIT_STRATEGY            "ldb_init_strategy"
-#define LDB_INIT_CHECK                  "ldb_init_check"
-#define LDB_MAX_OPEN_FILES              "ldb_max_open_files" 
+#define LDB_DB_INSTANCE_COUNT           "ldb_db_instance_count"
+#define LDB_DB_VERSION_CARE             "ldb_db_version_care"
+#define LDB_CACHE_STAT_FILE_SIZE        "ldb_cache_stat_file_size"
+#define LDB_COMPACT_RANGE               "ldb_compact_range"
+#define LDB_CHECK_COMPACT_INTERVAL      "ldb_check_compact_interval"
+#define LDB_USE_CACHE                   "ldb_use_cache"
+#define LDB_CACHE_SIZE                  "ldb_cache_size"
+#define LDB_PUT_FILL_CACHE              "ldb_put_fill_cache"
+#define LDB_MIGRATE_BATCH_ITEM_COUNT    "ldb_migrate_batch_item_count"
+
+#define LDB_PARANOID_CHECK              "ldb_paranoid_check"
+#define LDB_MAX_OPEN_FILES              "ldb_max_open_files"
 #define LDB_WRITE_BUFFER_SIZE           "ldb_write_buffer_size"
+#define LDB_TARGET_FILE_SIZE            "ldb_target_file_size"
+#define LDB_BLOCK_SIZE                  "ldb_block_size"
 #define LDB_BLOCK_RESTART_INTERVAL      "ldb_block_restart_interval"
 #define LDB_COMPRESSION                 "ldb_compression"
 #define LDB_L0_COMPACTION_TRIGGER       "ldb_l0_compaction_trigger"
 #define LDB_L0_SLOWDOWN_WRITE_TRIGGER   "ldb_l0_slowdown_write_trigger"
 #define LDB_L0_STOP_WRITE_TRIGGER       "ldb_l0_stop_write_trigger"
 #define LDB_MAX_MEMCOMPACT_LEVEL        "ldb_max_memcompact_level"
-#define LDB_TARGET_FILE_SIZE            "ldb_target_file_size"
-#define LDB_BLOCK_SIZE                  "ldb_block_size"
-#define LDB_COMPACT_RANGE               "ldb_compact_range"
-#define LDB_CHECK_COMPACT_INTERVAL      "ldb_check_compact_interval"
-#define LDB_CACHE_SIZE                  "ldb_cache_size"
+#define LDB_BASE_LEVEL_SIZE             "ldb_base_level_size"
+#define LDB_READ_VERIFY_CHECKSUMS       "ldb_read_verify_checksums"
+#define LDB_WRITE_SYNC                  "ldb_write_sync"
 
 // file storage engine config items
 #define FDB_INDEX_MMAP_SIZE             "index_mmap_size"
@@ -224,6 +233,8 @@ enum {
    TAIR_RETURN_PARTIAL_SUCCESS = -3983,
    TAIR_RETURN_INVALID_ARGUMENT = -3982,
    TAIR_RETURN_CANNOT_OVERRIDE = -3981,
+
+   TAIR_RETURN_DISK_OPER_INCOMPLETE = -3980,
 };
 
 enum {

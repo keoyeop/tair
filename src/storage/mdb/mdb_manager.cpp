@@ -124,7 +124,7 @@ namespace tair {
     if(it != 0)                 //exists
     {
       if(IS_DELETED(it->item_id)) // in migrate
-      {     
+      {
         old_flag = TAIR_ITEM_FLAG_DELETED;
       }
       log_debug("already exists,remove it");
@@ -171,7 +171,7 @@ namespace tair {
     return TAIR_RETURN_SUCCESS;
   }
 
-  int mdb_manager::raw_get(const char* key, int32_t key_len, std::string& value)
+  int mdb_manager::raw_get(const char* key, int32_t key_len, std::string& value, bool update)
   {
     TBSYS_LOG(DEBUG, "start get: area:%d,key size:%d", KEY_AREA(key), key_len);
 
@@ -187,7 +187,10 @@ namespace tair {
 
       cache->update_item(it);
       //++m_stat.hitCount;
-      ++area_stat[area]->hit_count;
+      if (update)
+      {
+        ++area_stat[area]->hit_count;
+      }
       ret = TAIR_RETURN_SUCCESS;
     }
     else if(expired)
@@ -195,7 +198,10 @@ namespace tair {
       ret = TAIR_RETURN_DATA_EXPIRED;
     }
 
-    ++area_stat[area]->get_count;
+    if (update)
+    {
+      ++area_stat[area]->get_count;
+    }
     return ret;
   }
 
@@ -207,6 +213,15 @@ namespace tair {
     //++m_stat.removeCount;
     ++area_stat[KEY_AREA(key)]->remove_count;
     return ret ? TAIR_RETURN_SUCCESS : TAIR_RETURN_DATA_NOT_EXIST;
+  }
+
+  void mdb_manager::raw_get_stats(mdb_area_stat* stat)
+  {
+    if (stat != NULL)
+    {
+      memcpy(stat, this_mem_pool->get_pool_addr() + mem_pool::MDB_STATINFO_START,
+             sizeof(mdb_area_stat) * TAIR_MAX_AREA_COUNT);
+    }
   }
 
   bool mdb_manager::raw_remove_if_exists(const char* key, int32_t key_len)

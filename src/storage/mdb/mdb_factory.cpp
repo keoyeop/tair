@@ -111,9 +111,8 @@ namespace tair {
     if (manager == 0){
             return 0;
     }
-    int64_t size_in_bytes = memsize * (1 << 20);
     for(int i=0; i<TAIR_MAX_AREA_COUNT;++i){
-            manager->set_area_quota(i,size_in_bytes);
+            manager->set_area_quota(i,0); // default clear all area quota, user should set area quota themselves
     }
     return manager;
 

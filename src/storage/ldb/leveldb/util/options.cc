@@ -28,7 +28,7 @@ Options::Options()
       kMaxMemCompactLevel(2),
       kTargetFileSize(2 * 1048576),
       kMaxGrandParentOverlapBytes(10 * kTargetFileSize),
-      kBlockSize(4096)
+      kBaseLevelSize(10485760)  // 10M
 {
 }
 

@@ -130,7 +130,8 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s) {
       const uint64_t tag = DecodeFixed64(key_ptr + key_length - kInternalKeySeqSize);
       switch (static_cast<ValueType>(tag & 0xff)) {
         case kTypeValue: {
-          if (comparator_.comparator.user_comparator()->ShouldDrop(key_ptr, (tag >> 8))) {
+          if (comparator_.comparator.user_comparator()->ShouldDrop(key_ptr, (tag >> 8)) ||
+              comparator_.comparator.user_comparator()->ShouldDropMaybe(key_ptr, (tag >> 8))) {
             *s = Status::NotFound(Slice());
             return true;
           } else {

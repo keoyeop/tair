@@ -357,8 +357,9 @@ namespace tair {
                                  TAIR_DEFAULT_DATA_DIR);
         snprintf(file_name, 256, "%s/%s_server_table", sz_data_dir,
                  group_name);
-        assert(server_table_manager.
-               create(file_name, bucket_count, copy_count));
+        bool tmp_ret = server_table_manager.
+          create(file_name, bucket_count, copy_count);
+        assert(tmp_ret);
         log_info("set bucket count = %u ok",
                  server_table_manager.get_server_bucket_count());
         log_info("set copy count = %u ok",
@@ -463,7 +464,7 @@ namespace tair {
         return true;
       }
       struct timespec tm;
-      assert(clock_gettime(CLOCK_MONOTONIC, &tm) == 0);
+      clock_gettime(CLOCK_MONOTONIC, &tm);
       time_t now = tm.tv_sec;
       need_rebuild_hash_table = now;
       interval_seconds =
@@ -559,7 +560,7 @@ namespace tair {
       if(need_rebuild_hash_table == 0)
         return false;
       struct timespec tm;
-        assert(clock_gettime(CLOCK_MONOTONIC, &tm) == 0);
+      clock_gettime(CLOCK_MONOTONIC, &tm);
       time_t now = tm.tv_sec;
       if(need_rebuild_hash_table < now - get_server_down_time())
           return true;
@@ -568,7 +569,7 @@ namespace tair {
     void group_info::get_up_node(set<node_info *>& upnode_list)
     {
       struct timespec tm;
-      assert(clock_gettime(CLOCK_MONOTONIC, &tm) == 0);
+      clock_gettime(CLOCK_MONOTONIC, &tm);
       time_t now = tm.tv_sec;
 
       now -= (get_server_down_time() + 1) / 2;
@@ -1167,11 +1168,11 @@ namespace tair {
     {
       int strategy = 2;
       //choose which strategy to select
-      //serverid in ava_server will not be repeated  
+      //serverid in ava_server will not be repeated
       map<uint32_t, int> pos_count;
       pos_count.clear();
       for(set<node_info *>::const_iterator it = ava_server.begin();
-          it != ava_server.end(); it++) 
+          it != ava_server.end(); it++)
       {
         log_info("mask %"PRI64_PREFIX"u & %"PRI64_PREFIX"u -->%"PRI64_PREFIX"u",
             (*it)->server->server_id, pos_mask, (*it)->server->server_id & pos_mask);

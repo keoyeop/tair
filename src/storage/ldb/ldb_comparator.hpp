@@ -38,7 +38,10 @@ namespace tair
           std::string* start,
           const leveldb::Slice& limit) const;
         virtual void FindShortSuccessor(std::string* key) const;
+        // should drop this key no matter what condition.(user defined)
         virtual bool ShouldDrop(const char* key, int64_t sequence, uint32_t now = 0) const;
+        // should drop this key based on some condition. (user defined)
+        virtual bool ShouldDropMaybe(const char* key, int64_t sequence, uint32_t now = 0) const;
       private:
         LdbGcFactory* gc_;
       };

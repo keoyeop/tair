@@ -30,7 +30,7 @@ namespace tair
   {
     namespace ldb
     {
-      class LdbBucket;
+      class LdbInstance;
       class LdbCompact;
 
       class LdbCompactTask : public tbutil::TimerTask
@@ -42,25 +42,27 @@ namespace tair
         virtual ~LdbCompactTask();
         virtual void runTimerTask();
 
-        bool init(LdbBucket* db);
+        bool init(LdbInstance* db);
 
       private:
         bool is_compact_time();
-        bool can_compact();
+        bool need_compact();
         bool should_compact();
         void do_compact();
+
+        void compact_for_gc();
+        void compact_gc(GcType gc_type, bool& all_done);
+        void compact_for_expired();
 
         bool get_time_range(const char* str, int32_t& min, int32_t& max);
         bool is_in_range(int32_t min, int32_t max);
 
       private:
-        LdbBucket* db_;
+        LdbInstance* db_;
         int32_t min_time_;
         int32_t max_time_;
         tbsys::CThreadMutex lock_;
         bool is_compacting_;
-        uint32_t last_compact_round_over_time_;
-        int32_t should_compact_level_;
       };
       typedef tbutil::Handle<LdbCompactTask> LdbCompactTaskPtr;
 
@@ -70,11 +72,11 @@ namespace tair
         BgTask();
         ~BgTask();
 
-        bool start(LdbBucket* db);
+        bool start(LdbInstance* db);
         void stop();
 
       private:
-        bool init_compact_task(LdbBucket* db);
+        bool init_compact_task(LdbInstance* db);
         void stop_compact_task();
 
       private:

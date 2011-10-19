@@ -16,7 +16,7 @@
 
 #include "common/define.hpp"
 #include "common/log.hpp"
-#include "ldb_bucket.hpp"
+#include "ldb_instance.hpp"
 #include "ldb_define.hpp"
 #include "bg_task.hpp"
 
@@ -28,8 +28,7 @@ namespace tair
     {
       ////////// LdbCompactTask
       LdbCompactTask::LdbCompactTask()
-        : db_(NULL), min_time_(0), max_time_(0),
-          is_compacting_(false), last_compact_round_over_time_(0), should_compact_level_(0)
+        : db_(NULL), min_time_(0), max_time_(0), is_compacting_(false)
       {
       }
 
@@ -39,14 +38,13 @@ namespace tair
 
       void LdbCompactTask::runTimerTask()
       {
-        log_debug("run compact timer task");
         if (should_compact())
         {
           do_compact();
         }
       }
 
-      bool LdbCompactTask::init(LdbBucket* db)
+      bool LdbCompactTask::init(LdbInstance* db)
       {
         bool ret = db != NULL;
         if (ret)
@@ -70,94 +68,110 @@ namespace tair
       bool LdbCompactTask::should_compact()
       {
         tbsys::CThreadGuard guard(&lock_);
-        return !is_compacting_ && is_compact_time() && can_compact();
+        return !is_compacting_ && is_compact_time() && need_compact();
       }
 
-      bool LdbCompactTask::can_compact()
+      bool LdbCompactTask::need_compact()
       {
-        // TODO: check load io, etc. .. maybe
+        // // TODO: check load io, etc. .. maybe
         return true;
       }
 
       // leveldb compact has its's own mutex
       void LdbCompactTask::do_compact()
       {
-        log_debug("do compact now level: %d, last time: %u, is_compacting: %d", should_compact_level_, last_compact_round_over_time_, is_compacting_);
-        // level count does not change once db started.
-        static int32_t level_num = get_level_num(db_->db()) - 1;
+        // Compact should consider gc (bucket/area) items and expired item.
+        // 1. Gc's priority is highest.
+        //    Rules:
+        //    1). we compare current leveldb smallest filenumber with
+        //        gc's file_number to determine whether this file need compact.
+        //        Only files whose file_number <= smallest gc's file_number need compact.
+        //    2). After Rule-1, if gc_buckets is not empty, cause buckets number matters to key range,
+        //        so first compact files whose range is in gc_buckets' range.
+        //    3). If Rule-2 run and gc-buckets is over, gc area. Based on key format, area is matter to range someway,
+        //        compact gc-areas.
+        // 2. Expired items has nothing to do with range and filenumber, so if we want to compact over all expired
+        //    items, we can do nothing except compacting the whole db(that's expensive). Maybe some statics can
+        //    join in the strategy.
 
-        bool can_compact = false;
+        compact_for_gc();
+        compact_for_expired();
+      }
+
+      void LdbCompactTask::compact_for_gc()
+      {
+        if (!db_->gc_factory()->empty())
         {
-          tbsys::CThreadGuard guard(&lock_);
-          can_compact = !is_compacting_;
-          if (!is_compacting_)
+          bool all_done = false;
+          compact_gc(GC_BUCKET, all_done);
+          if (all_done)
           {
-            is_compacting_ = true;
+            compact_gc(GC_AREA, all_done);
           }
         }
+      }
 
-        if (can_compact)
+      void LdbCompactTask::compact_for_expired()
+      {
+        // TODO
+      }
+
+      void LdbCompactTask::compact_gc(GcType gc_type, bool& all_done)
+      {
+        log_debug("compact gc %d", gc_type);
+        db_->gc_factory()->try_evict();
+        all_done = db_->gc_factory()->empty(gc_type);
+
+        if (!all_done)          // not evict all
         {
-          if (0 == last_compact_round_over_time_ && 0 == should_compact_level_) // first compact
+          GcNode gc_node = db_->gc_factory()->pick_gc_node(gc_type);
+          std::string start_key, end_key;
+          DUMP_GCNODE(info, gc_node, "pick gc node, type: %d", gc_type);
+          if (gc_node.key_ < 0)
           {
-            last_compact_round_over_time_ = time(NULL);
+            all_done = true;
           }
-
-          std::string range_smallest, range_largest;
-          while (should_compact_level_ < level_num)
+          else
           {
-            if (!get_level_range(db_->db(), should_compact_level_, &range_smallest, &range_largest))
-            {
-              log_error("compact fail when get level [%d] range.", should_compact_level_);
+            switch (gc_type) {
+            case GC_BUCKET:
+              LdbKey::build_scan_key(gc_node.key_, start_key, end_key);
+              break;
+            case GC_AREA:
+              LdbKey::build_scan_key_with_area(gc_node.key_, start_key, end_key);
+              break;
+            default:
+              log_error("invalid compact gc type: %d", gc_type);
               break;
             }
-            else if (!range_smallest.empty() && !range_largest.empty()) // can compact
-            {
-              // compact each level.
-              // TODO: Test compaction's load to tune other strategy
-              uint32_t start_time = time(NULL);
-              log_debug("compact [%d] start %u", should_compact_level_, start_time);
-              db_->db()->CompactRange(should_compact_level_, range_smallest, range_largest);
-              log_debug("compact [%d] end cost: %u", should_compact_level_, time(NULL) - start_time);
+            uint32_t start_time = time(NULL);
+            DUMP_GCNODE(info, gc_node, "compact for gc type: %d, start: %u", gc_type, start_time);
 
-              ++should_compact_level_;
-              break;
+            leveldb::Slice comp_start(start_key), comp_end(end_key);;
+            leveldb::Status status = db_->db()->
+              CompactRangeSelfLevel(gc_node.file_number_, &comp_start, &comp_end);
+
+            if (!status.ok())
+            {
+              DUMP_GCNODE(error, gc_node, "compact for gc fail. type: %d, error: %s",
+                          gc_type, status.ToString().c_str());
             }
             else
             {
-              log_debug("current level [%d] has no file.", should_compact_level_);
-              ++should_compact_level_;
+              DUMP_GCNODE(info, gc_node, "compact for gc success. type: %d, cost: %u",
+                          gc_type, (time(NULL) - start_time));
+              db_->gc_factory()->remove(gc_node, gc_type);
+              // may can evict some
+              db_->gc_factory()->try_evict();
+              all_done = db_->gc_factory()->empty(gc_type);
             }
           }
-
-          if (should_compact_level_ >= level_num)
-          {
-            // finish today
-            should_compact_level_ = -1;
-            uint32_t save_last_compact_round_over_time = last_compact_round_over_time_;
-            last_compact_round_over_time_ = time(NULL);
-            // finish gc
-            db_->gc_factory()->finish(save_last_compact_round_over_time);
-          }
-
-          is_compacting_ = false;
         }
       }
 
       bool LdbCompactTask::is_compact_time()
       {
-        bool ret = false;
-        if (!(ret = (should_compact_level_ >= 0)) && (time(NULL) - last_compact_round_over_time_ > COMPACT_PAUSE_TIME))
-        {
-          ret = true;
-          should_compact_level_ = 0;
-        }
-
-        if (ret)
-        {
-          ret = is_in_range(min_time_, max_time_);
-        }
-        return ret;
+        return (min_time_ != max_time_) && is_in_range(min_time_, max_time_);
       }
 
       bool LdbCompactTask::get_time_range(const char* str, int32_t& min, int32_t& max)
@@ -216,7 +230,7 @@ namespace tair
         stop();
       }
 
-      bool BgTask::start(LdbBucket* db)
+      bool BgTask::start(LdbInstance* db)
       {
         bool ret = db != NULL;
         if (ret && timer_ == 0)
@@ -236,7 +250,7 @@ namespace tair
         }
       }
 
-      bool BgTask::init_compact_task(LdbBucket* db)
+      bool BgTask::init_compact_task(LdbInstance* db)
       {
         bool ret = false;
         if (timer_ != 0)
