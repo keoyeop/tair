@@ -1115,6 +1115,9 @@ FAIL:
     temp[TAIR_RETURN_PROXYED]                 = "porxied";
     temp[TAIR_RETURN_INVALID_ARGUMENT]        = "invalid argument";
     temp[TAIR_RETURN_CANNOT_OVERRIDE] = "cann't override old value.please check and remove it first.";
+    temp[TAIR_RETURN_DEC_BOUNDS] = "can't dec to negative when allow_count_negative=0";
+    temp[TAIR_RETURN_DEC_ZERO] = "can't dec zero number when allow_count_negative=0";
+    temp[TAIR_RETURN_DEC_NOTFOUND] = "dec but not found when allow_count_negative=0";
     return temp;
   }
 

@@ -143,9 +143,11 @@ namespace tair
           char buf[GC_LOG_RECORD_SIZE];
           GcLogRecord(oper_type, node_type, node).encode(buf);
 
-          if ((ret = file_->pwrite_file(buf, GC_LOG_RECORD_SIZE, file_offset_)) != TAIR_RETURN_SUCCESS)
+          int32_t write_len = 0;
+          if ((write_len = file_->pwrite_file(buf, GC_LOG_RECORD_SIZE, file_offset_)) != GC_LOG_RECORD_SIZE)
           {
-            log_error("add gclog fail, write fail. ret: %d", ret);
+            ret = TAIR_RETURN_FAILED;
+            log_error("add gclog fail, write fail. ret: %d", write_len);
           }
         }
 
@@ -167,13 +169,15 @@ namespace tair
       int GcLog::add(const char* buf, int32_t size)
       {
         int ret = buf != NULL && size > 0 ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED;
+        int32_t write_len = 0;
         if (TAIR_RETURN_SUCCESS != ret)
         {
           log_error("add gc log invaid buffer. size: %d", size);
         }
-        else if ((ret = file_->pwrite_file(buf, size, file_offset_)) != TAIR_RETURN_SUCCESS)
+        else if ((write_len = file_->pwrite_file(buf, size, file_offset_)) != size)
         {
-          log_error("add buf to gc log fail, size: %d, ret: %d", size, ret);
+          ret = TAIR_RETURN_FAILED;
+          log_error("add buf to gc log fail, size: %d, ret: %d", size, write_len);
         }
         else
         {
@@ -216,10 +220,12 @@ namespace tair
             {
               // read once should ok.
               char* buf = new char[GC_LOG_RECORD_SIZE * record_count];
-              if ((ret = file_->pread_file(buf, GC_LOG_RECORD_SIZE * record_count, GC_LOG_HEADER_SIZE))
-                  != TAIR_RETURN_SUCCESS)
+              int32_t read_len = 0;
+              if ((read_len = file_->pread_file(buf, GC_LOG_RECORD_SIZE * record_count, GC_LOG_HEADER_SIZE)) !=
+                  GC_LOG_RECORD_SIZE * record_count)
               {
-                log_error("replay gclog fail. read log fail. ret: %d", ret);
+                ret = TAIR_RETURN_FAILED;
+                log_error("replay gclog fail. read log fail. ret: %d", read_len);
               }
               else
               {

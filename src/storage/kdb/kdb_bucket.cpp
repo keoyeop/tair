@@ -80,7 +80,7 @@ namespace tair {
           }
 
           if (ret) {
-            uint32_t mode = kyotocabinet::HashDB::OWRITER | kyotocabinet::HashDB::OCREATE;
+            uint32_t mode = kyotocabinet::HashDB::OWRITER | kyotocabinet::HashDB::OCREATE |kyotocabinet::HashDB::ONOREPAIR;
             ret = db.open(filename, mode);
             if (!ret) {
               print_db_error("open kdb failed");

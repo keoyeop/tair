@@ -90,37 +90,44 @@ namespace tair
             // leveldb data path
             snprintf(db_path_, sizeof(db_path_), "%s/tair_ldb_%06d", data_dir, index_);
 
-            leveldb::Options options;
-            sanitize_option(options);
-
-            log_info("init ldb %d: max_open_file: %d, write_buffer: %d", index_, options.max_open_files, options.write_buffer_size);
-            leveldb::Status status = leveldb::DB::Open(options, db_path_, &db_);
-
-            if (!status.ok())
+            if (!(ret = tbsys::CFileUtil::mkdirs(db_path_)))
             {
-              log_error("ldb init database fail, error: %s", status.ToString().c_str());
-              ret = false;
+              log_error("mkdir fail: %s", db_path_);
             }
             else
             {
-              if (!(ret = bg_task_.start(this)))
-              {
-                log_error("start bg task fail. destroy db");
-              }
-              else if (!(ret = gc_.start()))
-              {
-                log_error("start gc factory fail. destroy db");
-              }
-              else if (!(ret =
-                         cache_stat_.start(db_path_,
-                                          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_STAT_FILE_SIZE, (20*1<<20)))))
-              {
-                log_error("start cache stat fail. destroy db");
-              }
+              leveldb::Options options;
+              sanitize_option(options);
 
-              if (!ret)
+              log_info("init ldb %d: max_open_file: %d, write_buffer: %d", index_, options.max_open_files, options.write_buffer_size);
+              leveldb::Status status = leveldb::DB::Open(options, db_path_, &db_);
+
+              if (!status.ok())
               {
-                destroy();
+                log_error("ldb init database fail, error: %s", status.ToString().c_str());
+                ret = false;
+              }
+              else
+              {
+                if (!(ret = bg_task_.start(this)))
+                {
+                  log_error("start bg task fail. destroy db");
+                }
+                else if (!(ret = gc_.start()))
+                {
+                  log_error("start gc factory fail. destroy db");
+                }
+                else if (!(ret =
+                           cache_stat_.start(db_path_,
+                                             TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_STAT_FILE_SIZE, (20*1<<20)))))
+                {
+                  log_error("start cache stat fail. destroy db");
+                }
+
+                if (!ret)
+                {
+                  destroy();
+                }
               }
             }
           }

@@ -52,6 +52,7 @@ tair_server_SOURCES=duplicate_manager.cpp item_manager.cpp request_processor.cpp
 		    base_migrate.hpp	\
 		    base_tair_manager.hpp	\
 		    duplicate_base.hpp	\
+        dup_sync_manager.cpp \
 		    duplicate_manager.hpp	\
 		    heartbeat_thread.hpp	\
 		    item_manager.hpp	\

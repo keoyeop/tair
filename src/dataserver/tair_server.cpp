@@ -206,7 +206,7 @@ namespace tair {
       }
 
       if (thread_count == 0) {
-         handlePacketQueue(bp, NULL);
+         if(handlePacketQueue(bp, NULL))
          delete packet;
       } else {
          int pcode = packet->getPCode();
@@ -295,7 +295,6 @@ namespace tair {
          {
             request_inc_dec *npacket = (request_inc_dec*)packet;
             ret = req_processor->process(npacket, send_return);
-            //if (ret != TAIR_RETURN_FAILED) sendRet = false;
             break;
          }
          case TAIR_REQ_DUPLICATE_PACKET:
@@ -350,10 +349,12 @@ namespace tair {
          }
       }
 
-      if (ret == TAIR_RETURN_PROXYED) {
-         // request is proxyed
-         return false;
-      }
+      if (ret == TAIR_RETURN_PROXYED ||TAIR_DUP_WAIT_RSP==ret)
+	  {
+		// request is proxyed
+		//or wait dup_response,don't rsp to client unlit dup_rsp arrive or timeout.
+		return false;
+	  }
 
       if (send_return && packet->get_direction() == DIRECTION_RECEIVE) {
          log_debug("send return packet, return code: %d", ret);

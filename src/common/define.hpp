@@ -54,6 +54,7 @@
 #define TAIR_MAX_KEY_SIZE            1024
 #define TAIR_MAX_DATA_SIZE           1000000
 #define TAIR_MAX_AREA_COUNT          1024
+#define TAIR_MAX_DUP_MAP_SIZE        102400
 #define TAIR_PACKET_FLAG             0x6D426454
 #define TAIR_DTM_VERSION             0x31766256
 #define TAIR_HTM_VERSION             0x31766257
@@ -89,6 +90,8 @@
 #define TAIR_PID_FILE                "pid_file"
 #define TAIR_LOG_LEVEL               "log_level"
 #define TAIR_DEV_NAME                "dev_name"
+#define TAIR_DUP_SYNC                "dup_sync"
+#define TAIR_COUNT_NEGATIVE          "allow_count_negative"
 
 #define TAIR_GROUP_FILE              "group_file"
 #define TAIR_DATA_DIR                "data_dir"
@@ -117,6 +120,9 @@
 #define TAIR_ULOG_DEFAULT_FILENUM       3
 #define TAIR_ULOG_FILESIZE              "ulog_file_size"
 #define TAIR_ULOG_DEFAULT_FILESIZE      64// 64MB
+#define TAIR_DUP_SYNC_MODE              0 
+#define TAIR_COUNT_NEGATIVE_MODE        1 //default is allow count negative
+
 
 #define TAIR_SERVER_DEFAULT_PORT        5191
 #define TAIR_SERVER_DEFAULT_HB_PORT     6191
@@ -131,6 +137,7 @@
 #define KDB_RECORD_ALIGN_DEFAULT        128
 #define KDB_DATA_DIR                    "data_dir"
 #define KDB_DEFAULT_DATA_DIR            "data/kdb"
+#define KDB_CACHE_SIZE                  "cache_size"
 #define LOCKER_SIZE                     128
 
 // LDB
@@ -198,6 +205,8 @@
 #define TAIR_DEFAULT_BUCKET_NUMBER      (1023)
 #define TAIR_STR_REPORT_INTERVAL        "_report_interval"
 #define TAIR_DEFAULT_REPORT_INTERVAL    (5)       //means 5 seconds
+
+#define TAIR_SERVER_OP_TIME             (4)
 //////////////////////////////////////////////
 enum {
    TAIR_ITEM_FLAG_ADDCOUNT = 1,
@@ -208,6 +217,7 @@ enum {
 
 enum {
    TAIR_RETURN_SUCCESS = 0,
+   TAIR_DUP_WAIT_RSP = 133,
 
    TAIR_RETURN_PROXYED = -4000,
    TAIR_RETURN_FAILED = -3999,
@@ -234,7 +244,19 @@ enum {
    TAIR_RETURN_INVALID_ARGUMENT = -3982,
    TAIR_RETURN_CANNOT_OVERRIDE = -3981,
 
-   TAIR_RETURN_DISK_OPER_INCOMPLETE = -3980,
+   TAIR_RETURN_DEC_BOUNDS= -3980,
+   TAIR_RETURN_DEC_ZERO= -3979,
+   TAIR_RETURN_DEC_NOTFOUND= -3978,
+
+   TAIR_RETURN_REMOVE_NOT_ON_MASTER= -4101,
+   TAIR_RETURN_REMOVE_ONE_FAILED= -4102,
+
+   TAIR_RETURN_DUPLICATE_IDMIXED= -5001,
+   TAIR_RETURN_DUPLICATE_DELAY= -5002,
+   TAIR_RETURN_DUPLICATE_REACK= -5003,
+   TAIR_RETURN_DUPLICATE_ACK_WAIT= -5004,
+   TAIR_RETURN_DUPLICATE_ACK_TIMEOUT= -5005,
+   TAIR_RETURN_DUPLICATE_SEND_ERROR= -5006,
 };
 
 enum {

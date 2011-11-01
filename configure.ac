@@ -50,7 +50,7 @@ AC_ARG_WITH([kdb],
 		with_kdb=yes
 		fi
 		],
-		[ with_kdb=no ]
+		[ with_kdb=yes ]
 	   )
 AM_CONDITIONAL([WITH_KDB],[test x$with_kdb = xyes])
 

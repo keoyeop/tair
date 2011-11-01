@@ -166,8 +166,21 @@ namespace tair {
    {
       response_return *return_packet = new response_return(packet->getChannelId(), code, msg);
       return_packet->config_version = version;
-      if (packet->get_connection()->postPacket(return_packet) == false) {
+      tbnet::Connection *conn=packet->get_connection();
+      if (!conn || conn->postPacket(return_packet) == false) {
          log_warn("send ReturnPacket failure, request pcode: %d", packet->getPCode());
+         delete return_packet;
+      }
+      return EXIT_SUCCESS;
+   }
+   int tair_packet_factory::set_return_packet(tbnet::Connection *conn,uint32_t chid,int cmd_id,
+        int code,const char *msg,uint32_t version)
+   {
+      response_return *return_packet = new response_return(chid,code, msg);
+      return_packet->config_version = version;
+      if (!conn || conn->postPacket(return_packet) == false) 
+      {
+         log_warn("send ReturnPacket failure, request pcode: %d", cmd_id);
          delete return_packet;
       }
       return EXIT_SUCCESS;
@@ -175,3 +188,4 @@ namespace tair {
 
 
 }
+

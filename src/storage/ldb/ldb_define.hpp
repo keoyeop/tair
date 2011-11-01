@@ -85,7 +85,7 @@ namespace tair
         {
           if (alloc_ && data_ != NULL)
           {
-            delete data_;
+            delete[] data_;
             data_ = NULL;
             data_size_ = 0;
             alloc_ = false;
@@ -227,7 +227,7 @@ namespace tair
         {
           if (alloc_ && data_ != NULL)
           {
-            delete data_;
+            delete[] data_;
             data_ = NULL;
             data_size_ = 0;
             alloc_ = false;
