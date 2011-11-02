@@ -467,6 +467,7 @@ main(int argc, char *argv[])
     tair_cfg_svr = new tair::config_server::tair_config_server();
     tair_cfg_svr->start();
 
+    // ignore signal when destroy, cause sig_handler may use tair_cfg_svr between delete and set it to NULL.
     signal(SIGINT, SIG_IGN);
     signal(SIGTERM, SIG_IGN);
 

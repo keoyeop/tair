@@ -31,6 +31,7 @@ namespace tair {
     {
       this->connmgr = connmgr;
       need_rebuild_hash_table = 0;
+      need_send_server_table = 0;
       assert(p_group_name != NULL);
       assert(p_server_info_map != NULL);
       group_name = strdup(p_group_name);
@@ -357,9 +358,11 @@ namespace tair {
                                  TAIR_DEFAULT_DATA_DIR);
         snprintf(file_name, 256, "%s/%s_server_table", sz_data_dir,
                  group_name);
+
         bool tmp_ret = server_table_manager.
           create(file_name, bucket_count, copy_count);
         assert(tmp_ret);
+
         log_info("set bucket count = %u ok",
                  server_table_manager.get_server_bucket_count());
         log_info("set copy count = %u ok",
@@ -463,6 +466,7 @@ namespace tair {
         }
         return true;
       }
+
       struct timespec tm;
       clock_gettime(CLOCK_MONOTONIC, &tm);
       time_t now = tm.tv_sec;
