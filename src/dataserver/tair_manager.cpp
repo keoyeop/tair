@@ -499,17 +499,11 @@ namespace tair {
       return storage_mgr->clear(area);
    }
 
-#ifndef NOT_FIXED_ITEM_FUNC 
-#define  NOT_FIXED_ITEM_FUNC return TAIR_RETURN_SERVER_CAN_NOT_WORK;
-#endif
-
-
    int tair_manager::add_items(int area,
                                data_entry& key,
                                data_entry& value,
                                int max_count, int expire_time/* = 0*/)
    {
-      NOT_FIXED_ITEM_FUNC 
       if (status != STATUS_CAN_WORK) {
          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
       }
@@ -536,7 +530,6 @@ namespace tair {
                                int offset, int count, data_entry& value /*out*/,
                                int type /*=ELEMENT_TYPE_INVALID*/)
    {
-      NOT_FIXED_ITEM_FUNC 
       if (status != STATUS_CAN_WORK) {
          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
       }
@@ -552,7 +545,6 @@ namespace tair {
 
    int tair_manager::get_item_count(int area, data_entry& key)
    {
-      NOT_FIXED_ITEM_FUNC 
       if (status != STATUS_CAN_WORK) {
          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
       }
@@ -569,7 +561,6 @@ namespace tair {
    int tair_manager::remove_items(int area,
                                   data_entry& key, int offset, int count)
    {
-      NOT_FIXED_ITEM_FUNC 
       if (status != STATUS_CAN_WORK) {
          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
       }
@@ -591,7 +582,6 @@ namespace tair {
                                     int offset, int count, data_entry& value /*out*/,
                                     int type /*=ELEMENT_TYPE_INVALID*/)
    {
-      NOT_FIXED_ITEM_FUNC 
       if (status != STATUS_CAN_WORK) {
          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
       }
@@ -609,7 +599,7 @@ namespace tair {
 
    void tair_manager::do_dump(set<dump_meta_info> dump_meta_infos)
    {
-      return;// NOT_FIXED_ITEM_FUNC 
+      return;
       log_debug("receive dump request, size: %d", dump_meta_infos.size());
       if (dump_meta_infos.size() == 0) return;
 

@@ -422,6 +422,7 @@ namespace tair
 
       bool LdbInstance::begin_scan(int bucket_number)
       {
+        log_info("begin scan");
         bool ret = true;
         if (scan_it_ != NULL)   // not close previous scan
         {
@@ -465,10 +466,11 @@ namespace tair
 
       bool LdbInstance::get_next_items(std::vector<item_data_info*>& list)
       {
+        log_info("get next items");
         list.clear();
 
-        static const int32_t batch_get_item_count =
-          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_ITEM_COUNT, 200);
+        static const int32_t migrate_batch_size =
+          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_SIZE, 1048576); // 1M default
 
         if (NULL == scan_it_)
         {
@@ -476,17 +478,20 @@ namespace tair
         }
         else if (still_have_)
         {
-          for (int count = 0; count < batch_get_item_count && scan_it_->Valid(); ++count)
+          LdbKey ldb_key;       // reuse is ok.
+          LdbItem ldb_item;
+          int32_t key_size = 0, value_size = 0, total_size = 0, batch_size = 0;
+
+          while (batch_size < migrate_batch_size && scan_it_->Valid())
           {
             if (scan_it_->key().ToString() < scan_end_key_)
             {
-              LdbKey ldb_key;
-              LdbItem ldb_item;
               ldb_key.assign(const_cast<char*>(scan_it_->key().data()), scan_it_->key().size());
               ldb_item.assign(const_cast<char*>(scan_it_->value().data()), scan_it_->value().size());
 
-              int key_size = ldb_key.key_size(), value_size = ldb_item.value_size();
-              int total_size = ITEM_HEADER_LEN + key_size + value_size;
+              key_size = ldb_key.key_size();
+              value_size = ldb_item.value_size();
+              total_size = ITEM_HEADER_LEN + key_size + value_size;
               item_data_info* data = (item_data_info*) new char[total_size];
               data->header.keysize = key_size;
               data->header.version = ldb_item.meta().version_;
@@ -500,6 +505,7 @@ namespace tair
 
               list.push_back(data);
               scan_it_->Next();
+              batch_size += total_size;
             }
             else
             {
@@ -507,6 +513,7 @@ namespace tair
               break;
             }
           }
+          log_debug("migrate count: %d, size: %s", list.size(), batch_size);
           if (list.empty())
           {
             still_have_ = false;

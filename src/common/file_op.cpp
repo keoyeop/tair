@@ -291,7 +291,8 @@ namespace tair
           if (::rename(file_name_, new_name) == 0)
           {
             ret = TAIR_RETURN_SUCCESS;
-            snprintf(file_name_, sizeof(file_name_), "%s", new_name);
+            free(file_name_);
+            file_name_ = strdup(new_name);
           }
         }
       }

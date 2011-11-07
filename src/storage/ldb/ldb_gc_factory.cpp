@@ -680,52 +680,64 @@ namespace tair
 
       int LdbGcFactory::rotate_log()
       {
-        GcLog* new_log = new GcLog();
         int ret = TAIR_RETURN_SUCCESS;
-        std::string new_log_name = gc_log_rotate_name();
 
-        if (!new_log->start(new_log_name.c_str(), this, false))
+        if ((ret = log_->rename(gc_log_rotate_name().c_str())) != TAIR_RETURN_SUCCESS)
         {
-          log_error("rotate fail. start new log fail. path: %s.", new_log_name.c_str());
+          log_error("rotate fail. rename current log file fail. ret: %d", ret);
         }
         else
         {
-          if (!empty())
+          GcLog* new_log = new GcLog();
+
+          if (!new_log->start(gc_log_name().c_str(), this, false))
           {
-            int32_t size = GC_LOG_RECORD_SIZE * (gc_buckets_.size() + gc_areas_.size());
-            log_info("rotate gc log all record. buckets size: %d; areas size: %d, dumpbuffer size: %d",
-                     gc_buckets_.size(), gc_areas_.size(), size);
-            char* buf = new char[size];
-
-            debug_string();
-
-            dump(buf, GC_BUCKET, gc_buckets_);
-            dump(buf + GC_LOG_RECORD_SIZE * gc_buckets_.size(), GC_AREA, gc_areas_);
-
-            if ((ret = new_log->add(buf, size)) != TAIR_RETURN_SUCCESS)
+            log_error("rotate fail. start new log fail.");
+            ret = TAIR_RETURN_FAILED;
+          }
+          else
+          {
+            if (!empty())
             {
-              log_error("rotate gc. add to log fail, ret: %d", ret);
+              int32_t size = GC_LOG_RECORD_SIZE * (gc_buckets_.size() + gc_areas_.size());
+              log_info("rotate gc log all record. buckets size: %d; areas size: %d, dumpbuffer size: %d",
+                       gc_buckets_.size(), gc_areas_.size(), size);
+              char* buf = new char[size];
+
+              debug_string();
+
+              dump(buf, GC_BUCKET, gc_buckets_);
+              dump(buf + GC_LOG_RECORD_SIZE * gc_buckets_.size(), GC_AREA, gc_areas_);
+
+              if ((ret = new_log->add(buf, size)) != TAIR_RETURN_SUCCESS)
+              {
+                log_error("rotate gc. add to log fail, ret: %d", ret);
+              }
+              delete[] buf;
             }
-            delete[] buf;
           }
 
           if (TAIR_RETURN_SUCCESS == ret)
           {
-            GcLog* old_log = log_;
+            log_->destroy();
+            delete log_;
             log_ = new_log;
-            log_->flush();
-            log_->rename(gc_log_name().c_str());
-            new_log = old_log;
             log_info("rotate new gc log succuess");
           }
           else
           {
             log_error("rotate new log fail.");
             new_log->destroy();
+            delete new_log;
+
+            int tmp_ret;
+            if ((tmp_ret = log_->rename(gc_log_name().c_str())) != TAIR_RETURN_SUCCESS)
+            {
+              log_error("rotate new log fail and current log can not rename. ret: %d, name: %s",
+                        tmp_ret, gc_log_rotate_name().c_str());
+            }
           }
         }
-
-        delete new_log;
 
         return ret;
       }

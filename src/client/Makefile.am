@@ -32,7 +32,7 @@ libtairclientapi_c_la_SOURCES=tair_client_capi.cpp
 libtairclientapi_c_la_LIBADD=libtairclientapi.la 
 
 simpletest_SOURCES=simpletest.cpp  
-simpletest_LDADD=.libs/libtairclientapi.a ${LDADD} 
+simpletest_LDADD= libtairclientapi.la ${LDADD} 
 simpletest_LDFLAGS= -static
 
 
