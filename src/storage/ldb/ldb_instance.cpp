@@ -466,11 +466,12 @@ namespace tair
 
       bool LdbInstance::get_next_items(std::vector<item_data_info*>& list)
       {
-        log_info("get next items");
         list.clear();
 
         static const int32_t migrate_batch_size =
           TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_SIZE, 1048576); // 1M default
+        static const int32_t migrate_batch_count = 
+          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_COUNT, 500); // 500 default
 
         if (NULL == scan_it_)
         {
@@ -480,9 +481,9 @@ namespace tair
         {
           LdbKey ldb_key;       // reuse is ok.
           LdbItem ldb_item;
-          int32_t key_size = 0, value_size = 0, total_size = 0, batch_size = 0;
+          int32_t key_size = 0, value_size = 0, total_size = 0, batch_size = 0, batch_count = 0;
 
-          while (batch_size < migrate_batch_size && scan_it_->Valid())
+          while (batch_size < migrate_batch_size && batch_count < migrate_batch_count && scan_it_->Valid())
           {
             if (scan_it_->key().ToString() < scan_end_key_)
             {
@@ -506,6 +507,7 @@ namespace tair
               list.push_back(data);
               scan_it_->Next();
               batch_size += total_size;
+              ++batch_count;
             }
             else
             {
@@ -513,7 +515,7 @@ namespace tair
               break;
             }
           }
-          log_debug("migrate count: %d, size: %s", list.size(), batch_size);
+          log_debug("migrate count: %d, size: %d", list.size(), batch_size);
           if (list.empty())
           {
             still_have_ = false;
@@ -523,7 +525,6 @@ namespace tair
         return still_have_;
       }
 
-      // TODO: save
       void LdbInstance::get_stats(tair_stat* stat)
       {
         if (NULL != db_)        // not init now, no stat

@@ -136,7 +136,7 @@ namespace tair
         if (!gc_->gc_buckets_.empty()) // 1. check if bucket is valid. can not use empty(GC_BUCKET)
         {
           drop = gc_->need_gc(LdbKey::decode_bucket_number(pkey), sequence, gc_->gc_buckets_);
-          // fprintf(stderr, "drop %d buket: %d\n", drop, LdbKey::decode_bucket_number(pkey));
+          // fprintf(stderr, "drop bucket: %d %lu %s\n", LdbKey::decode_bucket_number(pkey), sequence, pkey + 5);
         }
         if (!drop && !gc_->gc_areas_.empty()) // 2. check if area is valid
         {

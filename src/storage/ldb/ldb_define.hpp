@@ -133,7 +133,7 @@ namespace tair
           int bucket_number = 0;
           for (int i = 0; i < LDB_KEY_BUCKET_NUM_SIZE; ++i)
           {
-            bucket_number |= buf[i] << (LDB_KEY_BUCKET_NUM_SIZE - i - 1);
+            bucket_number |= buf[i] << ((LDB_KEY_BUCKET_NUM_SIZE - i - 1) * 8);
           }
           return bucket_number;
         }

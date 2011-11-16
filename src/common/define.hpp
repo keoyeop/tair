@@ -151,6 +151,7 @@
 #define LDB_USE_CACHE                   "ldb_use_cache"
 #define LDB_CACHE_SIZE                  "ldb_cache_size"
 #define LDB_PUT_FILL_CACHE              "ldb_put_fill_cache"
+#define LDB_MIGRATE_BATCH_COUNT         "ldb_migrate_batch_count"
 #define LDB_MIGRATE_BATCH_SIZE          "ldb_migrate_batch_size"
 
 #define LDB_PARANOID_CHECK              "ldb_paranoid_check"
