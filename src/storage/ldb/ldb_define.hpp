@@ -133,7 +133,7 @@ namespace tair
           int bucket_number = 0;
           for (int i = 0; i < LDB_KEY_BUCKET_NUM_SIZE; ++i)
           {
-            bucket_number |= buf[i] << ((LDB_KEY_BUCKET_NUM_SIZE - i - 1) * 8);
+            bucket_number |= static_cast<int32_t>(static_cast<unsigned char>(buf[i])) << ((LDB_KEY_BUCKET_NUM_SIZE - i - 1) * 8);
           }
           return bucket_number;
         }
@@ -146,7 +146,7 @@ namespace tair
 
         static int32_t decode_area(const char* buf)
         {
-          return (static_cast<int32_t>(buf[1]) << 8) | buf[0];
+          return (static_cast<int32_t>(static_cast<unsigned char>(buf[1])) << 8) | static_cast<unsigned char>(buf[0]);
         }
 
         static void build_scan_key(int32_t bucket_number, std::string& start_key, std::string& end_key)
