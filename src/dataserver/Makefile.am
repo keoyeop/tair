@@ -24,7 +24,7 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     -I${top_srcdir}/src/plugin \
 	     @BOOST_CPPFLAGS@
 
-AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB}
+AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB} ${TCMALLOC_LDFLAGS}
 
 LDADD=$(top_builddir)/src/storage/mdb/libmdb.a \
       $(top_builddir)/src/storage/fdb/libfdb.a \

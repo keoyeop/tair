@@ -37,17 +37,17 @@ class Slice {
   Slice(const char* s) : data_(s), size_(strlen(s)) { }
 
   // Return a pointer to the beginning of the referenced data
-  const char* data() const { return data_; }
+  inline const char* data() const { return data_; }
 
   // Return the length (in bytes) of the referenced data
-  size_t size() const { return size_; }
+  inline size_t size() const { return size_; }
 
   // Return true iff the length of the referenced data is zero
-  bool empty() const { return size_ == 0; }
+  inline bool empty() const { return size_ == 0; }
 
   // Return the ith byte in the referenced data.
   // REQUIRES: n < size()
-  char operator[](size_t n) const {
+  inline char operator[](size_t n) const {
     assert(n < size());
     return data_[n];
   }

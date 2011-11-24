@@ -6,6 +6,7 @@ AC_LANG([C++])
 AC_PROG_LIBTOOL
 
 m4_include([ax_boost.m4])
+m4_include([tcmalloc.m4])
 
 AC_ARG_WITH([release],
 	    AS_HELP_STRING([--with-release],
@@ -70,6 +71,9 @@ AC_ARG_WITH([ldb],
 	   )
 AM_CONDITIONAL([WITH_LDB],[test x$with_ldb = xyes])
 AX_BOOST([1.30.0],,exit 1)
+
+
+TS_CHECK_TCMALLOC
 
 AC_CONFIG_FILES([\
 		 Makefile \

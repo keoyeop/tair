@@ -52,7 +52,7 @@ namespace tair
         ~CacheStat();
         static const int32_t RESERVE_SIZE = 64;
         static const int64_t MIN_FILE_SIZE = 20 * 1 << 20;
-        static const int32_t BUFFER_STAT_COUNT = 2048;
+        static const int32_t BUFFER_STAT_COUNT = 128;
         static const int32_t CACHE_STAT_SIZE = sizeof(cache_stat);
         static const int32_t STAT_BUFFER_SIZE = CACHE_STAT_SIZE * BUFFER_STAT_COUNT;
 
