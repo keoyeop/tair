@@ -180,7 +180,7 @@ namespace tair
 #pragma pack(4)
       struct LdbItemMeta
       {
-        LdbItemMeta() : flag_(0), version_(0), cdate_(0), mdate_(0) {}
+        LdbItemMeta() : flag_(0), version_(0), cdate_(0), mdate_(0), edate_(0) {}
         uint8_t  reserved_;     // just reserved
         uint8_t  flag_;         // flag
         uint16_t version_;      // version

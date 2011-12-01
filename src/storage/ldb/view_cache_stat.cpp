@@ -58,7 +58,7 @@ int get_time_range(const char* range, uint32_t& start, uint32_t& end)
     }
     else if (range_list.size() > 0) // "a" or "a-" or "-a"
     {
-      char* pos = strchr(range, '-');
+      const char* pos = strchr(range, '-');
       bool has_start = true;
       if (NULL != pos)
       {

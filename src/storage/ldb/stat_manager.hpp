@@ -13,10 +13,12 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdint.h>
+
 #include <tbsys.h>
-#include "define.hpp"
-#include "log.hpp"
-#include "stat_info.hpp"        // for tair_pstat
+
+#include "common/define.hpp"
+#include "common/log.hpp"
+#include "common/stat_info.hpp"        // for tair_pstat
 
 namespace tair {
   namespace storage {

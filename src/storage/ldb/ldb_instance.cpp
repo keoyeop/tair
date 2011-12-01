@@ -471,7 +471,7 @@ namespace tair
         static const int32_t migrate_batch_size =
           TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_SIZE, 1048576); // 1M default
         static const int32_t migrate_batch_count = 
-          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_COUNT, 500); // 500 default
+          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_COUNT, 2000); // 1000 default
 
         if (NULL == scan_it_)
         {
@@ -497,6 +497,7 @@ namespace tair
               data->header.keysize = key_size;
               data->header.version = ldb_item.meta().version_;
               data->header.valsize = value_size;
+              data->header.flag = ldb_item.meta().flag_;
               data->header.cdate = ldb_item.meta().cdate_;
               data->header.mdate = ldb_item.meta().mdate_;
               data->header.edate = ldb_item.meta().edate_;

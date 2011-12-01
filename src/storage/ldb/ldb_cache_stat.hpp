@@ -40,7 +40,7 @@ namespace tair
           return when >= start_time_ && when <= end_time_;
         }
 
-        StatDumpFilter() : start_time_(0), end_time_(UINT_MAX) {}
+        StatDumpFilter() : start_time_(0), end_time_(~0U) {}
         uint32_t start_time_;
         uint32_t end_time_;
       };

@@ -24,6 +24,7 @@
 
 #include <tbsys.h>
 #include "common/file_op.hpp"
+#include "ldb_define.hpp"
 
 namespace tair
 {
