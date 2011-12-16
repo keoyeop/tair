@@ -22,8 +22,6 @@
 
 #include "storage/mdb/mdb_stat.hpp"
 
-#include <climits>
-
 namespace tair
 {
   namespace storage

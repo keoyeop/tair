@@ -45,93 +45,89 @@ namespace tair {
     int put(int bucket_num, data_entry & key, data_entry & value,
             bool version_care, int expire_time);
 
-	int get(int bucket_num, data_entry & key, data_entry & value);
-	int get_target_kv(int32_t area, int bucket_number,data_entry & key,data_entry & end_key,data_entry & value,leveldb::Iterator* &iter,int expire_time)
-	{
-		return TAIR_RETURN_FAILED;
-	}
+    int get(int bucket_num, data_entry & key, data_entry & value);
 
-	int remove(int bucket_num, data_entry & key, bool version_care);
+    int remove(int bucket_num, data_entry & key, bool version_care);
 
-	// raw put/get/remove for embedded cache use
-	// Not consider any meta, just key ==> value, cause operating those stuff is up to cache-user.
-	  public:
-	int raw_put(const char* key, int32_t key_len, const char* value, int32_t value_len, int flag, uint32_t expired);
-	int raw_get(const char* key, int32_t key_len, std::string& value, bool update);
-	int raw_remove(const char* key, int32_t key_len);
-	void raw_get_stats(mdb_area_stat* stat);
+    // raw put/get/remove for embedded cache use
+    // Not consider any meta, just key ==> value, cause operating those stuff is up to cache-user.
+  public:
+    int raw_put(const char* key, int32_t key_len, const char* value, int32_t value_len, int flag, uint32_t expired);
+    int raw_get(const char* key, int32_t key_len, std::string& value, bool update);
+    int raw_remove(const char* key, int32_t key_len);
+    void raw_get_stats(mdb_area_stat* stat);
 
-	  private:
-	bool raw_remove_if_exists(const char* key, int32_t key_len);
-	bool raw_remove_if_expired(const char* key, int32_t key_len, mdb_item*& item);
+  private:
+    bool raw_remove_if_exists(const char* key, int32_t key_len);
+    bool raw_remove_if_expired(const char* key, int32_t key_len, mdb_item*& item);
 
-	  public:
-	int clear(int area);
+  public:
+    int clear(int area);
 
-	void begin_scan(md_info & info);
-	bool get_next_items(md_info & info, std::vector<item_data_info *>&list);
-	void end_scan(md_info & info)
-	{
-	}
+    void begin_scan(md_info & info);
+    bool get_next_items(md_info & info, std::vector<item_data_info *>&list);
+    void end_scan(md_info & info)
+    {
+    }
 
-	bool init_buckets(const std::vector<int> &buckets);
+    bool init_buckets(const std::vector<int> &buckets);
 
-	void close_buckets(const std::vector<int> &buckets);
+    void close_buckets(const std::vector<int> &buckets);
 
-	void get_stats(tair_stat * stat);
+    void get_stats(tair_stat * stat);
 
-	void set_area_quota(int area, uint64_t quota);
-	void set_area_quota(std::map<int, uint64_t> &quota_map);
+    void set_area_quota(int area, uint64_t quota);
+    void set_area_quota(std::map<int, uint64_t> &quota_map);
 
-	uint64_t get_area_quota(int area);
-	int get_area_quota(std::map<int, uint64_t> &quota_map);
+    uint64_t get_area_quota(int area);
+    int get_area_quota(std::map<int, uint64_t> &quota_map);
 
-	bool is_quota_exceed(int area);
-	  public:
-	void run(tbsys::CThread * thread, void *arg);
-	void __remove(mdb_item * it);
+    bool is_quota_exceed(int area);
+  public:
+    void run(tbsys::CThread * thread, void *arg);
+    void __remove(mdb_item * it);
 
 #ifdef TAIR_DEBUG
-	std::map<int, int > get_slab_size();
-	std::vector<int> get_area_size();
-	std::vector< int> get_areas();
+    std::map<int, int > get_slab_size();
+    std::vector<int> get_area_size();
+    std::vector< int> get_areas();
 #endif
 
-	  private:
+  private:
 
-	int do_put(data_entry & key, data_entry & data, bool version_care,
-			int expired);
-	int do_get(data_entry & key, data_entry & data);
-	int do_remove(data_entry & key, bool version_care);
+    int do_put(data_entry & key, data_entry & data, bool version_care,
+               int expired);
+    int do_get(data_entry & key, data_entry & data);
+    int do_remove(data_entry & key, bool version_care);
 
-	char *open_shared_mem(const char *path, int64_t size);
-	bool remove_if_exists(data_entry & key);
-	bool remove_if_expired(data_entry & key, mdb_item * &mdb_item);
+    char *open_shared_mem(const char *path, int64_t size);
+    bool remove_if_exists(data_entry & key);
+    bool remove_if_expired(data_entry & key, mdb_item * &mdb_item);
 
-	bool is_chkexprd_time();
-	bool is_chkslab_time();
-	void run_chkslab();
-	void run_chkexprd_deleted();
-	void balance_slab();
-	void check_quota();
-	void remove_deleted_item();
-	void remove_exprd_item();
-	mem_pool *this_mem_pool;
-	mem_cache *cache;
-	cache_hash_map *hashmap;
-	boost::mutex mem_locker;
+    bool is_chkexprd_time();
+    bool is_chkslab_time();
+    void run_chkslab();
+    void run_chkexprd_deleted();
+    void balance_slab();
+    void check_quota();
+    void remove_deleted_item();
+    void remove_exprd_item();
+    mem_pool *this_mem_pool;
+    mem_cache *cache;
+    cache_hash_map *hashmap;
+    boost::mutex mem_locker;
 
-	//int m_hash_index; //is used to scan
-	uint32_t last_traversal_time;        //record the last time of traversal
-	uint32_t last_balance_time;
+    //int m_hash_index; //is used to scan
+    uint32_t last_traversal_time;        //record the last time of traversal
+    uint32_t last_balance_time;
 
-	tbsys::CThread chkexprd_thread;
-	tbsys::CThread chkslab_thread;
+    tbsys::CThread chkexprd_thread;
+    tbsys::CThread chkslab_thread;
 
-	bool stopped;
+    bool stopped;
 
-	//area_stat m_stat;
-	mdb_area_stat *area_stat[TAIR_MAX_AREA_COUNT];
+    //area_stat m_stat;
+    mdb_area_stat *area_stat[TAIR_MAX_AREA_COUNT];
   };
 }                                /* tair */
 #endif

@@ -55,8 +55,6 @@ namespace tair
         int get(int bucket_number, tair::common::data_entry& key, tair::common::data_entry& value);
         int remove(int bucket_number, tair::common::data_entry& key, bool version_care);
 
-		leveldb::Iterator * seek_key(int32_t area, char* target,int size, int bucket_number);
-
         bool begin_scan(int bucket_number);
         bool end_scan();
         bool get_next_items(std::vector<item_data_info*>& list);

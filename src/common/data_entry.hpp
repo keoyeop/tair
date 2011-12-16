@@ -39,8 +39,6 @@ namespace tair
             alloc = false;
             data = NULL;
 
-			prefix_size = entry.get_prefix_size();
-
             set_data(entry.data, entry.size, entry.alloc);
             has_merged = entry.has_merged;
             has_meta_merged = entry.has_meta_merged;
@@ -54,8 +52,6 @@ namespace tair
           {
             if (this == &entry)
                return *this;
-			prefix_size = entry.get_prefix_size();
-
             set_data(entry.data, entry.size, entry.alloc);
             has_merged = entry.has_merged;
             has_meta_merged = entry.has_meta_merged;
@@ -70,7 +66,6 @@ namespace tair
          data_entry& clone(const data_entry &entry)
           {
             assert(this != &entry);
-			prefix_size = entry.get_prefix_size();
 
             set_data(entry.data, entry.size, true);
             has_merged = entry.has_merged;
@@ -82,19 +77,6 @@ namespace tair
             return *this;
          }
 
-		 bool operator>(const data_entry &entry) const
-         {
-             if(size == 0 || entry.size == 0 || data == NULL || entry.data == NULL) return false;
-
-             int min_size = (size>entry.size?entry.size:size);
-             int r = memcmp(data, entry.data, min_size);
-             if (r<0)
-                 return false;                                                                          
-             else if (r>0)
-                 return true;
-             else
-                 return (size>entry.size);      
-         }
 
          bool operator<(const data_entry &entry) const
          {
@@ -247,10 +229,6 @@ namespace tair
             return data;
          }
 
-         int get_prefix_size() const
-          {
-            return prefix_size;
-         }
 
          int get_size() const
           {
@@ -269,11 +247,10 @@ namespace tair
 
          uint64_t get_hashcode()
          {
-			 int hash_len = prefix_size != 0 ? prefix_size:size;
-            if(hashcode == 0 && hash_len > 0 && data != NULL) {
-               hashcode = hash_util::mhash1(data, hash_len);
+            if(hashcode == 0 && size > 0 && data != NULL) {
+               hashcode = hash_util::mhash1(data, size);
                hashcode <<= 32;
-               hashcode |= hash_util::mhash2(data, hash_len);
+               hashcode |= hash_util::mhash2(data, size);
             }
 
             return hashcode;
@@ -311,9 +288,7 @@ namespace tair
             uint16_t flag = input->readInt16();
             data_meta.decode(input);
 
-            int temp_size = input->readInt32();
-			int size = temp_size & 0xFFFFFF; //the last 24 bits
-			prefix_size = temp_size >> 24;
+            int size = input->readInt32();
             if (size > 0) {
                set_data(NULL, size);
                input->readBytes(get_data(), size);
@@ -328,7 +303,6 @@ namespace tair
           {
             alloc = false;
             size = 0;
-			prefix_size = 0;
             data = NULL;
 
             has_merged = false;
@@ -347,14 +321,12 @@ namespace tair
             data = NULL;
             alloc = false;
             size = 0;
-			prefix_size = 0;
             hashcode = 0;
             has_merged = false;
             area = 0;
          }
 
       private:
-         int prefix_size;
          int size;
          char *data;
          bool alloc;

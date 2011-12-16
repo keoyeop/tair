@@ -24,8 +24,6 @@
 #include "define.hpp"
 #include "stat_info.hpp"
 
-#include "ldb/leveldb/include/leveldb/iterator.h"
-
 namespace tair {
   typedef struct _migrate_dump_index
   {
@@ -52,8 +50,6 @@ namespace tair {
 
       virtual int get(int bucket_number, data_entry & key,
                       data_entry & value) = 0;
-
-	  virtual int get_target_kv(int32_t area, int bucket_number,data_entry & key,data_entry & end_key,data_entry & value,leveldb::Iterator* &iter,int expire_time) = 0;
 
       virtual int remove(int bucket_number, data_entry & key,
                          bool version_care) = 0;
