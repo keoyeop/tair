@@ -21,6 +21,7 @@
 #include "common/file_op.hpp"
 
 #include "storage/mdb/mdb_stat.hpp"
+#include <climits>
 
 namespace tair
 {
