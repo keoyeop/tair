@@ -128,6 +128,11 @@ namespace tair
           }
         }
 
+		inline int32_t get_bucket_number()
+		{
+			return decode_bucket_number(data_ + LDB_EXPIRED_TIME_SIZE);
+		}
+
         static int32_t decode_bucket_number(const char* buf)
         {
           int bucket_number = 0;

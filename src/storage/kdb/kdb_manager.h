@@ -43,6 +43,10 @@ namespace tair {
           int put(int bucket_number, data_entry & key, data_entry & value,
               bool version_care, int expire_time);
           int get(int bucket_number, data_entry & key, data_entry & value);
+		  int get_target_kv(int32_t area, int bucket_number,data_entry & key,data_entry & end_key,data_entry & value,leveldb::Iterator* &iter,int expire_time)
+		  {
+			  return TAIR_RETURN_FAILED;
+		  }
           int remove(int bucket_number, data_entry & key, bool version_care);
           int clear(int area);
 

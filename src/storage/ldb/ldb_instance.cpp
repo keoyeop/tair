@@ -420,6 +420,26 @@ namespace tair
         return rc;
       }
 
+	  leveldb::Iterator * LdbInstance::seek_key(int32_t area, char* target,int size, int bucket_number)
+	  {
+		  leveldb::Iterator *_iter; 
+
+		  log_debug("create bucket iterator");
+
+		  leveldb::ReadOptions scan_read_options = read_options_;
+		  scan_read_options.fill_cache = false; // not fill cache
+		  _iter = db_->NewIterator(scan_read_options);
+
+		  LdbKey ldbkey(target, size, bucket_number);
+		  leveldb::Slice key(ldbkey.data(), ldbkey.size());
+		  //db_->SeekKey(scan_read_options, key, _iter);
+		  _iter->Seek(key);
+
+		  //_iter->SeekToFirst();
+
+		 return _iter;
+	  }
+
       bool LdbInstance::begin_scan(int bucket_number)
       {
         log_info("begin scan");

@@ -67,6 +67,8 @@ namespace tair {
       //int put(int area, data_entry &key, data_entry &value, int expire_time,request_put *request,int version);
       int add_count(int area, data_entry &key, int count, int init_value, int *result_value, int expire_time,request_inc_dec * request,int version);
       int get(int area, data_entry &key, data_entry &value);
+	  //for get range
+	  int get_position(int32_t area, data_entry &key, data_entry &end_key, data_entry &value,leveldb::Iterator* &iter,int expire_time = 0);
       int remove(int area, data_entry &key,request_remove *request=NULL,int version=0);
       int batch_remove(int area, const tair_dataentry_set * key_list,request_remove *request,int version);
       int clear(int area);

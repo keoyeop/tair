@@ -26,6 +26,8 @@
 #include "items_packet.hpp"
 #include "mupdate_packet.hpp"
 
+#include "get_range_packet.hpp"
+
 namespace tair {
    class request_processor {
    public:
@@ -34,6 +36,8 @@ namespace tair {
 
       int process(request_put *request, bool &send_return);
       int process(request_get *request, bool &send_return);
+	  //by shuai.li
+	  int process(request_get_range *request, bool &send_return);
       int process(request_remove *request, bool &send_return);
       int process(request_inc_dec *request, bool &send_return);
       int process(request_duplicate *request, bool &send_return);

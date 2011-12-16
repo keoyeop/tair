@@ -44,40 +44,44 @@ namespace tair {
         int put(int bucket_number, data_entry & key, data_entry & value,
                 bool version_care, int expire_time);
 
-        int get(int bucket_number, data_entry & key, data_entry & value);
+		int get(int bucket_number, data_entry & key, data_entry & value);
+		int get_target_kv(int32_t area, int bucket_number,data_entry & key,data_entry & end_key,data_entry & value,leveldb::Iterator* &iter,int expire_time)
+		{
+			return TAIR_RETURN_FAILED;
+		}
 
-        int remove(int bucket_number, data_entry & key, bool version_care);
+		int remove(int bucket_number, data_entry & key, bool version_care);
 
-        int clear(int area);
+		int clear(int area);
 
-        bool init_buckets(const vector <int>&buckets);
+		bool init_buckets(const vector <int>&buckets);
 
-        void close_buckets(const vector <int>&buckets);
-        bool get_next_items(md_info & info, vector <item_data_info *>&list);
-        void set_area_quota(int area, uint64_t quota)
-        {
-        }
-        void set_area_quota(std::map<int, uint64_t> &quota_map)
-        {
-        }
+		void close_buckets(const vector <int>&buckets);
+		bool get_next_items(md_info & info, vector <item_data_info *>&list);
+		void set_area_quota(int area, uint64_t quota)
+		{
+		}
+		void set_area_quota(std::map<int, uint64_t> &quota_map)
+		{
+		}
 
-        void begin_scan(md_info & info);
-        void end_scan(md_info & info);
+		void begin_scan(md_info & info);
+		void end_scan(md_info & info);
 
-        void get_stats(tair_stat * stat);
+		void get_stats(tair_stat * stat);
 
-      private:
-          fdb_bucket * get_bucket(int bucket_number);
+	  private:
+		fdb_bucket * get_bucket(int bucket_number);
 
 
-      private:
-          fdb_buckets_map * buckets_map;
-        storage_manager *memory_cache;
-        data_reader *mreader;
-        data_reader *dreader;
-          tbsys::CThreadMutex stat_lock;
-      };
-    }
+	  private:
+		fdb_buckets_map * buckets_map;
+		storage_manager *memory_cache;
+		data_reader *mreader;
+		data_reader *dreader;
+		tbsys::CThreadMutex stat_lock;
+	  };
+	}
   }
 }
 #endif
