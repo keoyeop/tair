@@ -19,7 +19,7 @@ public:
 	~BlockQueueEx(); 
 	bool isEmpty();
 	unsigned long size();
-	void put(const T& value); 
+	bool put(const T& value); 
 	T get();
 	T get(int timeout);//ms
 private:
@@ -78,14 +78,14 @@ unsigned long BlockQueueEx<T>::size()
 }
 
 template <class T>
-void BlockQueueEx<T>::put(const T& value)
+bool BlockQueueEx<T>::put(const T& value)
 {
 	
 #ifdef _WIN32
 	inQueue.push(value);
 	ReleaseSemaphore(bqs,1,NULL);
 #else
-	inQueue.Put(value);
+       bool bret=inQueue.Put(value);
 	pthread_mutex_lock(&write_mutex);
 	//inQueue.push(value); //put here is the bug
 	pthread_cond_signal(&more);
@@ -95,6 +95,7 @@ void BlockQueueEx<T>::put(const T& value)
 	{
 		//usleep(500000);
 	}
+  return bret;
 }
 
 template <class T>

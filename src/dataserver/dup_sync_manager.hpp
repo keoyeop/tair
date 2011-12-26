@@ -19,7 +19,7 @@
 #include <tbsys.h>
 #include <tbnet.h>
 #include "table_manager.hpp"
-#include "boost/shared_ptr.hpp"
+//#include "boost/shared_ptr.hpp"
 #include "duplicate_base.hpp"
 #include "duplicate_packet.hpp"
 
@@ -30,6 +30,7 @@
 #include <queue>
 #include <map>
 #include <ext/hash_map>
+#include <ext/hash_fun.h>
 
 namespace tair {
      
@@ -108,6 +109,17 @@ namespace tair {
      typedef __gnu_cxx::hash_map<uint32_t,struct CPacket_wait_Nodes*> CDuplicatPkgMap;
      typedef __gnu_cxx::hash_map<uint32_t,struct CPacket_wait_Nodes*>::iterator CDuplicatPkgMapIter;
 
+#ifndef __PACKET_TIME_OUT_HINT
+#define __PACKET_TIME_OUT_HINT
+	 class CPacket_Timeout_hint
+	 {
+	   public:
+		 uint32_t packet_id; 
+		 time_t expired;
+	 };
+	 typedef BlockQueueEx<CPacket_Timeout_hint * > CWaitPacketQueue;
+#endif
+
 	 class CPacket_wait_manager
    {
 #define MAP_BUCKET_SLOT  17
@@ -123,6 +135,9 @@ namespace tair {
        int clear_waitnode( uint32_t max_packet_id);
        bool isBucketFree(int bucket_number)  ;
        int  changeBucketCount(int bucket_number,int number);
+     public:
+       bool put_timeout_hint(int index,CPacket_Timeout_hint *hint);
+       CPacket_Timeout_hint *get_timeout_hint(int index,int msec);
      private:
        int get_map_index(uint32_t max_packet_id);
      private:
@@ -130,16 +145,9 @@ namespace tair {
        CSlotLocks *m_slots_locks;
        CDuplicatPkgMap m_PkgWaitMap[MAP_BUCKET_SLOT];
        int         m_bucket_count [TAIR_MAX_BUCKET_NUMBER]; //indictor for bucket's node count,not older than 1024.
+  	   CWaitPacketQueue dup_wait_queue[MAX_DUP_COUNT];
    };
 
-	 class CPacket_Timeout_hint
-	 {
-	   public:
-		 uint32_t packet_id; 
-		 time_t expired;
-	 };
-
-	 typedef BlockQueueEx<CPacket_Timeout_hint * > CWaitPacketQueue;
 
 	 //monitor bucket_number until packet timeout
 
@@ -182,7 +190,6 @@ namespace tair {
 	  volatile int have_data_to_send;
 	  uint32_t max_queue_size;
 
-	  CWaitPacketQueue dup_wait_queue;
 	  atomic_t packet_id_creater;
    };
 }

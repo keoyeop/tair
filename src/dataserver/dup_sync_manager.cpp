@@ -59,6 +59,16 @@ namespace tair{
     //return index;
   }
 
+  //the index must 0-2,already checked.
+ bool CPacket_wait_manager::put_timeout_hint(int index,CPacket_Timeout_hint *phint)
+ {
+   return dup_wait_queue[index].put(phint);
+ }
+ CPacket_Timeout_hint *CPacket_wait_manager::get_timeout_hint(int index,int msec)
+ {
+    return dup_wait_queue[index].get(msec);
+ }
+
   int CPacket_wait_manager::addWaitNode(int area, const data_entry* , const data_entry* value,int bucket_number, const vector<uint64_t>& des_server_ids,base_packet *request, uint32_t max_packet_id,int &version)
   {
 	//check map_size first
@@ -84,6 +94,7 @@ namespace tair{
       }
       changeBucketCount(bucket_number,1);
       m_PkgWaitMap[index][max_packet_id]= pdelaysign;
+	  return TAIR_RETURN_SUCCESS;
     }
 	else
     {
@@ -91,7 +102,6 @@ namespace tair{
       log_error("packet sequnce id is dup");
       return TAIR_RETURN_DUPLICATE_IDMIXED;
     }
-	return TAIR_RETURN_SUCCESS;
   }
 
   int CPacket_wait_manager::doResponse(int bucket_number, uint64_t des_server_id,uint32_t max_packet_id,base_packet *& request,int &conf_version,int &_inc_value)
@@ -104,20 +114,21 @@ namespace tair{
     if(itr!=m_PkgWaitMap[index].end())
     {
       CPacket_wait_Nodes* pNode= itr->second; 
-      //int min_size= m_PkgWaitMap.size();
+      //int min_size= m_PkgWaitMap[index].size();
       int ret=pNode->doResponse(bucket_number,des_server_id,request,conf_version,_inc_value);
       if(0==ret)
       {
         changeBucketCount(bucket_number,-1);
         m_PkgWaitMap[index].erase(itr);
         delete pNode; pNode=NULL;
-        //log_debug("resonse packet %d ,size=%d,%d",max_packet_id,min_size, m_PkgWaitMap.size());
+       // log_debug("resonse packet %d ,size=%d,%d",max_packet_id,min_size, m_PkgWaitMap[index].size());
       }
       return ret;
     }
     else
     {
       //already timeout.
+      log_error("resonse packet %d ,but not found",max_packet_id);
       request=NULL;
       return TAIR_RETURN_DUPLICATE_DELAY;
     }
@@ -156,9 +167,9 @@ namespace tair{
 	}
   } 
 
-  int CPacket_wait_manager::clear_waitnode( uint32_t max_packet_id)
-  {
-	//CRwLock m_lock(m_mutex,WLOCK);
+  int CPacket_wait_manager::clear_waitnode( uint32_t max_packet_id) 
+  { 
+    //CRwLock m_lock(m_mutex,WLOCK); 
     int index=get_map_index(max_packet_id);
     CScopedRwLock __scoped_lock(m_slots_locks->getlock(index),true);
 
@@ -174,6 +185,7 @@ namespace tair{
     return 0;
   }
 
+
    dup_sync_sender_manager::dup_sync_sender_manager( tbnet::Transport *transport,
                                                        tbnet::DefaultPacketStreamer *streamer, table_manager* table_mgr)
    {
@@ -183,6 +195,7 @@ namespace tair{
       have_data_to_send = 0;
       max_queue_size = 0;
       atomic_set(&packet_id_creater, 0);
+      setThreadCount(MAX_DUP_COUNT);
       this->start();
    }
    dup_sync_sender_manager::~dup_sync_sender_manager()
@@ -243,7 +256,14 @@ namespace tair{
      }
 
 	 phint->expired=expire_time;//request->expired;
-	 dup_wait_queue.put(phint);
+	 if(!packets_mgr.put_timeout_hint(max_packet_id%MAX_DUP_COUNT,phint))
+     {
+       //put to queue error,should remove the map node.
+        delete phint;
+        packets_mgr.clear_waitnode(max_packet_id);
+	    log_error("timeout wait packet full ,ignore packet=",max_packet_id);
+        return TAIR_RETURN_DUPLICATE_BUSY;
+     }
 	 return TAIR_DUP_WAIT_RSP;
    }
 
@@ -281,6 +301,7 @@ namespace tair{
 	   {
 		 //duplicate sendpacket error.
        log_error("duplicate packet %d faile send: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
+       delete tmp_packet; 
 		 return TAIR_RETURN_DUPLICATE_BUSY;
 	   }
 	 }
@@ -358,7 +379,8 @@ namespace tair{
 	  {
 		try 
 		{   
-		  CPacket_Timeout_hint * _pkg=dup_wait_queue.get(2000); //2s
+          int index=(long)arg;//if need more thread,shoudld hash it.
+		  CPacket_Timeout_hint * _pkg=packets_mgr.get_timeout_hint(index,1000); //2s
 		  if(!_pkg) continue;
 		  handleTimeOutPacket(_pkg);
 		  delete _pkg;
@@ -386,7 +408,6 @@ namespace tair{
 
       //now i should free the request,not need convert to child class.
       delete request;
-      usleep(300);
 	}
 
    tbnet::IPacketHandler::HPRetCode dup_sync_sender_manager::handlePacket(tbnet::Packet *packet, void *args)
