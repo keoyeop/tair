@@ -100,6 +100,7 @@ namespace tair
         {
           int32_t adjacent_stat_count;
           cache_stat* stat_begin;
+          bool need_sentinel = true;
           char* old_buf_pos = buf_pos_;
           int32_t i = 0;
 
@@ -134,19 +135,32 @@ namespace tair
 
               if (remain_buf_stat_count_ <= 1)
               {
+                if (need_sentinel)
+                {
+                  // set sentinel before save
+                  set_sentinel_stat(reinterpret_cast<cache_stat*>(old_buf_pos - CACHE_STAT_SIZE));
+                  need_sentinel = false;
+                }
                 save_file();
               }
             }
           }
 
-          if (old_buf_pos != buf_pos_)
+          // not save
+          if (need_sentinel)
           {
-            set_sentinel_stat(reinterpret_cast<cache_stat*>(old_buf_pos - CACHE_STAT_SIZE));
-            buf_pos_ += CACHE_STAT_SIZE;
-            if (--remain_buf_stat_count_ <= 1)
+            if (old_buf_pos != buf_pos_) // has valid stat info
             {
-              save_file();
+              set_sentinel_stat(reinterpret_cast<cache_stat*>(old_buf_pos - CACHE_STAT_SIZE));
+              // remain_buf_stat_count_ > 1
+              --remain_buf_stat_count_;
+              buf_pos_ += CACHE_STAT_SIZE;
             }
+          }
+          else                  // already save,
+          {
+            --remain_buf_stat_count_;
+            buf_pos_ += CACHE_STAT_SIZE; // for next sentinel
           }
         }
         return ret;
@@ -173,9 +187,8 @@ namespace tair
           }
           // ignore one fail write
           // rewind
-          buf_pos_ = buf_ + CACHE_STAT_SIZE;
-          // one for the last sentinel
-          remain_buf_stat_count_ = BUFFER_STAT_COUNT - 1;
+          buf_pos_ = buf_;
+          remain_buf_stat_count_ = BUFFER_STAT_COUNT;
         }
         return ret;
       }
@@ -215,8 +228,6 @@ namespace tair
       int CacheStat::dump(const StatDumpFilter* dump_filter)
       {
         int ret = check_init() ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED;
-        cache_stat last_stat[TAIR_MAX_AREA_COUNT];
-        memset(last_stat, 0, CACHE_STAT_SIZE * TAIR_MAX_AREA_COUNT);
 
         if (ret != TAIR_RETURN_SUCCESS)
         {

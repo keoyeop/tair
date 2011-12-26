@@ -34,7 +34,7 @@ int get_time_range(const char* range, uint32_t& start, uint32_t& end)
 {
   int ret = TAIR_RETURN_SUCCESS;
   start = 0;
-  end = UINT_MAX;
+  end = ~0U;
   if (range != NULL)
   {
     char buf[128];

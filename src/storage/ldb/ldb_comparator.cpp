@@ -13,6 +13,7 @@
  *   nayan <nayan@taobao.com>
  *
  */
+#include "common/define.hpp"
 #include "ldb_define.hpp"
 #include "ldb_gc_factory.hpp"
 #include "ldb_comparator.hpp"

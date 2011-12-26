@@ -88,7 +88,7 @@ namespace tair {
       const char *se_name = TBSYS_CONFIG.getString(TAIRSERVER_SECTION, TAIR_SENGINE, NULL);
       if (se_name == NULL || (strcmp(se_name, "mdb") == 0)) {
          // init mdb
-         storage_mgr = mdb_factory::create_mdb_manager(false);
+         storage_mgr = mdb_factory::create_mdb_manager();
       } else if (strcmp(se_name, "fdb") == 0){
          // init fdb
          storage_mgr = new tair::storage::fdb::fdb_manager();

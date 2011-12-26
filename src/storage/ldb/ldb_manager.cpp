@@ -26,16 +26,13 @@ namespace tair
     {
       LdbManager::LdbManager() : cache_(NULL), scan_ldb_(NULL)
       {
-        int cache_size = 0;
         bool put_fill_cache = false;
         if (TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_USE_CACHE, 1) > 0)
         {
-          cache_size =
-            TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_SIZE, 256); // 256M
-          cache_ = mdb_factory::create_embedded_mdb(cache_size, 1.2);
+          cache_ = mdb_factory::create_embedded_mdb();
           if (NULL == cache_)
           {
-            log_error("init ldb memory cache fail. cache_size: %d", cache_size);
+            log_error("init ldb memory cache fail.");
           }
           put_fill_cache = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_PUT_FILL_CACHE, 0) > 0;
         }
@@ -45,11 +42,11 @@ namespace tair
         ldb_instance_ = new LdbInstance*[db_count_];
         for (int32_t i = 0; i < db_count_; ++i)
         {
-          ldb_instance_[i] = new LdbInstance(i, db_version_care, cache_, put_fill_cache);
+          ldb_instance_[i] = new LdbInstance(i + 1, db_version_care, cache_, put_fill_cache);
         }
 
-        log_warn("ldb storage engine construct count: %d, db version care: %s, with cache size: %dM, put_fill_cache: %s",
-                 db_count_, db_version_care ? "yes" : "no", cache_size, put_fill_cache ? "yes" : "no");
+        log_warn("ldb storage engine construct count: %d, db version care: %s, use cache: %s, put_fill_cache: %s",
+                 db_count_, db_version_care ? "yes" : "no", cache_ != NULL ? "yes" : "no", put_fill_cache ? "yes" : "no");
       }
 
       LdbManager::~LdbManager()
@@ -167,11 +164,11 @@ namespace tair
             ret = ldb_instance_[i]->init_buckets(tmp_buckets[i]);
             if (!ret)
             {
-              log_error("init buckets for db instance %d", i);
+              log_error("init buckets for db instance %d fail", i + 1);
               break;
             }
           }
-          delete tmp_buckets;
+          delete[] tmp_buckets;
         }
 
         return ret;
@@ -197,7 +194,7 @@ namespace tair
           {
             ldb_instance_[i]->close_buckets(tmp_buckets[i]);
           }
-          delete tmp_buckets;
+          delete[] tmp_buckets;
         }
       }
 

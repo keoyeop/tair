@@ -88,7 +88,7 @@ namespace tair
           else
           {
             // leveldb data path
-            snprintf(db_path_, sizeof(db_path_), "%s/tair_ldb_%06d", data_dir, index_);
+            snprintf(db_path_, sizeof(db_path_), "%s%d/ldb", data_dir, index_);
 
             if (!(ret = tbsys::CFileUtil::mkdirs(db_path_)))
             {
