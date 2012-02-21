@@ -149,7 +149,6 @@
 #define LDB_COMPACT_RANGE               "ldb_compact_range"
 #define LDB_CHECK_COMPACT_INTERVAL      "ldb_check_compact_interval"
 #define LDB_USE_CACHE                   "ldb_use_cache"
-#define LDB_PUT_FILL_CACHE              "ldb_put_fill_cache"
 #define LDB_MIGRATE_BATCH_COUNT         "ldb_migrate_batch_count"
 #define LDB_MIGRATE_BATCH_SIZE          "ldb_migrate_batch_size"
 
@@ -214,6 +213,15 @@ enum {
    TAIR_ITEM_FLAG_ITEM = 4,
    TAIR_ITEM_FLAG_SET,
 };
+
+// 'cause key's data_entry.data_meta.flag is meaningless when requsting to put,
+// here is a trick to set flag to data_entry.data_meta.flag when requesting.
+enum {
+  TAIR_CLIENT_PUT_PUT_CACHE_FLAG = 0,
+  TAIR_CLIENT_PUT_SKIP_CACHE_FLAG = 1
+};
+#define SHOULD_PUT_FILL_CACHE(flag) \
+  (!((flag) & TAIR_CLIENT_PUT_SKIP_CACHE_FLAG))
 
 enum {
    TAIR_RETURN_SUCCESS = 0,

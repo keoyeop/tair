@@ -172,11 +172,17 @@ namespace tair {
       }
       PROFILER_END();
 
+      // for client PUT_CACHE_FLAG etc.
+      int old_flag = key.data_meta.flag;
+
       // save into the storage engine
       bool version_care =  op_flag & TAIR_OPERATION_VERSION;
       PROFILER_BEGIN("put into storage");
       rc = storage_mgr->put(bucket_number, mkey, value, version_care, expire_time);
       PROFILER_END();
+
+      // for duplicate/migrate
+      mkey.data_meta.flag = old_flag;
 
       if (rc == TAIR_RETURN_SUCCESS ) {
          key.data_meta = mkey.data_meta;

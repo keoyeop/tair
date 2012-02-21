@@ -30,7 +30,6 @@
 #include <queue>
 #include <map>
 #include <ext/hash_map>
-#include <ext/hash_fun.h>
 
 namespace tair {
      
@@ -38,72 +37,80 @@ namespace tair {
 	 struct CPacket_wait_Nodes
      {
 #define MAX_DUP_COUNT 2 
-       private:
-         int conf_version;
-         base_packet * request; //maybe put or remove.
-         uint64_t des_server_ids[MAX_DUP_COUNT ]; //3 copy is enough.
        public:
+				 tbnet::Connection *conn;
+				 uint32_t chid;
+				 int pcode;
+         int conf_version;
          int bucket_number;
          int inc_value_result; //for TAIR_REQ_INCDEC_PACKET 
+       private:
+         uint64_t des_server_ids[MAX_DUP_COUNT ]; //3 copy is enough.
        public:
-         CPacket_wait_Nodes(int _bucket_number,base_packet * _request,const vector<uint64_t>&  _des_server_ids,int _conf_version)
-         {
-           bucket_number=_bucket_number;
-           conf_version=_conf_version;
-           request=_request;
-           int _des_size=_des_server_ids.size();
-           int i=0;
-           for(;i<_des_size;i++)
-           {
-             des_server_ids[i]= _des_server_ids[i];
-           }
-           for(;i<MAX_DUP_COUNT ;i++)
-           {
-             des_server_ids[i]=0;
-           }
-         }
+         CPacket_wait_Nodes(int _bucket_number,base_packet* _request,const vector<uint64_t>&  _des_server_ids,int _conf_version,const data_entry* value)
+		 {
+		   bucket_number=_bucket_number;
+		   conn=_request->get_connection();
+		   chid=_request->getChannelId();
+		   pcode=_request->getPCode();
+		   conf_version=_conf_version;
+
+		   int _des_size=_des_server_ids.size();
+		   int i=0;
+		   for(;i<_des_size&& i<MAX_DUP_COUNT;i++)
+		   {
+			 des_server_ids[i]= _des_server_ids[i];
+		   }
+		   for(;i<MAX_DUP_COUNT;i++)
+		   {
+			 des_server_ids[i]=0;
+		   }
+
+		   //now we have a ugly code. the TAIR_REQ_INCDEC_PACKET should have result value
+		   const int ITEM_HEAD_LENGTH = 2;
+		   if(TAIR_REQ_INCDEC_PACKET==_request->getPCode())
+		   {
+			 inc_value_result= *((int32_t *)(value->get_data() + ITEM_HEAD_LENGTH));
+		   }
+		   else
+		   {
+			 inc_value_result=0;
+		   }
+		 }
+
          ~CPacket_wait_Nodes()
          {
-           //should free request;
-         }
-         int doTimeout(base_packet * &_request)
-         {
-           _request=request;
-           return 0;
          }
 
-         int doResponse(int _bucket_number,uint64_t des_srvid,base_packet * &_request,int& _conf_version,int& _inc_value_result)
-         {
-           bool bfound=false;
-           int _acked=0;
-           for(int i=0;i<MAX_DUP_COUNT;i++)
-           {
-             if(des_srvid==des_server_ids[i]) 
-             {
-               des_server_ids[i]=0;
-               bfound=true;
-             }
-             if(0==des_server_ids[i]) _acked++;
-           }
+        int do_response(int,uint64_t des_srvid)
+				{
+					bool bfound=false;
+					int _acked=0;
+					for(int i=0;i<MAX_DUP_COUNT;i++)
+					{
+						if(des_srvid==des_server_ids[i]) 
+						{
+							des_server_ids[i]=0;
+							bfound=true;
+						}
+						if(0==des_server_ids[i]) _acked++;
+					}
 
-           if(!bfound) 
-           {
-             //return TAIR_RETURN_DUPLICATE_REACK;
-           }
+					if(!bfound) 
+					{
+						return TAIR_RETURN_DUPLICATE_REACK;
+					}
 
-           if(_acked==MAX_DUP_COUNT)
-           {
-             _request=request;
-             _conf_version=conf_version;
-             _inc_value_result= inc_value_result;
-             return 0;
-           }
-           else
-           {
-             _request=NULL;
-             return TAIR_RETURN_DUPLICATE_ACK_WAIT;
-           }
-         }
+					if(_acked==MAX_DUP_COUNT)
+					{
+						return 0;
+					}
+					else
+					{
+						return TAIR_RETURN_DUPLICATE_ACK_WAIT;
+					}
+				}
+
      };
 
      typedef __gnu_cxx::hash_map<uint32_t,struct CPacket_wait_Nodes*> CDuplicatPkgMap;
@@ -116,6 +123,14 @@ namespace tair {
 	   public:
 		 uint32_t packet_id; 
 		 time_t expired;
+		CPacket_Timeout_hint(uint32_t _packet_id)
+		{
+		  packet_id=_packet_id;
+		  expired=time(NULL)+TAIR_SERVER_OP_TIME;
+		}
+		~CPacket_Timeout_hint()
+		{
+		}
 	 };
 	 typedef BlockQueueEx<CPacket_Timeout_hint * > CWaitPacketQueue;
 #endif
@@ -130,9 +145,9 @@ namespace tair {
        ~CPacket_wait_manager();
      public:
        int addWaitNode(int area, const data_entry* , const data_entry* ,int bucket_number, const vector<uint64_t>& des_server_ids,base_packet *request, uint32_t max_packet_id,int &version);
-       int doResponse(int bucket_number, uint64_t des_server_id,uint32_t max_packet_id,base_packet *& request,int &version,int &);
-       int doTimeout( uint32_t max_packet_id, time_t __post_time,base_packet *& request);
-       int clear_waitnode( uint32_t max_packet_id);
+			 int doResponse(int bucket_number, uint64_t des_server_id,uint32_t max_packet_id,struct CPacket_wait_Nodes **pNode);
+			 int doTimeout( uint32_t max_packet_id, time_t __post_time);
+			 int clear_waitnode( uint32_t max_packet_id);
        bool isBucketFree(int bucket_number)  ;
        int  changeBucketCount(int bucket_number,int number);
      public:
@@ -180,7 +195,7 @@ namespace tair {
 
 	  void handleTimeOutPacket(CPacket_Timeout_hint  * _pkg);
       tbnet::IPacketHandler::HPRetCode handlePacket(tbnet::Packet *packet, void *args);
-      int rspPacket(base_packet *packet,int result_code,const char *result_msg,int version,int inc_value_result );
+			int rspPacket(const CPacket_wait_Nodes * pNode);
    private:
 	  table_manager* table_mgr;
 	  tbnet::ConnectionManager* conn_mgr;

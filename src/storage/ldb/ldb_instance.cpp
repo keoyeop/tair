@@ -30,7 +30,7 @@ namespace tair
       using namespace tair::common;
 
       LdbInstance::LdbInstance()
-        : index_(0), db_version_care_(true), mutex_(NULL), db_(NULL), cache_(NULL), put_fill_cache_(false),
+        : index_(0), db_version_care_(true), mutex_(NULL), db_(NULL), cache_(NULL),
           scan_it_(NULL), still_have_(true), gc_(this)
       {
         db_path_[0] = '\0';
@@ -39,10 +39,10 @@ namespace tair
       }
 
       LdbInstance::LdbInstance(int32_t index, bool db_version_care,
-                               storage::storage_manager* cache, bool put_fill_cache)
+                               storage::storage_manager* cache)
         : index_(index), db_version_care_(db_version_care), mutex_(NULL), db_(NULL),
           cache_(dynamic_cast<tair::mdb_manager*>(cache)),
-          put_fill_cache_(put_fill_cache), scan_it_(NULL), still_have_(true), gc_(this)
+          scan_it_(NULL), still_have_(true), gc_(this)
       {
         if (cache_ != NULL)
         {
@@ -325,7 +325,7 @@ namespace tair
 
           ldb_item.set(value.get_data(), value.get_size());
 
-          rc = do_put(ldb_key, ldb_item);
+          rc = do_put(ldb_key, ldb_item, SHOULD_PUT_FILL_CACHE(key.data_meta.flag));
 
           if (TAIR_RETURN_SUCCESS == rc)
           {
@@ -590,7 +590,7 @@ namespace tair
         return stat_manager_->find(bucket_number) != stat_manager_->end();
       }
 
-      int LdbInstance::do_put(LdbKey& ldb_key, LdbItem& ldb_item)
+      int LdbInstance::do_put(LdbKey& ldb_key, LdbItem& ldb_item, bool fill_cache)
       {
         int rc = TAIR_RETURN_SUCCESS;
         leveldb::Status status = db_->Put(write_options_, leveldb::Slice(ldb_key.data(), ldb_key.size()),
@@ -602,8 +602,10 @@ namespace tair
         }
         else if (cache_ != NULL)
         {
-          if (put_fill_cache_)
+          // client's requsting fill_cache
+          if (fill_cache)
           {
+            log_debug("put cache");
             rc = cache_->raw_put(ldb_key.key(), ldb_key.key_size(), ldb_item.data(), ldb_item.size(),
                                  ldb_item.meta().flag_, ldb_item.meta().edate_);
             if (rc != TAIR_RETURN_SUCCESS) // what happend

@@ -26,7 +26,6 @@ namespace tair
     {
       LdbManager::LdbManager() : cache_(NULL), scan_ldb_(NULL)
       {
-        bool put_fill_cache = false;
         if (TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_USE_CACHE, 1) > 0)
         {
           cache_ = mdb_factory::create_embedded_mdb();
@@ -34,7 +33,6 @@ namespace tair
           {
             log_error("init ldb memory cache fail.");
           }
-          put_fill_cache = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_PUT_FILL_CACHE, 0) > 0;
         }
 
         bool db_version_care = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DB_VERSION_CARE, 1) > 0;
@@ -42,11 +40,11 @@ namespace tair
         ldb_instance_ = new LdbInstance*[db_count_];
         for (int32_t i = 0; i < db_count_; ++i)
         {
-          ldb_instance_[i] = new LdbInstance(i + 1, db_version_care, cache_, put_fill_cache);
+          ldb_instance_[i] = new LdbInstance(i + 1, db_version_care, cache_);
         }
 
-        log_warn("ldb storage engine construct count: %d, db version care: %s, use cache: %s, put_fill_cache: %s",
-                 db_count_, db_version_care ? "yes" : "no", cache_ != NULL ? "yes" : "no", put_fill_cache ? "yes" : "no");
+        log_warn("ldb storage engine construct count: %d, db version care: %s, use cache: %s",
+                 db_count_, db_version_care ? "yes" : "no", cache_ != NULL ? "yes" : "no");
       }
 
       LdbManager::~LdbManager()

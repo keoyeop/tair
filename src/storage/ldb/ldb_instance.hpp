@@ -38,7 +38,7 @@ namespace tair
       {
       public:
         LdbInstance();
-        explicit LdbInstance(int32_t index, bool db_version_care, storage_manager* cache, bool put_fill_cache);
+        explicit LdbInstance(int32_t index, bool db_version_care, storage_manager* cache);
         ~LdbInstance();
 
         typedef __gnu_cxx::hash_map<int32_t, stat_manager*> STAT_MANAGER_MAP;
@@ -74,7 +74,7 @@ namespace tair
 
       private:
         int do_get(LdbKey& ldb_key, std::string& value, bool fill_cache, bool update_stat = true);
-        int do_put(LdbKey& ldb_key, LdbItem& ldb_item);
+        int do_put(LdbKey& ldb_key, LdbItem& ldb_item, bool fill_cache);
         int do_remove(LdbKey& ldb_key);
 
         bool init_db();
@@ -103,8 +103,6 @@ namespace tair
         mdb_manager* cache_;
         // cache stat
         CacheStat cache_stat_;
-        // whether fill cache put data
-        bool put_fill_cache_;
 
         // for scan, MUST single-bucket everytime
         leveldb::Iterator* scan_it_;

@@ -68,7 +68,8 @@ namespace tair {
           const data_entry &key,
           const data_entry &data,
           int expire,
-          int version);
+          int version,
+          bool fill_cache = true);
 
       //the caller will release the memory
       int get(int area,

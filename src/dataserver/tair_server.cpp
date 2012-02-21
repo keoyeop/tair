@@ -349,11 +349,16 @@ namespace tair {
          }
       }
 
-      if (ret == TAIR_RETURN_PROXYED ||TAIR_DUP_WAIT_RSP==ret)
+      if (ret == TAIR_RETURN_PROXYED )//||TAIR_DUP_WAIT_RSP==ret || TAIR_RETURN_DUPLICATE_BUSY== ret)
 	  {
 		// request is proxyed
 		//or wait dup_response,don't rsp to client unlit dup_rsp arrive or timeout.
 		return false;
+	  }
+      if (TAIR_DUP_WAIT_RSP==ret )
+	  {
+		send_return =false;
+		return true;
 	  }
 
       if (send_return && packet->get_direction() == DIRECTION_RECEIVE) {

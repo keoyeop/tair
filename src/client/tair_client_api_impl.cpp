@@ -193,7 +193,7 @@ FAIL_1:
   int tair_client_impl::put(int area,
       const data_entry &key,
       const data_entry &data,
-      int expired, int version )
+      int expired, int version, bool fill_cache)
   {
 
     if( !(key_entry_check(key)) || (!data_entry_check(data))){
@@ -222,6 +222,8 @@ FAIL_1:
     request_put *packet = new request_put();
     packet->area = area;
     packet->key = key;
+    // set fill cache flag
+    packet->key.data_meta.flag = fill_cache ? TAIR_CLIENT_PUT_PUT_CACHE_FLAG : TAIR_CLIENT_PUT_SKIP_CACHE_FLAG;
     packet->data = data;
     packet->expired = expired;
     packet->version = version;
