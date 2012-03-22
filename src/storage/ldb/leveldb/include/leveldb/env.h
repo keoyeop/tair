@@ -40,6 +40,9 @@ class Env {
   // The result of Default() belongs to leveldb and must never be deleted.
   static Env* Default();
 
+  // get one env instance for convenience
+  static Env* Instance();
+
   // Create a brand new sequentially-readable file with the specified name.
   // On success, stores a pointer to the new file in *result and returns OK.
   // On failure stores NULL in *result and returns non-OK.  If the file does

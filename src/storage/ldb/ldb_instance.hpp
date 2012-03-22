@@ -71,6 +71,7 @@ namespace tair
         // use inner leveldb/gc_factory when compact
         leveldb::DB* db() { return db_; }
         LdbGcFactory* gc_factory() { return &gc_; }
+        BgTask* bg_task() { return &bg_task_;}
 
       private:
         int do_get(LdbKey& ldb_key, std::string& value, bool fill_cache, bool update_stat = true);
@@ -79,7 +80,7 @@ namespace tair
 
         bool init_db();
         void stop();
-        void sanitize_option(leveldb::Options& options);
+        void sanitize_option();
         tbsys::CThreadMutex* get_mutex(const tair::common::data_entry& key);
 
       private:
@@ -90,7 +91,8 @@ namespace tair
         // so this flag control whether we really must do it.
         // (statistics data may not be exact, as it is always.)
         bool db_version_care_;
-        // write and read option to leveldb
+        // init and write and read option to leveldb
+        leveldb::Options options_;
         leveldb::WriteOptions write_options_;
         leveldb::ReadOptions read_options_;
         // lock to protect cache. cause leveldb and mdb has its own lock,

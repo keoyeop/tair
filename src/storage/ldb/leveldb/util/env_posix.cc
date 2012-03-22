@@ -279,8 +279,11 @@ class PosixEnv : public Env {
  public:
   PosixEnv();
   virtual ~PosixEnv() {
-    fprintf(stderr, "Destroying Env::Default()\n");
-    exit(1);
+    // we do nothing to protect env from concurrent destruct.
+    if (this == Env::Default()) {
+      fprintf(stderr, "Destroying Env::Default()\n");
+      exit(1);
+    }
   }
 
   virtual Status NewSequentialFile(const std::string& fname,
@@ -568,6 +571,12 @@ static void InitDefaultEnv() { default_env = new PosixEnv; }
 Env* Env::Default() {
   pthread_once(&once, InitDefaultEnv);
   return default_env;
+}
+
+// Default() return one global static instance.
+// Instance() get one env instance.
+Env* Env::Instance() {
+  return (new PosixEnv());
 }
 
 }

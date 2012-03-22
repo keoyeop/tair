@@ -69,7 +69,7 @@ namespace tair {
       virtual void set_area_quota(int area, uint64_t quota) = 0;
       virtual void set_area_quota(std::map<int, uint64_t> &quota_map) = 0;
 
-      void set_bucket_count(uint32_t bucket_count)
+      virtual void set_bucket_count(uint32_t bucket_count)
       {
         if(this->bucket_count != 0)
           return;                //can not rest bucket count

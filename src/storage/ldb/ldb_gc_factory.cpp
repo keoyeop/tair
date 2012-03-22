@@ -270,7 +270,7 @@ namespace tair
           }
           else if (file_size < GC_LOG_HEADER_SIZE)
           {
-            log_error("gc log file is invalid, less than header size: %"PRI64_PREFIX"d", file_size);
+            log_info("gc log file is invalid, less than header size: %"PRI64_PREFIX"d", file_size);
             count = 0;
           }
           else

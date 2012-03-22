@@ -54,8 +54,10 @@ namespace tair
         void set_area_quota(std::map<int, uint64_t>& quota_map);
 
         void get_stats(tair_stat* stat);
+        void set_bucket_count(uint32_t bucket_count);
 
       private:
+        static int hash(int bucket_number);
         LdbInstance* get_db_instance(int bucket_number);
 
       private:

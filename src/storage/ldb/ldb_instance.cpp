@@ -14,6 +14,8 @@
  *
  */
 
+#include <leveldb/env.h>
+
 #include "common/define.hpp"
 #include "common/util.hpp"
 #include "storage/storage_manager.hpp"
@@ -69,6 +71,17 @@ namespace tair
           }
           delete stat_manager_;
         }
+
+        // delete allocated env.
+        if (options_.env != NULL)
+        {
+          delete options_.env;
+        }
+        // delete allocated comparator
+        if (options_.comparator != NULL)
+        {
+          delete options_.comparator;
+        }
       }
 
       bool LdbInstance::init_db()
@@ -96,11 +109,10 @@ namespace tair
             }
             else
             {
-              leveldb::Options options;
-              sanitize_option(options);
+              sanitize_option();
 
-              log_info("init ldb %d: max_open_file: %d, write_buffer: %d", index_, options.max_open_files, options.write_buffer_size);
-              leveldb::Status status = leveldb::DB::Open(options, db_path_, &db_);
+              log_info("init ldb %d: max_open_file: %d, write_buffer: %d", index_, options_.max_open_files, options_.write_buffer_size);
+              leveldb::Status status = leveldb::DB::Open(options_, db_path_, &db_);
 
               if (!status.ok())
               {
@@ -233,7 +245,7 @@ namespace tair
         stop();
         gc_.destroy();
 
-        leveldb::Status status = leveldb::DestroyDB(db_path_, leveldb::Options());
+        leveldb::Status status = leveldb::DestroyDB(db_path_, options_);
         if (!status.ok())
         {
           log_error("remove ldb database fail. path: %s, error: %s", db_path_, status.ToString().c_str());
@@ -530,15 +542,18 @@ namespace tair
       {
         if (NULL != db_)        // not init now, no stat
         {
-          log_debug("ldb bucket get stat %p", stat);
-          std::string stat_value;
-          if (get_db_stat(db_, stat_value, "stats"))
+          if (TBSYS_LOGGER._level > TBSYS_LOG_LEVEL_WARN)
           {
-            log_warn("ldb status: %s", stat_value.c_str());
-          }
-          else
-          {
-            log_error("get ldb status fail, uncompleted status: %s", stat_value.c_str());
+            log_debug("ldb bucket get stat %p", stat);
+            std::string stat_value;
+            if (get_db_stat(db_, stat_value, "stats"))
+            {
+              log_warn("ldb status: %s", stat_value.c_str());
+            }
+            else
+            {
+              log_error("get ldb status fail, uncompleted status: %s", stat_value.c_str());
+            }
           }
 
           if (stat != NULL)
@@ -568,12 +583,6 @@ namespace tair
       int LdbInstance::clear_area(int32_t area)
       {
         int ret = TAIR_RETURN_SUCCESS;
-        // clear cache.
-        if (cache_ != NULL)
-        {
-          cache_->clear(area);  // area maybe -1, means clean expired items
-        }
-
         if (area >= 0)
         {
           for (STAT_MANAGER_MAP_ITER it = stat_manager_->begin(); it != stat_manager_->end(); ++it)
@@ -716,23 +725,26 @@ namespace tair
         }
       }
 
-      void LdbInstance::sanitize_option(leveldb::Options& options)
+      void LdbInstance::sanitize_option()
       {
-        options.error_if_exists = false; // exist is ok
-        options.create_if_missing = true; // create if not exist
-        options.comparator = LdbComparator(&gc_); // self-defined comparator
-        options.paranoid_checks = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_PARANOID_CHECK, 0) > 0;
-        options.max_open_files = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_OPEN_FILES, 655350);
-        options.write_buffer_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_WRITE_BUFFER_SIZE, 4194304); // 4M
-        options.block_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_SIZE, 4096); // 4K
-        options.block_restart_interval = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_RESTART_INTERVAL, 16); // 16
-        options.compression = static_cast<leveldb::CompressionType>(TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_COMPRESSION, leveldb::kSnappyCompression));
-        options.kL0_CompactionTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_COMPACTION_TRIGGER, 4);
-        options.kL0_SlowdownWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_SLOWDOWN_WRITE_TRIGGER, 8);
-        options.kL0_StopWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_STOP_WRITE_TRIGGER, 12);
-        options.kMaxMemCompactLevel = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_MEMCOMPACT_LEVEL, 2);
-        options.kTargetFileSize = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_TARGET_FILE_SIZE, 2097152);
-        options.kBaseLevelSize = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BASE_LEVEL_SIZE, 10485760);
+        options_.error_if_exists = false; // exist is ok
+        options_.create_if_missing = true; // create if not exist
+        options_.comparator = new LdbComparatorImpl(&gc_); // self-defined comparator
+        options_.paranoid_checks = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_PARANOID_CHECK, 0) > 0;
+        options_.max_open_files = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_OPEN_FILES, 655350);
+        options_.write_buffer_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_WRITE_BUFFER_SIZE, 4194304); // 4M
+        options_.block_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_SIZE, 4096); // 4K
+        options_.block_restart_interval = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_RESTART_INTERVAL, 16); // 16
+        options_.compression = static_cast<leveldb::CompressionType>(TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_COMPRESSION, leveldb::kSnappyCompression));
+        options_.kL0_CompactionTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_COMPACTION_TRIGGER, 4);
+        options_.kL0_SlowdownWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_SLOWDOWN_WRITE_TRIGGER, 8);
+        options_.kL0_StopWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_STOP_WRITE_TRIGGER, 12);
+        options_.kMaxMemCompactLevel = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_MEMCOMPACT_LEVEL, 2);
+        options_.kTargetFileSize = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_TARGET_FILE_SIZE, 2097152);
+        options_.kBaseLevelSize = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BASE_LEVEL_SIZE, 10485760);
+        // Env::Default() is a global static instance.
+        // We allocate one env to one leveldb instance here.
+        options_.env = leveldb::Env::Instance();
         read_options_.verify_checksums = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_READ_VERIFY_CHECKSUMS, 0) != 0;
         read_options_.fill_cache = true;
         write_options_.sync = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_WRITE_SYNC, 0) != 0;

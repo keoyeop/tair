@@ -474,6 +474,19 @@ void sign_handler(int sig)
          if (tair_server != NULL){
            tair_server->get_tair_manager()->clear(-3);
          }
+         break;
+#ifdef WITH_LDB
+     case 47:
+       if (tair_server != NULL){
+         tair_server->get_tair_manager()->clear(-10); // pause bgtask
+       }
+       break;
+     case 48:
+       if (tair_server != NULL){
+         tair_server->get_tair_manager()->clear(-11); // resume bgtask
+       }
+       break;
+#endif
       default:
          log_error("sig: %d", sig);
    }
@@ -596,8 +609,13 @@ int main(int argc, char *argv[])
       signal(42, sign_handler);
       signal(43, sign_handler); // for switch profiler enable/disable status
       signal(44, sign_handler); // remove expired item
-      signal(45, sign_handler); // remove all item
+      signal(45, sign_handler); // balance
+      signal(46, sign_handler); // remove all item
 
+#ifdef WITH_LDB
+      signal(47, sign_handler); // pause ldb compact task
+      signal(48, sign_handler); // resume ldb compact task
+#endif
       log_error("profiler disabled by default, threshold has been set to %d", profiler_threshold);
 
       tair_server = new tair::tair_server();

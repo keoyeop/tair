@@ -306,6 +306,8 @@ namespace tair {
                item_data_info *item = *itor;
                data_entry key(item->m_data, item->header.keysize, false);
                key.data_meta = item->header;
+               // skip embedded cache when migrating
+               key.data_meta.flag = TAIR_CLIENT_PUT_SKIP_CACHE_FLAG;
                key.has_merged = true;
                data_entry value(item->m_data + item->header.keysize, item->header.valsize, false);
                value.data_meta = item->header;
@@ -364,6 +366,8 @@ namespace tair {
          log_debug("logis:%S", key.get_data());
          data_entry value;
          if (log_entry->operation_type == (uint8_t)SN_PUT) {
+            // skip embedded cache when migrating
+            key.data_meta.flag = TAIR_CLIENT_PUT_SKIP_CACHE_FLAG;
             value = log_entry->value;
             value.data_meta = log_entry->header;
             is_succuss = packet->add_put_key_data(key, value);

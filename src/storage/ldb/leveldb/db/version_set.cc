@@ -867,7 +867,10 @@ Status VersionSet::Recover() {
     log::Reader reader(file, &reporter, true/*checksum*/, 0/*initial_offset*/);
     Slice record;
     std::string scratch;
+    uint64_t record_count = 0;
+    uint64_t recover_start = env_->NowMicros();
     while (reader.ReadRecord(&record, &scratch) && s.ok()) {
+      ++record_count;
       VersionEdit edit;
       s = edit.DecodeFrom(record);
       if (s.ok()) {
@@ -903,6 +906,9 @@ Status VersionSet::Recover() {
         have_last_sequence = true;
       }
     }
+    Log(options_->info_log,
+        "recover versionset end. count: %lu, cost: %lu",
+        record_count, env_->NowMicros() - recover_start);
   }
   delete file;
   file = NULL;
@@ -1345,6 +1351,7 @@ Compaction* VersionSet::CompactRangeOneLevel(
     return NULL;
   }
 
+  size_t orig_size = inputs.size();
   // Avoid compacting too much in one shot in case the range is large.
   const uint64_t limit = MaxFileSizeForLevel(level);
   uint64_t total = 0;
@@ -1356,6 +1363,8 @@ Compaction* VersionSet::CompactRangeOneLevel(
       break;
     }
   }
+
+  Log(options_->info_log, "one level resize %d => %d", orig_size, inputs.size());
 
   Compaction* c = new Compaction(level);
   c->input_version_ = current_;

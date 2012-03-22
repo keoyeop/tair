@@ -28,7 +28,7 @@ namespace tair
     {
       ////////// LdbCompactTask
       LdbCompactTask::LdbCompactTask()
-        : db_(NULL), min_time_(0), max_time_(0), is_compacting_(false)
+        : db_(NULL), min_time_(0), max_time_(0), is_compacting_(false), paused_(false)
       {
       }
 
@@ -41,6 +41,7 @@ namespace tair
         if (should_compact())
         {
           do_compact();
+          is_compacting_ = false;
         }
       }
 
@@ -65,10 +66,25 @@ namespace tair
         return ret;
       }
 
+      void LdbCompactTask::pause()
+      {
+        paused_ = true;        
+      }
+
+      void LdbCompactTask::resume()
+      {
+        paused_ = false;
+      }
+
       bool LdbCompactTask::should_compact()
       {
         tbsys::CThreadGuard guard(&lock_);
-        return !is_compacting_ && is_compact_time() && need_compact();
+        bool ret = !paused_ && !is_compacting_ && is_compact_time() && need_compact();
+        if (ret)
+        {
+          is_compacting_ = true;
+        }
+        return ret;
       }
 
       bool LdbCompactTask::need_compact()
@@ -93,7 +109,6 @@ namespace tair
         // 2. Expired items has nothing to do with range and filenumber, so if we want to compact over all expired
         //    items, we can do nothing except compacting the whole db(that's expensive). Maybe some statics can
         //    join in the strategy.
-
         compact_for_gc();
         compact_for_expired();
       }
@@ -147,7 +162,7 @@ namespace tair
             uint32_t start_time = time(NULL);
             DUMP_GCNODE(info, gc_node, "compact for gc type: %d, start: %u", gc_type, start_time);
 
-            leveldb::Slice comp_start(start_key), comp_end(end_key);;
+            leveldb::Slice comp_start(start_key), comp_end(end_key);
             leveldb::Status status = db_->db()->
               CompactRangeSelfLevel(gc_node.file_number_, &comp_start, &comp_end);
 
@@ -247,6 +262,24 @@ namespace tair
         {
           stop_compact_task();
           timer_ = 0;
+        }
+      }
+
+      void BgTask::pause()
+      {
+        log_error("pause bgtask");
+        if (compact_task_ != 0)
+        {
+          compact_task_->pause();
+        }
+      }
+
+      void BgTask::resume()
+      {
+        log_error("resume bgtask");
+        if (compact_task_ != 0)
+        {
+          compact_task_->resume();
         }
       }
 

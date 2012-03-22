@@ -126,14 +126,35 @@ namespace tair
       {
         log_debug("ldb::clear %d", area);
         int ret = TAIR_RETURN_SUCCESS;
+
+        bool cmd_clear_area = false;
+
         for (int32_t i = 0; i < db_count_; ++i)
         {
-          int tmp_ret = ldb_instance_[i]->clear_area(area);
-          if (tmp_ret != TAIR_RETURN_SUCCESS)
+          if (-10 == area)
           {
-            ret = tmp_ret;
-            log_error("clear area %d for instance %d fail.", area, i); // just continue
+            ldb_instance_[i]->bg_task()->pause();
           }
+          else if (-11 == area)
+          {
+            ldb_instance_[i]->bg_task()->resume();
+          }
+          else
+          {
+            cmd_clear_area = true;
+            int tmp_ret = ldb_instance_[i]->clear_area(area);
+            if (tmp_ret != TAIR_RETURN_SUCCESS)
+            {
+              ret = tmp_ret;
+              log_error("clear area %d for instance %d fail.", area, i); // just continue
+            }
+          }
+        }
+
+        // clear cache
+        if (cmd_clear_area && cache_ != NULL)
+        {
+          cache_->clear(area);
         }
         return ret;
       }
@@ -154,11 +175,12 @@ namespace tair
 
           for (std::vector<int>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
           {
-            tmp_buckets[*it % db_count_].push_back(*it);
+            tmp_buckets[hash(*it) % db_count_].push_back(*it);
           }
 
           for (int32_t i = 0; i < db_count_; ++i)
           {
+            log_warn("instance %d own %d buckets.", i+1, tmp_buckets[i].size());
             ret = ldb_instance_[i]->init_buckets(tmp_buckets[i]);
             if (!ret)
             {
@@ -185,7 +207,7 @@ namespace tair
           std::vector<int32_t>* tmp_buckets = new std::vector<int32_t>[db_count_];
           for (std::vector<int>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
           {
-            tmp_buckets[*it % db_count_].push_back(*it);
+            tmp_buckets[hash(*it) % db_count_].push_back(*it);
           }
 
           for (int32_t i = 0; i < db_count_; ++i)
@@ -193,6 +215,12 @@ namespace tair
             ldb_instance_[i]->close_buckets(tmp_buckets[i]);
           }
           delete[] tmp_buckets;
+        }
+
+        // clear mdb cache
+        if (cache_ != NULL)
+        {
+          cache_->close_buckets(buckets);
         }
       }
 
@@ -265,9 +293,36 @@ namespace tair
         }
       }
 
+      void LdbManager::set_bucket_count(uint32_t bucket_count)
+      {
+        if (this->bucket_count == 0)
+        {
+          this->bucket_count = bucket_count;
+          if (cache_ != NULL)
+          {
+            // set cache (mdb_manager) bucket count
+            cache_->set_bucket_count(bucket_count);
+          }
+        }
+      }
+
+      // integer hash function
+      int LdbManager::hash(int h)
+      {
+        // Spread bits to regularize both segment and index locations,
+        // using variant of single-word Wang/Jenkins hash.
+        h += (h << 15) ^ 0xffffcd7d;
+        h ^= (h >> 10);
+        h += (h << 3);
+        h ^= (h >> 6);
+        h += (h << 2) + (h << 14);
+        return h ^ (h >> 16);
+      }
+
       LdbInstance* LdbManager::get_db_instance(const int bucket_number)
       {
-        LdbInstance* ret = ldb_instance_[bucket_number % db_count_];
+        LdbInstance* ret = (1 == db_count_) ? ldb_instance_[0] :
+          ldb_instance_[hash(bucket_number) % db_count_];
         assert(ret != NULL);
         return ret->exist(bucket_number) ? ret : NULL;
       }

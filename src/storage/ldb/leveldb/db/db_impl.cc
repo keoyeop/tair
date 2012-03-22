@@ -607,16 +607,21 @@ Status DBImpl::CompactRangeSelfLevel(
 
   MutexLock l(&mutex_);
   manual.bg_compaction_func = &DBImpl::BackgroundCompactionSelfLevel;
-  while (manual.compaction_status.ok() && !manual.done) {
-    // still have other manual compaction running
-    while (manual_compaction_ != NULL) {
-      bg_cv_.Wait();
+  for (int level = 0; level < config::kNumLevels && manual.compaction_status.ok(); ++level) {
+    ManualCompaction each_manual = manual;
+    each_manual.level = level;
+    while (each_manual.compaction_status.ok() && !each_manual.done) {
+      // still have other manual compaction running
+      while (manual_compaction_ != NULL) {
+        bg_cv_.Wait();
+      }
+      manual_compaction_ = &each_manual;
+      MaybeScheduleCompaction();
+      while (manual_compaction_ == &each_manual) {
+        bg_cv_.Wait();
+      }
     }
-    manual_compaction_ = &manual;
-    MaybeScheduleCompaction();
-    while (manual_compaction_ == &manual) {
-      bg_cv_.Wait();
-    }
+    manual.compaction_status = each_manual.compaction_status;
   }
 
   return manual.compaction_status;
@@ -631,16 +636,12 @@ void DBImpl::BackgroundCompactionSelfLevel() {
   InternalKey manual_end;
   ManualCompaction* m = manual_compaction_;
   Status status;
-
-  // TODO: Check whether compact range in this level first to avoid liner search in CompactRangeOneLevel().
-  //       LEVEL-0 maybe can compact to level-1
-  for (int level = 0; level < config::kNumLevels; ++level) {
-    c = versions_->CompactRangeOneLevel(level, m->limit_filenumber, m->begin, m->end);
-    m->level = level;
+  do {
+    c = versions_->CompactRangeOneLevel(m->level, m->limit_filenumber, m->begin, m->end);
     if (NULL == c) {            // no compact for this level
-      fprintf(stderr, "no file for this key in level: %d\n", level);
+      Log(options_.info_log, "no file for this key in level: %d\n", m->level);
       m->done = true;           // done all.
-      continue;
+      break;
     }
     manual_end = c->input(0, c->num_input_files(0) - 1)->largest;
 
@@ -661,14 +662,14 @@ void DBImpl::BackgroundCompactionSelfLevel() {
       // Ignore compaction errors found during shutting down
     } else if (!status.ok()) {
       Log(options_.info_log, "compactrangeself fail. level: %d, error: %s",
-          level, status.ToString().c_str());
+          m->level, status.ToString().c_str());
       m->compaction_status = status; // save error
       if (bg_error_.ok()) {          // no matter paranoid_checks
         bg_error_ = status;
       }
       break;                    // exit once fail.
     }
-  }
+  } while (false);
 
   if (!m->done) {
     // We only compacted part of the requested range.  Update *m
@@ -686,7 +687,7 @@ Status DBImpl::DoCompactionWorkSelfLevel(CompactionState* compact) {
   const uint64_t start_micros = env_->NowMicros();
   int64_t imm_micros = 0;  // Micros spent doing imm_ compactions
 
-  Log(options_.info_log,  "SeflLevel Compacting %d@%d files",
+  Log(options_.info_log,  "SelfLevel Compacting %d@%d files",
       compact->compaction->num_input_files(0),
       compact->compaction->level());
   assert(versions_->NumLevelFiles(compact->compaction->level()) > 0);
@@ -1494,7 +1495,9 @@ Status DBImpl::MakeRoomForWrite(bool force) {
       // We have filled up the current memtable, but the previous
       // one is still being compacted, so we wait.
       Log(options_.info_log, "wait imm ");
+      MaybeScheduleCompaction();
       bg_cv_.Wait();
+      Log(options_.info_log, "wait imm over");
     } else if (versions_->NumLevelFiles(0) >= config::kL0_StopWritesTrigger) { // @ not stop
       // There are too many level-0 files.
       Log(options_.info_log, "waiting...\n");
