@@ -675,7 +675,7 @@ namespace tair {
    {
       tbsys::CThreadGuard update_table_guard(&update_server_table_mutex);
 
-      log_debug("updateServerTable, size: %d", server_table_size);
+      log_warn("updateServerTable, size: %d", server_table_size);
       table_mgr->do_update_table(server_table, server_table_size, server_table_version, copy_count, bucket_count);
       duplicator->set_max_queue_size((table_mgr->get_copy_count() - 1) * 3);
       storage_mgr->set_bucket_count(table_mgr->get_bucket_count());

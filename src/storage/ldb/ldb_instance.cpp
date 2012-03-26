@@ -33,10 +33,9 @@ namespace tair
 
       LdbInstance::LdbInstance()
         : index_(0), db_version_care_(true), mutex_(NULL), db_(NULL), cache_(NULL),
-          scan_it_(NULL), still_have_(true), gc_(this)
+          scan_it_(NULL), scan_bucket_(-1), still_have_(true), gc_(this)
       {
         db_path_[0] = '\0';
-        scan_end_key_ = std::string(LDB_KEY_META_SIZE, '\0');
         stat_manager_ = new STAT_MANAGER_MAP();
       }
 
@@ -44,14 +43,13 @@ namespace tair
                                storage::storage_manager* cache)
         : index_(index), db_version_care_(db_version_care), mutex_(NULL), db_(NULL),
           cache_(dynamic_cast<tair::mdb_manager*>(cache)),
-          scan_it_(NULL), still_have_(true), gc_(this)
+          scan_it_(NULL), scan_bucket_(-1), still_have_(true), gc_(this)
       {
         if (cache_ != NULL)
         {
           mutex_ = new tbsys::CThreadMutex[LOCKER_SIZE];
         }
         db_path_[0] = '\0';
-        scan_end_key_ = std::string(LDB_KEY_META_SIZE, '\0');
         stat_manager_ = new STAT_MANAGER_MAP();
       }
 
@@ -128,12 +126,6 @@ namespace tair
                 else if (!(ret = gc_.start()))
                 {
                   log_error("start gc factory fail. destroy db");
-                }
-                else if (!(ret =
-                           cache_stat_.start(db_path_,
-                                             TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_STAT_FILE_SIZE, (20*1<<20)))))
-                {
-                  log_error("start cache stat fail. destroy db");
                 }
 
                 if (!ret)
@@ -460,7 +452,7 @@ namespace tair
 
         if (ret)
         {
-          LdbKey::build_key_meta(const_cast<char*>(scan_end_key_.data()), bucket_number+1);
+          scan_bucket_ = bucket_number;
           still_have_ = true;
         }
         return ret;
@@ -472,6 +464,7 @@ namespace tair
         {
           delete scan_it_;
           scan_it_ = NULL;
+          scan_bucket_ = -1;
         }
         return true;
       }
@@ -483,7 +476,7 @@ namespace tair
         static const int32_t migrate_batch_size =
           TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_SIZE, 1048576); // 1M default
         static const int32_t migrate_batch_count = 
-          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_COUNT, 2000); // 1000 default
+          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_COUNT, 2000); // 2000 default
 
         if (NULL == scan_it_)
         {
@@ -497,7 +490,8 @@ namespace tair
 
           while (batch_size < migrate_batch_size && batch_count < migrate_batch_count && scan_it_->Valid())
           {
-            if (scan_it_->key().ToString() < scan_end_key_)
+            // match bucket
+            if (LdbKey::decode_bucket_number(scan_it_->key().data() + LDB_EXPIRED_TIME_SIZE) == scan_bucket_)
             {
               ldb_key.assign(const_cast<char*>(scan_it_->key().data()), scan_it_->key().size());
               ldb_item.assign(const_cast<char*>(scan_it_->value().data()), scan_it_->value().size());
@@ -548,7 +542,7 @@ namespace tair
             std::string stat_value;
             if (get_db_stat(db_, stat_value, "stats"))
             {
-              log_warn("ldb status: %s", stat_value.c_str());
+              log_info("ldb status: %s", stat_value.c_str());
             }
             else
             {
@@ -569,13 +563,6 @@ namespace tair
                 stat[i].item_count_value += pstat[i].item_count();
               }
             }
-          }
-          if (cache_ != NULL)
-          {
-            // lock hold, static is ok.
-            static cache_stat ldb_cache_stat[TAIR_MAX_AREA_COUNT];
-            cache_->raw_get_stats(ldb_cache_stat);
-            cache_stat_.save(ldb_cache_stat, TAIR_MAX_AREA_COUNT);
           }
         }
       }

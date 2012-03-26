@@ -587,7 +587,10 @@ Status DBImpl::CompactRangeSelfLevel(
   InternalKey begin_storage, end_storage;
 
   ManualCompaction manual;
-  manual.limit_filenumber = limit_filenumber;
+  // @@ TEMPORARILY CHANGE FOR SAFE @@
+  manual.limit_filenumber = versions_->NextFileNumber();
+  // manual.limit_filenumber = limit_filenumber;
+  // @@ TEMPORARILY CHANGE FOR SAFE @@
   manual.done = false;
   manual.reschedule = false;    // only run once
 
@@ -759,7 +762,7 @@ Status DBImpl::DoCompactionWorkSelfLevel(CompactionState* compact) {
       if (last_sequence_for_key <= compact->smallest_snapshot) {
         // Hidden by an newer entry for same user key
         drop = true;    // (A)
-      } else if (user_comparator()->ShouldDrop(ikey.user_key.data(), ikey.sequence, expired_end_time)) {
+      } else if (user_comparator()->ShouldDrop(ikey.user_key.data(), ikey.sequence, 1 /* will gc */)) {
         // user-defined should drop, no matter what conditon.
         drop = true;
       }
@@ -1134,7 +1137,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
       const uint64_t imm_start = env_->NowMicros();
       mutex_.Lock();
       if (imm_ != NULL) {
-        Log(options_.info_log, "com mem");
         CompactMemTable();
         bg_cv_.SignalAll();  // Wakeup MakeRoomForWrite() if necessary
       }
@@ -1171,7 +1173,7 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
       if (last_sequence_for_key <= compact->smallest_snapshot) {
         // Hidden by an newer entry for same user key
         drop = true;    // (A)
-      } else if (user_comparator()->ShouldDrop(ikey.user_key.data(), ikey.sequence, expired_end_time)) {
+      } else if (user_comparator()->ShouldDrop(ikey.user_key.data(), ikey.sequence, 1 /* will gc */)) {
         // user-defined should drop, no matter what conditon.
         drop = true;
       } else if (ikey.sequence <= compact->smallest_snapshot &&

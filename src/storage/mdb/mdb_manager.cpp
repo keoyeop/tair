@@ -595,7 +595,7 @@ namespace tair {
   }
   void mdb_manager::close_buckets(const vector<int> &buckets)
   {
-    TBSYS_LOG(INFO,"start close_buckets");
+    log_warn("start close_buckets");
     set<int>__buckets(buckets.begin(), buckets.end());
 
     for(int hash_index = 0; hash_index < hashmap->get_bucket_size();

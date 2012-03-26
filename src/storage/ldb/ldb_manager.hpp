@@ -20,9 +20,11 @@
 #include "storage/storage_manager.hpp"
 #include "common/data_entry.hpp"
 #include "common/stat_info.hpp"
+#include "ldb_cache_stat.hpp"
 
 namespace tair
 {
+  class mdb_manager;
   namespace storage
   {
     namespace ldb
@@ -63,7 +65,9 @@ namespace tair
       private:
         LdbInstance** ldb_instance_;
         int32_t db_count_;
-        storage_manager* cache_;
+        mdb_manager* cache_;
+        // cache stat
+        CacheStat cache_stat_;
         LdbInstance* scan_ldb_;
         tbsys::CThreadMutex lock_;
       };

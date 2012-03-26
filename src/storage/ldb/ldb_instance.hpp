@@ -24,7 +24,6 @@
 #include "ldb_gc_factory.hpp"
 #include "bg_task.hpp"
 #include "stat_manager.hpp"
-#include "ldb_cache_stat.hpp"
 
 namespace tair
 {
@@ -103,12 +102,11 @@ namespace tair
         leveldb::DB* db_;
         // mdb cache
         mdb_manager* cache_;
-        // cache stat
-        CacheStat cache_stat_;
 
         // for scan, MUST single-bucket everytime
         leveldb::Iterator* scan_it_;
-        std::string scan_end_key_;
+        // the bucket migrating
+        int scan_bucket_;
         bool still_have_;
 
         // statatics manager

@@ -44,9 +44,6 @@ namespace tair
 
         bool init(LdbInstance* db);
 
-        void pause();
-        void resume();
-
       private:
         bool is_compact_time();
         bool need_compact();
@@ -66,7 +63,6 @@ namespace tair
         int32_t max_time_;
         tbsys::CThreadMutex lock_;
         bool is_compacting_;
-        bool paused_;
       };
       typedef tbutil::Handle<LdbCompactTask> LdbCompactTaskPtr;
 
@@ -79,8 +75,6 @@ namespace tair
         bool start(LdbInstance* db);
         void stop();
 
-        void pause();
-        void resume();
       private:
         bool init_compact_task(LdbInstance* db);
         void stop_compact_task();

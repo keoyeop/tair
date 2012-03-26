@@ -142,9 +142,9 @@ namespace tair
             int target_area = area;
             if(has_merged) {
                assert(size > 2);
-               target_area = data[1];
+               target_area = (unsigned char)(data[1]);
                target_area <<= 8;
-               target_area |= data[0];
+               target_area |= (unsigned char)(data[0]);
                char new_data[size -2];
                memset(new_data, 0, size-2);
                memcpy(new_data, data+2, size-2);
@@ -294,7 +294,7 @@ namespace tair
                input->readBytes(get_data(), size);
             }
             has_merged = temp_merged;
-            area = area;
+            this->area = area;
             server_flag = flag;
          }
 

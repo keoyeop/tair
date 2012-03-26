@@ -15,6 +15,7 @@
  */
 
 #include "storage/mdb/mdb_factory.hpp"
+#include "storage/mdb/mdb_manager.hpp"
 #include "ldb_manager.hpp"
 #include "ldb_instance.hpp"
 
@@ -26,12 +27,32 @@ namespace tair
     {
       LdbManager::LdbManager() : cache_(NULL), scan_ldb_(NULL)
       {
+        std::string cache_stat_path;
         if (TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_USE_CACHE, 1) > 0)
         {
-          cache_ = mdb_factory::create_embedded_mdb();
+          cache_ = dynamic_cast<tair::mdb_manager*>(mdb_factory::create_embedded_mdb());
           if (NULL == cache_)
           {
             log_error("init ldb memory cache fail.");
+          }
+          else
+          {
+            const char* log_file_path = TBSYS_CONFIG.getString(TAIRSERVER_SECTION, TAIR_LOG_FILE, "server.log");
+            const char* pos = strrchr(log_file_path, '/');
+            if (NULL == pos)
+            {
+              cache_stat_path.assign("./");
+            }
+            else
+            {
+              cache_stat_path.assign(log_file_path, pos - log_file_path);
+            }
+
+            if (!cache_stat_.start(cache_stat_path.c_str(),
+                                  TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_STAT_FILE_SIZE, (20*1<<20))))
+            {
+              log_error("start cache stat fail.");
+            }
           }
         }
 
@@ -43,8 +64,8 @@ namespace tair
           ldb_instance_[i] = new LdbInstance(i + 1, db_version_care, cache_);
         }
 
-        log_warn("ldb storage engine construct count: %d, db version care: %s, use cache: %s",
-                 db_count_, db_version_care ? "yes" : "no", cache_ != NULL ? "yes" : "no");
+        log_warn("ldb storage engine construct count: %d, db version care: %s, use cache: %s, cache stat path: %s",
+                 db_count_, db_version_care ? "yes" : "no", cache_ != NULL ? "yes" : "no", cache_stat_path.c_str());
       }
 
       LdbManager::~LdbManager()
@@ -133,11 +154,11 @@ namespace tair
         {
           if (-10 == area)
           {
-            ldb_instance_[i]->bg_task()->pause();
+            ldb_instance_[i]->gc_factory()->pause_gc();
           }
           else if (-11 == area)
           {
-            ldb_instance_[i]->bg_task()->resume();
+            ldb_instance_[i]->gc_factory()->resume_gc();
           }
           else
           {
@@ -161,7 +182,7 @@ namespace tair
 
       bool LdbManager::init_buckets(const std::vector<int>& buckets)
       {
-        log_debug("ldb::init buckets");
+        log_warn("ldb::init buckets: %d", buckets.size());
         tbsys::CThreadGuard guard(&lock_);
         bool ret = false;
 
@@ -196,7 +217,7 @@ namespace tair
 
       void LdbManager::close_buckets(const std::vector<int>& buckets)
       {
-        log_debug("ldb::close buckets");
+        log_warn("ldb::close buckets: %d", buckets.size());
         tbsys::CThreadGuard guard(&lock_);
         if (1 == db_count_)
         {
@@ -290,6 +311,13 @@ namespace tair
         for (int32_t i = 0; i < db_count_; ++i)
         {
           ldb_instance_[i]->get_stats(stat);
+        }
+        if (cache_ != NULL)
+        {
+          // lock hold, static is ok.
+          static cache_stat ldb_cache_stat[TAIR_MAX_AREA_COUNT];
+          cache_->raw_get_stats(ldb_cache_stat);
+          cache_stat_.save(ldb_cache_stat, TAIR_MAX_AREA_COUNT);
         }
       }
 

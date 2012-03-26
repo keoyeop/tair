@@ -17,8 +17,16 @@ fi
 VAL_LOG_PATH=./val_log
 VAL_CMD="valgrind --tool=memcheck --leak-check=full --show-reachable=yes --log-file=${VAL_LOG_PATH}/valgrind.log."`date +%m%d%s`
 
-DS_CMD=${TAIR_BIN_DIR}/tair_server 
-CS_CMD=${TAIR_BIN_DIR}/tair_cfg_svr 
+# we set numa policy explicitly
+if numactl --show &>/dev/null
+then
+    NUMA_CMD="numactl --interleave=all"
+else
+    NUMA_CMD=""
+fi
+
+DS_CMD="${NUMA_CMD} ${TAIR_BIN_DIR}/tair_server"
+CS_CMD="${NUMA_CMD} ${TAIR_BIN_DIR}/tair_cfg_svr"
 
 VAL_DS_CMD="${VAL_CMD} ${TAIR_BIN_DIR}/tair_server"
 VAL_CS_CMD="${VAL_CMD} ${TAIR_BIN_DIR}/tair_cfg_svr"

@@ -28,7 +28,7 @@ namespace tair
     {
       ////////// LdbCompactTask
       LdbCompactTask::LdbCompactTask()
-        : db_(NULL), min_time_(0), max_time_(0), is_compacting_(false), paused_(false)
+        : db_(NULL), min_time_(0), max_time_(0), is_compacting_(false)
       {
       }
 
@@ -66,20 +66,10 @@ namespace tair
         return ret;
       }
 
-      void LdbCompactTask::pause()
-      {
-        paused_ = true;        
-      }
-
-      void LdbCompactTask::resume()
-      {
-        paused_ = false;
-      }
-
       bool LdbCompactTask::should_compact()
       {
         tbsys::CThreadGuard guard(&lock_);
-        bool ret = !paused_ && !is_compacting_ && is_compact_time() && need_compact();
+        bool ret = db_->gc_factory()->can_gc() && !is_compacting_ && is_compact_time() && need_compact();
         if (ret)
         {
           is_compacting_ = true;
@@ -115,7 +105,7 @@ namespace tair
 
       void LdbCompactTask::compact_for_gc()
       {
-        if (!db_->gc_factory()->empty())
+        if (db_->gc_factory()->can_gc() && !db_->gc_factory()->empty())
         {
           bool all_done = false;
           compact_gc(GC_BUCKET, all_done);
@@ -262,24 +252,6 @@ namespace tair
         {
           stop_compact_task();
           timer_ = 0;
-        }
-      }
-
-      void BgTask::pause()
-      {
-        log_error("pause bgtask");
-        if (compact_task_ != 0)
-        {
-          compact_task_->pause();
-        }
-      }
-
-      void BgTask::resume()
-      {
-        log_error("resume bgtask");
-        if (compact_task_ != 0)
-        {
-          compact_task_->resume();
         }
       }
 

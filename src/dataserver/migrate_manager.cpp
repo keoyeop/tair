@@ -298,9 +298,11 @@ namespace tair {
       bool have_item = storage_mgr->get_next_items(info, items);
       request_mupdate *packet = new request_mupdate();
       packet->server_flag = TAIR_SERVERFLAG_MIGRATE;
+      uint64_t total_count = 0;
 
       while(true) {
          if (!items.empty()) {
+            total_count += items.size();
             tag = true;
             for(vector<item_data_info *>::iterator itor = items.begin(); itor != items.end(); itor++) {
                item_data_info *item = *itor;
@@ -329,7 +331,8 @@ namespace tair {
          }
 
          if(flag == false){
-            break;
+           log_error("send migrate packet fail. bucket: %d", db_id);
+           break;
          }
          if (have_item) {
             have_item = storage_mgr->get_next_items(info, items);
@@ -344,6 +347,7 @@ namespace tair {
       delete packet;
       packet = NULL;
       storage_mgr->end_scan(info);
+      log_warn("migrate bucket db data end. total count: %d, all_done: %d, send suc: %d", total_count, !have_item, flag);
       return flag;
    }
 

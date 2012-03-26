@@ -306,7 +306,7 @@ namespace tair
       }
 
 //////////////////////////////
-      LdbGcFactory::LdbGcFactory(LdbInstance* db) : db_(db)
+      LdbGcFactory::LdbGcFactory(LdbInstance* db) : db_(db), can_gc_(false)
       {
         assert(db_ != NULL);
         log_ = new GcLog();
@@ -360,6 +360,18 @@ namespace tair
           log_->stop();
           db_ = NULL;
         }
+      }
+
+      void LdbGcFactory::pause_gc()
+      {
+        log_error("pause gc");
+        can_gc_ = false;
+      }
+
+      void LdbGcFactory::resume_gc()
+      {
+        log_error("resume gc");
+        can_gc_ = true;
       }
 
       void LdbGcFactory::destroy()
@@ -549,7 +561,11 @@ namespace tair
       void LdbGcFactory::set_gc_info(GcNode& node)
       {
         get_db_stat(db_->db(), node.sequence_, "sequence");
-        get_db_stat(db_->db(), node.file_number_, "largest-filenumber");
+        // @@ TEMPORARILY CHANGE FOR SAFE @@
+        // 'cause leveldb's compaction may NOT gc keys, so filenumber is not considered here.
+        node.file_number_ = ~0UL;
+        // get_db_stat(db_->db(), node.file_number_, "largest-filenumber");
+        // @@ TEMPORARILY CHANGE FOR SAFE @@
         node.when_ = time(NULL);
       }
 
