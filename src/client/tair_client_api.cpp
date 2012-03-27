@@ -51,6 +51,13 @@ namespace tair {
     return impl->put(area,key,data,expire,version, fill_cache);
   }
 
+  int tair_client_api::mput(int area,
+      const tair_client_kv_map& kvs,
+      int& fail_request)
+  {
+    return impl->mput(area, kvs, fail_request);
+  }
+
   int tair_client_api::get(int area,
       const data_entry &key,
       data_entry*& data)

@@ -94,11 +94,11 @@ namespace tair {
          storage_mgr = new tair::storage::fdb::fdb_manager();
       }
 #ifdef WITH_KDB
-      else if (strcmp(se_name, "kdb") == 0){ 
+      else if (strcmp(se_name, "kdb") == 0){
          // init kdb
          storage_mgr = new tair::storage::kdb::kdb_manager();
       }
-#endif 
+#endif
 #ifdef WITH_LDB
       else if (strcmp(se_name, "ldb") == 0) {
         log_info("init storage engine ldb");
@@ -405,6 +405,63 @@ namespace tair {
       return rc;
    }
 
+   int tair_manager::batch_put(int area, const mput_record_vec* record_vec, request_mput* request, int heart_version)
+   {
+     if (area < 0 || area >= TAIR_MAX_AREA_COUNT || record_vec == NULL) {
+       return TAIR_RETURN_INVALID_ARGUMENT;
+     }
+
+     int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
+     mput_record_vec::const_iterator it;
+     for (it = record_vec->begin() ; it != record_vec->end(); ++it)
+     {
+        if ((*it)->key->get_size() == 0 || (*it)->value->get_d_entry().get_size() == 0) {
+          log_error("put value is null, return failed");
+          return TAIR_RETURN_ITEMSIZE_ERROR;
+        }
+
+        data_entry key = *((*it)->key);
+        key.server_flag = request->server_flag;
+        uint64_t target_server_id = 0;
+        if (should_proxy(key, target_server_id))
+        {
+          log_error("batch put, but have key not proxy.");
+          return TAIR_RETURN_WRITE_NOT_ON_MASTER;
+        }
+
+        data_entry mkey = key;
+        mkey.merge_area(area);
+        int bucket_number = get_bucket_number(key);
+
+        int op_flag = get_op_flag(bucket_number, key.server_flag);
+        int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
+        if (should_write_local(bucket_number, key.server_flag, op_flag, rc) == false) {
+          return TAIR_RETURN_REMOVE_NOT_ON_MASTER;
+      }
+     }
+
+     for (it = record_vec->begin() ; it != record_vec->end(); ++it)
+     {
+        data_entry key = *((*it)->key);
+        data_entry mkey = key;
+        mkey.merge_area(area);
+        int bucket_number = get_bucket_number(key);
+
+        //not care version now
+        int rc = storage_mgr->put(bucket_number, mkey, (*it)->value->get_d_entry(), false, (*it)->value->get_expire());
+
+        if (rc != TAIR_RETURN_SUCCESS)
+        {
+          return rc;
+        }
+
+        TAIR_STAT.stat_put(area);
+     }
+
+     // do dup?
+     return rc;
+   }
+
   int tair_manager::batch_remove(int area, const tair_dataentry_set * key_list,request_remove *request,int heart_version)
   {
     if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
@@ -415,7 +472,7 @@ namespace tair {
 
     set<data_entry*, data_entry_comparator>::iterator it;
     //check param first, one fail,all fail.
-    for (it = key_list->begin(); it != key_list->end(); ++it) 
+    for (it = key_list->begin(); it != key_list->end(); ++it)
     {
       uint64_t target_server_id = 0;
 
@@ -450,7 +507,7 @@ namespace tair {
     }
 
     //the storage_mgr should has batch interface
-    for (it = key_list->begin(); it != key_list->end(); ++it) 
+    for (it = key_list->begin(); it != key_list->end(); ++it)
     {
       data_entry *pkey = (*it);
       data_entry key=*pkey; //for same code.
@@ -465,7 +522,7 @@ namespace tair {
       bool version_care =  op_flag & TAIR_OPERATION_VERSION;
       rc = storage_mgr->remove(bucket_number, mkey, version_care);
 
-      if (rc == TAIR_RETURN_SUCCESS || rc == TAIR_RETURN_DATA_NOT_EXIST) 
+      if (rc == TAIR_RETURN_SUCCESS || rc == TAIR_RETURN_DATA_NOT_EXIST)
       {
         if (migrate_log != NULL && need_do_migrate_log(bucket_number)) {
           migrate_log->log(SN_REMOVE, mkey, mkey, bucket_number);
@@ -473,7 +530,7 @@ namespace tair {
         if (op_flag & TAIR_OPERATION_DUPLICATE) {
           vector<uint64_t> slaves;
           get_slaves(key.server_flag, bucket_number, slaves);
-          if (slaves.empty() == false) 
+          if (slaves.empty() == false)
           {
             //for batch delete,don't wait response,let's retry it.
             rc=duplicator->direct_send(area, &key, NULL, 0,bucket_number, slaves,0);
@@ -775,7 +832,7 @@ namespace tair {
       }
       //not need check  duplicate's list size any more.
       return true;
-      
+
       if (op_flag & TAIR_OPERATION_DUPLICATE) {
          bool is_available = false;
          for (int i=0; i<TAIR_DUPLICATE_BUSY_RETRY_COUNT; ++i) {

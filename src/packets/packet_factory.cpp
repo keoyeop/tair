@@ -50,6 +50,9 @@ namespace tair {
          case TAIR_REQ_MUPDATE_PACKET:
             packet = new tair::request_mupdate();
             break;
+         case TAIR_REQ_MPUT_PACKET:
+            packet = new tair::request_mput();
+            break;
          case TAIR_REQ_GET_PACKET:
             packet = new request_get();
             break;

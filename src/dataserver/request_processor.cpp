@@ -251,6 +251,23 @@ namespace tair {
       return rc;
    }
 
+   int request_processor::process(request_mput *request, bool &send_return)
+   {
+
+      if (tair_mgr->is_working() == false) {
+         return TAIR_RETURN_SERVER_CAN_NOT_WORK;
+      }
+
+      send_return = true;
+      int rc = 0;
+      if (request->record_vec!= NULL)
+      {
+         log_info("bo batch put, area: %d, size: %d", request->area, request->record_vec->size());
+         rc = tair_mgr->batch_put(request->area, request->record_vec, request, heart_beat->get_client_version());
+      }
+      return rc;
+   }
+
    int request_processor::process(request_inc_dec *request, bool &send_return)
    {
       int rc = 0;
@@ -503,7 +520,7 @@ namespace tair {
       return ret;
    }
 
-   int request_processor::process(request_get_and_remove_items *request, bool &send_return) 
+   int request_processor::process(request_get_and_remove_items *request, bool &send_return)
    {
       int ret = 0;
       if (tair_mgr->is_working() == false) {

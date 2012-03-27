@@ -31,11 +31,11 @@ namespace tair
       class data_entry {
       public:
          data_entry()
-          {
+         {
             init();
          }
          data_entry(const data_entry &entry)
-          {
+         {
             alloc = false;
             data = NULL;
 
@@ -359,6 +359,86 @@ namespace tair
       typedef std::vector<data_entry *> tair_dataentry_vector;
       typedef std::set<data_entry*, data_entry_comparator> tair_dataentry_set;
       typedef __gnu_cxx::hash_map<data_entry*, data_entry*, data_entry_hash> tair_keyvalue_map;
+
+      class value_entry {
+        public:
+          value_entry() : version(0), expire(0)
+          {
+          }
+
+          value_entry(const value_entry &entry)
+          {
+            d_entry = entry.d_entry;
+            version = entry.version;
+            expire = entry.expire;
+          }
+
+          value_entry& clone(const value_entry &entry)
+          {
+            assert(this != &entry);
+            d_entry = entry.d_entry;
+            version = entry.version;
+            expire = entry.expire;
+
+            return *this;
+          }
+
+          void set_d_entry(const data_entry& in_d_entry)
+          {
+            d_entry = in_d_entry;
+          }
+
+          data_entry& get_d_entry()
+          {
+            return d_entry;
+          }
+
+          void set_expire(int32_t expire_time)
+          {
+            expire = expire_time;
+          }
+
+          int32_t get_expire() const
+          {
+            return expire;
+          }
+
+          void set_version(uint16_t kv_version)
+          {
+            version = kv_version;
+          }
+
+          uint16_t get_version() const
+          {
+            return version;
+          }
+
+          void encode(tbnet::DataBuffer *output) const
+          {
+            d_entry.encode(output);
+            output->writeInt16(version);
+            output->writeInt32(expire);
+          }
+
+          void decode(tbnet::DataBuffer *input)
+          {
+            d_entry.decode(input);
+            version = input->readInt16();
+            expire = input->readInt32();
+          }
+
+          int get_size() const
+          {
+            return d_entry.get_size()+ 2 + 4;
+          }
+
+        private:
+          data_entry d_entry;
+          uint16_t version;
+          int32_t expire;
+      };
+
+      typedef __gnu_cxx::hash_map<data_entry*, value_entry*, data_entry_hash> tair_client_kv_map;
    }
 }
 

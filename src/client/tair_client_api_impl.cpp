@@ -271,7 +271,89 @@ FAIL:
     return ret;
   }
 
+  int tair_client_impl::mput(int area, const tair_client_kv_map& kvs, int& fail_request/*tair_dataentry_vector& fail_keys*/)
+  {
+    fail_request = 0;
+    request_put_map request_puts;
+    int ret = TAIR_RETURN_SUCCESS;
+    if ((ret = init_put_map(area, kvs, request_puts)) < 0)
+    {
+      return ret;
+    }
 
+    //typedef map<uint64_t, map<uint32_t, request_mput*> > request_put_map;
+    wait_object* cwo = this_wait_object_manager->create_wait_object();
+    request_put_map::iterator rq_iter = request_puts.begin();
+    int send_packet_size = 0;
+    while (rq_iter != request_puts.end())
+    {
+      map<uint32_t, request_mput*>::iterator mit = rq_iter->second.begin();
+      while (mit != rq_iter->second.end())
+      {
+        //server_id, request, wait_id
+        if (send_request(rq_iter->first, mit->second, cwo->get_id()) < 0)
+        {
+          delete mit->second;
+          rq_iter->second.erase(mit++);
+          ++fail_request;
+        }
+        else
+        {
+          ++send_packet_size;
+          ++mit;
+        }
+      }
+      //erase
+      if (rq_iter->second.size() == 0)
+      {
+      }
+    }
+
+    vector<response_return*> resps;
+    ret = TAIR_RETURN_SEND_FAILED;
+
+    vector<base_packet*> tpk;
+    if ((ret = get_response(cwo, send_packet_size, tpk)) < 1)
+    {
+      this_wait_object_manager->destroy_wait_object(cwo);
+      TBSYS_LOG(ERROR, "all requests are failed");
+      return ret;
+    }
+
+    vector<base_packet*>::iterator bp_iter = tpk.begin();
+    for (; bp_iter != tpk.end(); ++bp_iter)
+    {
+      if ((*bp_iter)->getPCode() == TAIR_RESP_RETURN_PACKET)
+      {
+        response_return* tpacket = dynamic_cast<response_return*>(*bp_iter);
+        if (tpacket != NULL)
+        {
+          ret = tpacket->get_code();
+          if (0 != ret)
+          {
+            if (TAIR_RETURN_SERVER_CAN_NOT_WORK == ret)
+            {
+              new_config_version = tpacket->config_version;
+              send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
+            }
+            ++fail_request;
+          }
+        }
+      }
+      else
+      {
+        ++fail_request;
+      }
+    }
+
+    ret = TAIR_RETURN_SUCCESS;
+    if (fail_request > 0)
+    {
+      ret = TAIR_RETURN_PARTIAL_SUCCESS;
+    }
+    this_wait_object_manager->destroy_wait_object(cwo);
+    return ret;
+  }
 
   int tair_client_impl::get(int area, const data_entry &key, data_entry* &data )
   {
@@ -364,6 +446,112 @@ FAIL:
     TBSYS_LOG(INFO, "get failure: %s:%s",
         tbsys::CNetUtil::addrToString(server_list[0]).c_str(),
         get_error_msg(ret));
+
+    return ret;
+  }
+
+  int tair_client_impl::init_put_map(int area, const tair_client_kv_map& kvs, request_put_map& request_puts)
+  {
+    if (area < 0 || area >= TAIR_MAX_AREA_COUNT)
+    {
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
+
+    int ret = TAIR_RETURN_SUCCESS;
+    request_puts.clear();
+    request_put_map::iterator rq_iter;
+
+    //typedef std::map<data_entry*, value_entry*, data_entry_hash> tair_client_kv_map;
+    tair_client_kv_map::const_iterator kv_iter = kvs.begin();
+    for ( ; kv_iter != kvs.end(); ++kv_iter)
+    {
+      if (!key_entry_check(*(kv_iter->first)) || !key_entry_check(kv_iter->second->get_d_entry()))
+      {
+        ret = TAIR_RETURN_ITEMSIZE_ERROR;
+        break;
+      }
+
+      //if (kv_iter->second->get_version() < 0 || kv_iter->second->get_expire() < 0)
+      if (kv_iter->second->get_expire() < 0)
+      {
+        ret = TAIR_RETURN_INVALID_ARGUMENT;
+        break;
+      }
+
+      if (kv_iter->first->get_size() + kv_iter->second->get_d_entry().get_size() > (TAIR_MAX_DATA_SIZE + TAIR_MAX_KEY_SIZE))
+      {
+        ret = TAIR_RETURN_ITEMSIZE_ERROR;
+        break;
+      }
+
+      vector<uint64_t> server_list;
+      uint32_t bucket_number = 0;
+      if (!get_send_para(*(kv_iter->first), server_list, bucket_number))
+      {
+        TBSYS_LOG(ERROR, "can not find serverId, return false");
+        ret = -1;
+        break;
+      }
+
+      //typedef map<uint64_t, map<uint32_t, request_mput*> > request_put_map;
+      request_mput* packet = NULL;
+      rq_iter = request_puts.find(server_list[0]);
+      if (rq_iter != request_puts.end())
+      {
+        map<uint32_t, request_mput*>::iterator mit = rq_iter->second.find(bucket_number);
+        if (mit != rq_iter->second.end())
+        {
+          packet = mit->second;
+        }
+        else
+        {
+          packet = new request_mput();
+          rq_iter->second[bucket_number] = packet;
+        }
+      }
+      else
+      {
+        map<uint32_t, request_mput*> bp_map;
+        packet = new request_mput();
+        bp_map[bucket_number] = packet;
+        request_puts[server_list[0]] = bp_map;
+      }
+
+      if (packet->area != 0)
+      {
+        if (packet->area != area)
+        {
+          TBSYS_LOG(ERROR, "mput packet is conflict, packet area: %d, input area: %d", packet->area, area);
+          ret = -1;
+        }
+      }
+      else
+      {
+        packet->area = area;
+      }
+
+      packet->add_put_key_data(*(kv_iter->first), *(kv_iter->second));
+      TBSYS_LOG(DEBUG,"get from server:%s, bucket_number: %u",
+          tbsys::CNetUtil::addrToString(server_list[0]).c_str(), bucket_number);
+    }
+
+    if (ret < 0)
+    {
+      for (rq_iter = request_puts.begin(); rq_iter != request_puts.end(); ++rq_iter)
+      {
+        map<uint32_t, request_mput*>::iterator mit = rq_iter->second.begin();
+        for ( ; mit != rq_iter->second.end(); ++mit)
+        {
+          request_mput* req = mit->second;
+          if (NULL != req)
+          {
+            delete req;
+            req = NULL;
+          }
+        }
+      }
+      request_puts.clear();
+    }
 
     return ret;
   }
@@ -1475,6 +1663,23 @@ OUT:
     inited = false;
   }
 
+  bool tair_client_impl::get_send_para(const data_entry &key, vector<uint64_t>& server, uint32_t& bucket_number)
+  {
+    uint32_t hash = util::string_util::mur_mur_hash(key.get_data(), key.get_size());
+    server.clear();
+
+    if (my_server_list.size() > 0U) {
+      hash %= bucket_count;
+      bucket_number = hash;
+      for (uint32_t i=0; i < copy_count && i < my_server_list.size(); ++i) {
+        uint64_t server_id = my_server_list[hash + i * bucket_count];
+        if (server_id != 0) {
+          server.push_back(server_id);
+        }
+      }
+    }
+    return server.size() > 0 ? true : false;
+  }
   bool tair_client_impl::get_server_id(const data_entry &key,vector<uint64_t>& server)
   {
     uint32_t hash = util::string_util::mur_mur_hash(key.get_data(), key.get_size());

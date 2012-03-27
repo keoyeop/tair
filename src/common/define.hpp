@@ -68,6 +68,7 @@
 #define TAIR_DATA_NEED_MIGRATE          (1)
 //for migrate
 #define MAX_MUPDATE_PACKET_SIZE     (16 * 1024)
+#define MAX_MPUT_PACKET_SIZE     (500 * 1024)
 /////////////////////////////
 //for data duplicate
 #define MISECONDS_BEFOR_SEND_RETRY  (1000000)
@@ -120,7 +121,7 @@
 #define TAIR_ULOG_DEFAULT_FILENUM       3
 #define TAIR_ULOG_FILESIZE              "ulog_file_size"
 #define TAIR_ULOG_DEFAULT_FILESIZE      64// 64MB
-#define TAIR_DUP_SYNC_MODE              0 
+#define TAIR_DUP_SYNC_MODE              0
 #define TAIR_COUNT_NEGATIVE_MODE        1 //default is allow count negative
 
 
@@ -255,6 +256,7 @@ enum {
    TAIR_RETURN_DEC_BOUNDS= -3980,
    TAIR_RETURN_DEC_ZERO= -3979,
    TAIR_RETURN_DEC_NOTFOUND= -3978,
+   TAIR_RETURN_KEY_PROXYED = -3977,
 
    TAIR_RETURN_REMOVE_NOT_ON_MASTER= -4101,
    TAIR_RETURN_REMOVE_ONE_FAILED= -4102,

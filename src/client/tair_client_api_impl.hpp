@@ -50,6 +50,7 @@ namespace tair {
 
   typedef map<uint64_t , request_get *> request_get_map;
   typedef map<uint64_t , request_remove *> request_remove_map;
+  typedef map<uint64_t, map<uint32_t, request_mput*> > request_put_map;
 
   class tair_client_impl : public tbsys::Runnable, public tbnet::IPacketHandler {
     public:
@@ -70,6 +71,10 @@ namespace tair {
           int expire,
           int version,
           bool fill_cache = true);
+
+      //typedef std::map<data_entry*, value_entry*, data_entry_hash> tair_client_kv_map;
+      //typedef std::vector<data_entry *> tair_dataentry_vector;
+      int mput(int area, const tair_client_kv_map& kvs, int& fail_request/*tair_dataentry_vector& fail_keys*/);
 
       //the caller will release the memory
       int get(int area,
@@ -185,6 +190,7 @@ namespace tair {
 
       void reset(); //reset enviroment
 
+      bool get_send_para(const data_entry &key, vector<uint64_t>& server, uint32_t& bucket_number);
       bool get_server_id(const data_entry &key, vector<uint64_t>& server);
 
       int send_request(uint64_t serverId,base_packet *packet,int waitId);
@@ -211,6 +217,10 @@ namespace tair {
       int init_request_map(int area,
           vector<data_entry *>& keys,
           request_remove_map &request_removes);
+
+      int init_put_map(int area,
+          const tair_client_kv_map& kvs,
+          request_put_map& request_puts);
 
     private:
       bool inited;

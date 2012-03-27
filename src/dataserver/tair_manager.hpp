@@ -69,6 +69,7 @@ namespace tair {
       int get(int area, data_entry &key, data_entry &value);
       int remove(int area, data_entry &key,request_remove *request=NULL,int version=0);
       int batch_remove(int area, const tair_dataentry_set * key_list,request_remove *request,int version);
+      int batch_put(int area, const mput_record_vec* record_vec, request_mput* request, int version);
       int clear(int area);
 
       int direct_put(data_entry &key, data_entry &value);

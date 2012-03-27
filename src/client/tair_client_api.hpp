@@ -80,6 +80,20 @@ namespace tair {
           bool fill_cache = true);
 
       /**
+       ** @brief batch put data to tair
+       **
+       ** @param area     namespace
+       ** @param kvs      key && value
+       ** @param fail_request fail_keys
+       **
+       ** @return 0 -- success, otherwise fail,you can use get_error_msg(ret) to get more information.
+       **/
+
+      int mput(int area,
+          const tair_client_kv_map& kvs,
+          int& fail_request);
+
+      /**
        * @brief get data from tair cluster
        *
        * @param area    namespace

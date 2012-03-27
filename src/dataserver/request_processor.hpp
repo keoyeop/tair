@@ -35,6 +35,7 @@ namespace tair {
       int process(request_put *request, bool &send_return);
       int process(request_get *request, bool &send_return);
       int process(request_remove *request, bool &send_return);
+      int process(request_mput *request, bool &send_return);
       int process(request_inc_dec *request, bool &send_return);
       int process(request_duplicate *request, bool &send_return);
       int process(request_add_items *request, bool &send_return);
