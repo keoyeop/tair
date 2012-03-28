@@ -137,7 +137,7 @@ namespace tair
           pkey += LDB_EXPIRED_TIME_SIZE;
 
           // To decode as later as possible, check empty and check need_gc separately, so need lock here.
-          tbsys::CThreadGuard guard(&gc_->lock_);
+          tbsys::CRLockGuard guard(gc_->lock_);
           if (!gc_->gc_buckets_.empty()) // 1. check if bucket is valid. can not use empty(GC_BUCKET)
           {
             drop = gc_->need_gc(LdbKey::decode_bucket_number(pkey), sequence, gc_->gc_buckets_);

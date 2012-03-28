@@ -213,7 +213,7 @@ namespace tair
         int apply_add_gc_node(GcType type, const GcNode& node);
 
       private:
-        tbsys::CThreadMutex lock_;
+        tbsys::CRWLock lock_;
         LdbInstance* db_;
         GC_MAP gc_buckets_;
         GC_MAP gc_areas_;

@@ -268,6 +268,8 @@ namespace tair {
       }
 
       tbsys::CThreadGuard guard(&counter_mutex[get_mutex_index(key)]);
+      // reserve client key flag(maybe skip cache flag)
+      int old_flag = key.data_meta.flag;
       // get from storage engine
       data_entry old_value;
       PROFILER_BEGIN("get from storage");
@@ -317,6 +319,8 @@ namespace tair {
       }
 
       old_value.data_meta.flag |= TAIR_ITEM_FLAG_ADDCOUNT;
+      // reassign key's meta flag
+      key.data_meta.flag = old_flag;
       log_debug("before put flag: %d", old_value.data_meta.flag);
       PROFILER_BEGIN("save count into storage");
       int result = put(area, key, old_value, expire_time,request,version);
@@ -405,62 +409,84 @@ namespace tair {
       return rc;
    }
 
-   int tair_manager::batch_put(int area, const mput_record_vec* record_vec, request_mput* request, int heart_version)
-   {
-     if (area < 0 || area >= TAIR_MAX_AREA_COUNT || record_vec == NULL) {
-       return TAIR_RETURN_INVALID_ARGUMENT;
-     }
+  int tair_manager::batch_put(int area, const mput_record_vec* record_vec, request_mput* request, int heart_version)
+  {
+    if (area < 0 || area >= TAIR_MAX_AREA_COUNT || record_vec == NULL) {
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
 
-     int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-     mput_record_vec::const_iterator it;
-     for (it = record_vec->begin() ; it != record_vec->end(); ++it)
-     {
-        if ((*it)->key->get_size() == 0 || (*it)->value->get_d_entry().get_size() == 0) {
-          log_error("put value is null, return failed");
-          return TAIR_RETURN_ITEMSIZE_ERROR;
-        }
-
-        data_entry key = *((*it)->key);
-        key.server_flag = request->server_flag;
-        uint64_t target_server_id = 0;
-        if (should_proxy(key, target_server_id))
-        {
-          log_error("batch put, but have key not proxy.");
-          return TAIR_RETURN_WRITE_NOT_ON_MASTER;
-        }
-
-        data_entry mkey = key;
-        mkey.merge_area(area);
-        int bucket_number = get_bucket_number(key);
-
-        int op_flag = get_op_flag(bucket_number, key.server_flag);
-        int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-        if (should_write_local(bucket_number, key.server_flag, op_flag, rc) == false) {
-          return TAIR_RETURN_REMOVE_NOT_ON_MASTER;
+    int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
+    int bucket_number = -1;
+    mput_record_vec::const_iterator it;
+    for (it = record_vec->begin() ; it != record_vec->end(); ++it) {
+      if ((*it)->key->get_size() == 0 || (*it)->value->get_d_entry().get_size() == 0) {
+        log_error("put value is null, return failed");
+        return TAIR_RETURN_ITEMSIZE_ERROR;
       }
-     }
 
-     for (it = record_vec->begin() ; it != record_vec->end(); ++it)
-     {
-        data_entry key = *((*it)->key);
-        data_entry mkey = key;
-        mkey.merge_area(area);
-        int bucket_number = get_bucket_number(key);
+      data_entry& key = *((*it)->key);
+      key.server_flag = request->server_flag;
+      data_entry mkey = key;
+      mkey.merge_area(area);
+      // consider all record are belong to one bucket.
+      if (bucket_number < 0) {
+        bucket_number = get_bucket_number(key);
+      }
 
-        //not care version now
-        int rc = storage_mgr->put(bucket_number, mkey, (*it)->value->get_d_entry(), false, (*it)->value->get_expire());
+      // client flag (maybe skip cache)
+      int old_flag = key.data_meta.flag;
+      int op_flag = get_op_flag(bucket_number, key.server_flag);
 
-        if (rc != TAIR_RETURN_SUCCESS)
-        {
-          return rc;
+      rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
+      if (should_write_local(bucket_number, key.server_flag, op_flag, rc) == false) {
+        return TAIR_RETURN_REMOVE_NOT_ON_MASTER;
+      }
+
+      bool version_care =  op_flag & TAIR_OPERATION_VERSION;
+      PROFILER_BEGIN("batch put into storage");
+      // put storage
+      rc = storage_mgr->put(bucket_number, mkey, (*it)->value->get_d_entry(), version_care, (*it)->value->get_expire());
+      PROFILER_END();
+
+      if (rc != TAIR_RETURN_SUCCESS) {
+        return rc;
+      }
+
+      // rollback client flag
+      mkey.data_meta.flag = old_flag;
+
+      if (migrate_log != NULL && need_do_migrate_log(bucket_number)) {
+        PROFILER_BEGIN("do migrate log");
+        migrate_log->log(SN_PUT, mkey, (*it)->value->get_d_entry(), bucket_number);
+        PROFILER_END();
+      }
+
+      TAIR_STAT.stat_put(area);
+    }
+
+    if (TAIR_RETURN_SUCCESS == rc) {
+      // do duplicate
+      if (request->server_flag != TAIR_SERVERFLAG_DUPLICATE) {
+        vector<uint64_t> slaves;
+        get_slaves(request->server_flag, bucket_number, slaves);
+        if (!slaves.empty()) {
+          rc = duplicator->duplicate_batch_data(bucket_number, record_vec, slaves, (base_packet*)request, heart_version);
         }
+      } else {
+        log_debug("bp send return packet to duplicate source");
+        response_duplicate *dresp = new response_duplicate();
+        dresp->setChannelId(request->getChannelId());
+        dresp->server_id = local_server_ip::ip;
+        dresp->packet_id = request->packet_id;
+        dresp->bucket_id = bucket_number;
+        if (request->get_connection()->postPacket(dresp) == false) {
+          delete dresp;
+        }
+      }
+    }
 
-        TAIR_STAT.stat_put(area);
-     }
-
-     // do dup?
-     return rc;
-   }
+    return rc;
+  }
 
   int tair_manager::batch_remove(int area, const tair_dataentry_set * key_list,request_remove *request,int heart_version)
   {

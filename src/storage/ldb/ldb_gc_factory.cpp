@@ -323,7 +323,7 @@ namespace tair
 
       bool LdbGcFactory::start()
       {
-        tbsys::CThreadGuard guard(&lock_);
+        tbsys::CWLockGuard guard(lock_);
         bool ret = db_ != NULL && db_->db_path();
         if (!ret)
         {
@@ -345,7 +345,7 @@ namespace tair
 
       void LdbGcFactory::stop()
       {
-        tbsys::CThreadGuard guard(&lock_);
+        tbsys::CWLockGuard guard(lock_);
         if (db_ != NULL)
         {
           if (empty())
@@ -410,7 +410,7 @@ namespace tair
 
       int LdbGcFactory::add(int32_t key, GcType type)
       {
-        tbsys::CThreadGuard guard(&lock_);
+        tbsys::CWLockGuard guard(lock_);
         int ret = TAIR_RETURN_SUCCESS;
         log_info("add gc key: %d, type: %d", key, type);
 
@@ -432,7 +432,7 @@ namespace tair
 
       int LdbGcFactory::add(const std::vector<int32_t>& keys, GcType type)
       {
-        tbsys::CThreadGuard guard(&lock_);
+        tbsys::CWLockGuard guard(lock_);
         int ret = TAIR_RETURN_SUCCESS;
 
         log_info("add gc keys size: %zd, type: %d", keys.size(), type);
@@ -454,7 +454,7 @@ namespace tair
 
       int LdbGcFactory::remove(const GcNode& node, GcType type)
       {
-        tbsys::CThreadGuard guard(&lock_);
+        tbsys::CWLockGuard guard(lock_);
         int ret = TAIR_RETURN_SUCCESS;
         if (!empty(type))
         {
@@ -480,7 +480,7 @@ namespace tair
 
       void LdbGcFactory::try_evict()
       {
-        tbsys::CThreadGuard guard(&lock_);
+        tbsys::CWLockGuard guard(lock_);
         log_info("before try gc evict. buckets: %d, areas: %d", gc_buckets_.size(), gc_areas_.size());
         if (!empty())
         {
@@ -501,7 +501,7 @@ namespace tair
 
       GcNode LdbGcFactory::pick_gc_node(GcType type)
       {
-        tbsys::CThreadGuard guard(&lock_);
+        tbsys::CRLockGuard guard(lock_);
         GcNode node(-1);
         switch (type) {
         case GC_BUCKET:
@@ -517,7 +517,7 @@ namespace tair
         return node;
       }
 
-      // user should hold lock_
+      // user should hold CRLockGuard(lock_)
       bool LdbGcFactory::need_gc(int32_t key, uint64_t sequence, const GC_MAP& container)
       {
         GC_MAP_CONST_ITER it = container.find(key);

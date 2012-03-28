@@ -69,26 +69,26 @@ namespace tair{
 
   int CPacket_wait_manager::addWaitNode(int area, const data_entry* , const data_entry* value,int bucket_number, const vector<uint64_t>& des_server_ids,base_packet *request, uint32_t max_packet_id,int &version)
   {
-	//check map_size first
+    //check map_size first
     int index=get_map_index(max_packet_id);
-	{
-	  //CRwLock m_lock(m_mutex,RLOCK);
+    {
+      //CRwLock m_lock(m_mutex,RLOCK);
       CScopedRwLock __scoped_lock(m_slots_locks->getlock(index),false);
-	  if(m_PkgWaitMap[index].size()>TAIR_MAX_DUP_MAP_SIZE) return TAIR_RETURN_DUPLICATE_BUSY;
-	}
+      if(m_PkgWaitMap[index].size()>TAIR_MAX_DUP_MAP_SIZE) return TAIR_RETURN_DUPLICATE_BUSY;
+    }
 
-	//CRwLock m_lock(m_mutex,WLOCK);
+    //CRwLock m_lock(m_mutex,WLOCK);
     CScopedRwLock __scoped_lock(m_slots_locks->getlock(index),true);
-	CDuplicatPkgMapIter itr= m_PkgWaitMap[index].find(max_packet_id);
-	if(itr==m_PkgWaitMap[index].end())
+    CDuplicatPkgMapIter itr= m_PkgWaitMap[index].find(max_packet_id);
+    if(itr==m_PkgWaitMap[index].end())
     {
       //not found in map .inert it and inster to a queue.
       CPacket_wait_Nodes *pdelaysign= new CPacket_wait_Nodes(bucket_number,request,des_server_ids,version,value);
       changeBucketCount(bucket_number,1);
       m_PkgWaitMap[index][max_packet_id]= pdelaysign;
-	  return TAIR_RETURN_SUCCESS;
+      return TAIR_RETURN_SUCCESS;
     }
-	else
+    else
     {
       //should never happen,but if crash and restared, nay mixed.
       log_error("packet sequnce id is dup");
@@ -106,29 +106,29 @@ namespace tair{
     {
       int ret=itr->second->do_response(bucket_number,des_server_id);
       if(0==ret)
-	  {
-		changeBucketCount(bucket_number,-1);
-		*ppNode= itr->second; 
-		m_PkgWaitMap[index].erase(itr);
-	  }
-	  else
-	  {
-		*ppNode= NULL;
-	  }
+      {
+        changeBucketCount(bucket_number,-1);
+        *ppNode= itr->second; 
+        m_PkgWaitMap[index].erase(itr);
+      }
+      else
+      {
+        *ppNode= NULL;
+      }
       return ret;
     }
     else
     {
       //already timeout.
       log_warn("resonse packet %d ,but not found",max_packet_id);
-	  *ppNode= NULL;
+      *ppNode= NULL;
       return TAIR_RETURN_DUPLICATE_DELAY;
     }
   }
 
   int CPacket_wait_manager::doTimeout( uint32_t max_packet_id, time_t _expired)
   {
-	//CRwLock m_lock(m_mutex,WLOCK);
+    //CRwLock m_lock(m_mutex,WLOCK);
     int index=get_map_index(max_packet_id);
     {
       CScopedRwLock __scoped_lock(m_slots_locks->getlock(index),false);
@@ -136,8 +136,8 @@ namespace tair{
       if(itr==m_PkgWaitMap[index].end()) return 0;
     }
     //now we should clear it.
-	clear_waitnode(max_packet_id);
-	return TAIR_RETURN_DUPLICATE_ACK_TIMEOUT;
+    clear_waitnode(max_packet_id);
+    return TAIR_RETURN_DUPLICATE_ACK_TIMEOUT;
   } 
 
   int CPacket_wait_manager::clear_waitnode( uint32_t max_packet_id) 
@@ -145,133 +145,188 @@ namespace tair{
     int index=get_map_index(max_packet_id);
     CScopedRwLock __scoped_lock(m_slots_locks->getlock(index),true);
 
-	CDuplicatPkgMapIter itr= m_PkgWaitMap[index].find(max_packet_id);
-	if(itr!=m_PkgWaitMap[index].end())
-	{
-	  CPacket_wait_Nodes* pNode= itr->second;
+    CDuplicatPkgMapIter itr= m_PkgWaitMap[index].find(max_packet_id);
+    if(itr!=m_PkgWaitMap[index].end())
+    {
+      CPacket_wait_Nodes* pNode= itr->second;
       changeBucketCount(pNode->bucket_number,-1);
-	  m_PkgWaitMap[index].erase(itr);
-	  delete pNode; pNode=NULL;
-	  return 0;
-	}
-	else
-	{
+      m_PkgWaitMap[index].erase(itr);
+      delete pNode; pNode=NULL;
+      return 0;
+    }
+    else
+    {
 	    log_error("clear_waitnode node but not found,packet=%d",max_packet_id);
-	}
+    }
     return 0;
   }
 
 
-   dup_sync_sender_manager::dup_sync_sender_manager( tbnet::Transport *transport,
-                                                       tbnet::DefaultPacketStreamer *streamer, table_manager* table_mgr)
-   {
-      this->table_mgr = table_mgr;
-      conn_mgr = new tbnet::ConnectionManager(transport, streamer, this);
-      conn_mgr->setDefaultQueueTimeout(0 , MISECONDS_BEFOR_SEND_RETRY/2000);
-      have_data_to_send = 0;
-      max_queue_size = 0;
-      atomic_set(&packet_id_creater, 0);
-      setThreadCount(MAX_DUP_COUNT);
-      this->start();
-   }
-   dup_sync_sender_manager::~dup_sync_sender_manager()
-   {
-      this->stop();
-      this->wait();
-      delete conn_mgr;
-   }
-   void dup_sync_sender_manager::do_hash_table_changed()
-   {
-	 return ;
-   }
+  dup_sync_sender_manager::dup_sync_sender_manager( tbnet::Transport *transport,
+                                                    tbnet::DefaultPacketStreamer *streamer, table_manager* table_mgr)
+  {
+    this->table_mgr = table_mgr;
+    conn_mgr = new tbnet::ConnectionManager(transport, streamer, this);
+    conn_mgr->setDefaultQueueTimeout(0 , MISECONDS_BEFOR_SEND_RETRY/2000);
+    have_data_to_send = 0;
+    max_queue_size = 0;
+    atomic_set(&packet_id_creater, 0);
+    setThreadCount(MAX_DUP_COUNT);
+    this->start();
+  }
+  dup_sync_sender_manager::~dup_sync_sender_manager()
+  {
+    this->stop();
+    this->wait();
+    delete conn_mgr;
+  }
+  void dup_sync_sender_manager::do_hash_table_changed()
+  {
+    return ;
+  }
 
-   bool dup_sync_sender_manager::is_bucket_available(uint32_t bucket_number)
-   {
-	 return true;
-   }
+  bool dup_sync_sender_manager::is_bucket_available(uint32_t bucket_number)
+  {
+    return true;
+  }
    
-   //xinshu. add new function for directy duplicate.
-   int dup_sync_sender_manager::duplicate_data(int area, const data_entry* key, const data_entry* value,int expire_time,int bucket_number, const vector<uint64_t>& des_server_ids,base_packet *request,int version)
-   {
-	 if (des_server_ids.empty()) return 0;
+  //xinshu. add new function for directy duplicate.
+  int dup_sync_sender_manager::duplicate_data(int area, const data_entry* key, const data_entry* value,int expire_time,int bucket_number, const vector<uint64_t>& des_server_ids,base_packet *request,int version)
+  {
+    if (des_server_ids.empty()) return 0;
 
-	 if(!request) return 0;
-	 //first keep it in queue. until timeout it.
-	 unsigned int _copy_count=des_server_ids.size();
-     uint32_t max_packet_id = atomic_add_return(_copy_count,&packet_id_creater);
+    if(!request) return 0;
+    //first keep it in queue. until timeout it.
+    unsigned int _copy_count=des_server_ids.size();
+    uint32_t max_packet_id = atomic_add_return(_copy_count,&packet_id_creater);
 
 
 
-	 //and keep it in map . until response arrive.
-     log_debug("wait bucket %d,packet %d,timeout=%d",bucket_number,max_packet_id,expire_time);
-	 int ret=packets_mgr.addWaitNode(area,key,value,bucket_number,des_server_ids,request,max_packet_id,version);
-	 if(ret!=0)
-	 {
-	   return ret;
-	 }
-     ret=direct_send(area,key,value,0,bucket_number, des_server_ids,max_packet_id);
-     if(TAIR_RETURN_SUCCESS!=ret) 
-     {
-       //clear waitnode.
-       packets_mgr.clear_waitnode(max_packet_id);
-       //return failed,the caller will delete the packet.
-       return ret;
-     }
+    //and keep it in map . until response arrive.
+    log_debug("wait bucket %d,packet %d,timeout=%d",bucket_number,max_packet_id,expire_time);
+    int ret=packets_mgr.addWaitNode(area,key,value,bucket_number,des_server_ids,request,max_packet_id,version);
+    if(ret!=0)
+    {
+      return ret;
+    }
+    ret=direct_send(area,key,value,0,bucket_number, des_server_ids,max_packet_id);
+    if(TAIR_RETURN_SUCCESS!=ret) 
+    {
+      //clear waitnode.
+      packets_mgr.clear_waitnode(max_packet_id);
+      //return failed,the caller will delete the packet.
+      return ret;
+    }
 
-	 //all data is send,wait response or timeout it.
-	 CPacket_Timeout_hint  *phint=new CPacket_Timeout_hint(max_packet_id);
-	 if(!packets_mgr.put_timeout_hint(max_packet_id%MAX_DUP_COUNT,phint))
-     {
-       //put to queue error,should remove the map node.
-        delete phint;
-        packets_mgr.clear_waitnode(max_packet_id);
+    //all data is send,wait response or timeout it.
+    CPacket_Timeout_hint  *phint=new CPacket_Timeout_hint(max_packet_id);
+    if(!packets_mgr.put_timeout_hint(max_packet_id%MAX_DUP_COUNT,phint))
+    {
+      //put to queue error,should remove the map node.
+      delete phint;
+      packets_mgr.clear_waitnode(max_packet_id);
 	    log_warn("timeout wait packet full ,ignore packet=%d",max_packet_id);
-        return TAIR_RETURN_DUPLICATE_BUSY;
-     }
-	 return TAIR_DUP_WAIT_RSP;
-   }
+      return TAIR_RETURN_DUPLICATE_BUSY;
+    }
+    return TAIR_DUP_WAIT_RSP;
+  }
 
-   int dup_sync_sender_manager::direct_send(int area, const data_entry* key, const data_entry* value,int  expire_time,int bucket_number,const vector<uint64_t>& des_server_ids,uint32_t max_packet_id)
-   {
-     unsigned _copy_count=des_server_ids.size();
-     if(0==max_packet_id)
-        max_packet_id = atomic_add_return(_copy_count,&packet_id_creater);
+  int dup_sync_sender_manager::direct_send(int area, const data_entry* key, const data_entry* value,int  expire_time,int bucket_number,const vector<uint64_t>& des_server_ids,uint32_t max_packet_id)
+  {
+    unsigned _copy_count=des_server_ids.size();
+    if(0==max_packet_id)
+      max_packet_id = atomic_add_return(_copy_count,&packet_id_creater);
 
-	 for(unsigned int  i=0;i < _copy_count; i++)
-	 {
-	   //new a dup packet 
-	   request_duplicate* tmp_packet= new request_duplicate();
-	   tmp_packet->packet_id= max_packet_id;
-	   tmp_packet->area = area;
-	   tmp_packet->key = *key;
-	   tmp_packet->key.server_flag = TAIR_SERVERFLAG_DUPLICATE;
-	   if (tmp_packet->key.is_alloc() == false) {
-		 tmp_packet->key.set_data(key->get_data(), key->get_size(), true);
-	   }
-	   if (value) {
-		 tmp_packet->data = *value;
-		 if (tmp_packet->data.is_alloc() == false) {
-		   tmp_packet->data.set_data(value->get_data(), value->get_size(), true);
-		 }
-	   } else { //remove
-		 tmp_packet->data.data_meta.flag = TAIR_ITEM_FLAG_DELETED;
-	   }
-	   tmp_packet->bucket_number = bucket_number;
+    for(unsigned int  i=0;i < _copy_count; i++)
+    {
+      //new a dup packet 
+      request_duplicate* tmp_packet= new request_duplicate();
+      tmp_packet->packet_id= max_packet_id;
+      tmp_packet->area = area;
+      tmp_packet->key = *key;
+      tmp_packet->key.server_flag = TAIR_SERVERFLAG_DUPLICATE;
+      if (tmp_packet->key.is_alloc() == false) {
+        tmp_packet->key.set_data(key->get_data(), key->get_size(), true);
+      }
+      if (value) {
+        tmp_packet->data = *value;
+        if (tmp_packet->data.is_alloc() == false) {
+          tmp_packet->data.set_data(value->get_data(), value->get_size(), true);
+        }
+      } else { //remove
+        tmp_packet->data.data_meta.flag = TAIR_ITEM_FLAG_DELETED;
+      }
+      tmp_packet->bucket_number = bucket_number;
 
 	  
-	   //and send it to slave
-       log_debug("duplicate packet %d sent: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
-	   if(conn_mgr->sendPacket(des_server_ids[i], tmp_packet, NULL, NULL, true) == false) 
-	   {
-		 //duplicate sendpacket error.
-       log_error("duplicate packet %d faile send: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
-       delete tmp_packet; 
-		 return TAIR_RETURN_DUPLICATE_BUSY;
-	   }
-	 }
-	return TAIR_RETURN_SUCCESS;
-   }
+      //and send it to slave
+      log_debug("duplicate packet %d sent: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
+      if(conn_mgr->sendPacket(des_server_ids[i], tmp_packet, NULL, NULL, true) == false) 
+      {
+        //duplicate sendpacket error.
+        log_error("duplicate packet %d faile send: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
+        delete tmp_packet; 
+        return TAIR_RETURN_DUPLICATE_BUSY;
+      }
+    }
+    return TAIR_RETURN_SUCCESS;
+  }
 
+  int dup_sync_sender_manager::duplicate_batch_data(int bucket_number, const mput_record_vec* record_vec,
+                                                    const std::vector<uint64_t>& des_server_ids, base_packet *request,
+                                                    int version)
+  {
+    unsigned _copy_count=des_server_ids.size();
+    uint32_t max_packet_id = atomic_add_return(_copy_count,&packet_id_creater);
+
+    if(0==max_packet_id)
+      max_packet_id = atomic_add_return(_copy_count,&packet_id_creater);
+
+    int ret=packets_mgr.addWaitNode(0,NULL,NULL,bucket_number,des_server_ids,request,max_packet_id,version);
+    if(ret != TAIR_RETURN_SUCCESS)
+    {
+      return ret;
+    }
+
+    for(unsigned int  i=0;i < _copy_count; i++)
+    {
+      request_mput* tmp_packet = new request_mput();
+      // we hold request here, no copy record.
+      tmp_packet->clone(*(dynamic_cast<request_mput*>(request)), false);
+      tmp_packet->server_flag = TAIR_SERVERFLAG_DUPLICATE;
+      tmp_packet->packet_id = max_packet_id;
+      //and send it to slave
+      log_debug("duplicate packet %d sent: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
+      if(conn_mgr->sendPacket(des_server_ids[i], tmp_packet, NULL, NULL, true) == false) 
+      {
+        //duplicate sendpacket error.
+        log_error("duplicate packet %d faile send: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
+        delete tmp_packet; 
+        ret = TAIR_RETURN_DUPLICATE_BUSY;
+        break;
+      }
+    }
+
+    if (TAIR_RETURN_SUCCESS != ret) 
+    {
+      //clear waitnode.
+      packets_mgr.clear_waitnode(max_packet_id);
+      //return failed,the caller will delete the packet.
+      return ret;
+    }
+
+    //all data is send,wait response or timeout it.
+    CPacket_Timeout_hint  *phint=new CPacket_Timeout_hint(max_packet_id);
+    if(!packets_mgr.put_timeout_hint(max_packet_id%MAX_DUP_COUNT,phint))
+    {
+      //put to queue error,should remove the map node.
+      delete phint;
+      packets_mgr.clear_waitnode(max_packet_id);
+	    log_warn("timeout wait packet full ,ignore packet=%d",max_packet_id);
+      return TAIR_RETURN_DUPLICATE_BUSY;
+    }
+    return TAIR_DUP_WAIT_RSP;
+  }
 
    bool dup_sync_sender_manager::has_bucket_duplicate_done(int bucketNumber)
    {
@@ -307,6 +362,8 @@ namespace tair{
      {
        case TAIR_REQ_PUT_PACKET:
        case TAIR_REQ_REMOVE_PACKET:
+       case TAIR_REQ_MPUT_PACKET:
+         log_error("@@ dup sync return %d", pNode->pcode);
          rv=tair_packet_factory::set_return_packet(pNode->conn,pNode->chid,pNode->pcode,0,"",pNode->conf_version);
          break;
        case TAIR_REQ_INCDEC_PACKET:

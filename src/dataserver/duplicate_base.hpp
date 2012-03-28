@@ -16,6 +16,7 @@
 #define TAIR_DUPLICATE_BASE_H
 #include <vector>
 #include "base_packet.hpp"
+#include "put_packet.hpp"
 #include "data_entry.hpp"
 
 namespace tair{
@@ -32,6 +33,7 @@ namespace tair{
                           int bucket_number, const std::vector<uint64_t>& des_server_ids,base_packet *request,int version)=0;
       virtual int direct_send(int area, const data_entry* key, const data_entry* value,int  expire_time,
             int bucket_number, const vector<uint64_t>& des_server_ids,uint32_t max_packet_id)=0;
+     virtual int duplicate_batch_data(int bucket_number, const mput_record_vec* record_vec, const std::vector<uint64_t>& des_server_ids,base_packet *request,int version) { return TAIR_RETURN_SUCCESS;}
    };
 }
 #endif

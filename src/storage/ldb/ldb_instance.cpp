@@ -601,7 +601,7 @@ namespace tair
           // client's requsting fill_cache
           if (fill_cache)
           {
-            log_debug("put cache");
+            log_debug("fill cache");
             rc = cache_->raw_put(ldb_key.key(), ldb_key.key_size(), ldb_item.data(), ldb_item.size(),
                                  ldb_item.meta().flag_, ldb_item.meta().edate_);
             if (rc != TAIR_RETURN_SUCCESS) // what happend
@@ -611,6 +611,7 @@ namespace tair
           }
           else
           {
+            log_debug("not fill cache");
             rc = cache_->raw_remove(ldb_key.key(), ldb_key.key_size());
             if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_NOT_EXIST) // what happened ?
             {

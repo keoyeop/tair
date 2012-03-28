@@ -127,29 +127,45 @@ namespace tair {
          count = 0;
          len = 8;
          record_vec = NULL;
+         packet_id = 0;
+         alloc = true;
        }
 
        request_mput(request_mput &packet)
+       {
+         clone(packet, packet.alloc);
+       }
+
+       ~request_mput()
+       {
+         clear();
+       }
+
+       void clone(request_mput &packet, bool need_alloc)
        {
          setPCode(TAIR_REQ_MPUT_PACKET);
          server_flag = packet.server_flag;
          area = packet.area;
          count = packet.count;
          len = packet.len;
-         record_vec = NULL;
-         if (packet.record_vec != NULL) {
+         clear();
+         alloc = need_alloc;
+         if (need_alloc) {
            record_vec = new mput_record_vec();
            mput_record_vec::iterator it;
            for (it = packet.record_vec->begin(); it != packet.record_vec->end(); ++it) {
              mput_record* rec = new mput_record(**it);
              record_vec->push_back(rec);
            }
+         } else {
+           record_vec = packet.record_vec;
          }
+         packet_id = packet.packet_id;
        }
 
-       ~request_mput()
+       void clear()
        {
-         if (record_vec != NULL) {
+         if (record_vec != NULL && alloc) {
             mput_record_vec::iterator it;
             for (it = record_vec->begin(); it != record_vec->end(); ++it) {
                delete (*it);
@@ -173,6 +189,7 @@ namespace tair {
                rec->value->encode(output);
             }
          }
+         output->writeInt32(packet_id);
          return true;
        }
 
@@ -188,6 +205,7 @@ namespace tair {
 
          if (count > 0) {
             record_vec = new mput_record_vec();
+            alloc = true;
             for (uint32_t i = 0; i < count; i++) {
                mput_record *rec = new mput_record();
                data_entry* key = new data_entry();
@@ -199,6 +217,7 @@ namespace tair {
                record_vec->push_back(rec);
             }
          }
+         packet_id = input->readInt32();
          return true;
        }
 
@@ -210,6 +229,7 @@ namespace tair {
          }
          if (record_vec == NULL) {
            record_vec = new mput_record_vec();
+           alloc = true;
          }
 
          mput_record* rec = new mput_record();
@@ -229,6 +249,9 @@ namespace tair {
        uint32_t count;
        uint32_t len;
        mput_record_vec* record_vec;
+       // for duplicate
+       uint32_t packet_id;
+       bool alloc;
    };
 }
 #endif

@@ -307,6 +307,8 @@ FAIL:
       if (rq_iter->second.size() == 0)
       {
       }
+
+      rq_iter++;
     }
 
     vector<response_return*> resps;
@@ -1701,11 +1703,12 @@ OUT:
   {
     assert(server_id != 0 && packet != 0 && waitId >= 0);
     if (connmgr->sendPacket(server_id, packet, NULL, (void*)((long)waitId)) == false) {
-      TBSYS_LOG(ERROR, "Send RequestGetPacket to %s failure.",
-          tbsys::CNetUtil::addrToString(server_id).c_str());
+      TBSYS_LOG(ERROR, "Send RequestGetPacket to %s failure. %x, %d",
+                tbsys::CNetUtil::addrToString(server_id).c_str(), packet, waitId);
       send_fail_count ++;
       return TAIR_RETURN_SEND_FAILED;
     }
+  
     return 0;
   }
 #if 0

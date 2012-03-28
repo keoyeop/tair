@@ -262,7 +262,7 @@ namespace tair {
       int rc = 0;
       if (request->record_vec!= NULL)
       {
-         log_info("bo batch put, area: %d, size: %d", request->area, request->record_vec->size());
+         log_debug("batch put, area: %d, size: %d", request->area, request->record_vec->size());
          rc = tair_mgr->batch_put(request->area, request->record_vec, request, heart_beat->get_client_version());
       }
       return rc;
