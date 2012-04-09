@@ -11,7 +11,8 @@ AM_CPPFLAGS= -fPIC -I${top_srcdir}/src \
 	    ${BOOST_CPPFLAGS}
 
 LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
-      $(TBLIB_ROOT)/lib/libtbsys.a 
+      $(TBLIB_ROOT)/lib/libtbsys.a \
+      $(top_srcdir)/src/storage/ldb/leveldb/libsnappy.a
 
 api_source_list=tair_client_api.cpp tair_client_api_impl.cpp \
 		${top_srcdir}/src/packets/packet_factory.cpp \
@@ -19,21 +20,21 @@ api_source_list=tair_client_api.cpp tair_client_api_impl.cpp \
 	       	tair_client_api_impl.hpp tair_client_capi.hpp \
 		tair_client.hpp
 
-AM_LDFLAGS=-lpthread -lz ${BOOST_LDFLAGS} @BOOST_THREAD_LIB@  ${GCOV_LIB} 
+AM_LDFLAGS=-lpthread -lz ${BOOST_LDFLAGS} @BOOST_THREAD_LIB@  ${GCOV_LIB}
 
 lib_LTLIBRARIES=libtairclientapi.la libtairclientapi_c.la
 sbin_PROGRAMS=tairclient simpletest
 
-tairclient_SOURCES=tair_client.cpp  
-tairclient_LDADD=libtairclientapi.la ${LDADD} 
+tairclient_SOURCES=tair_client.cpp
+tairclient_LDADD=libtairclientapi.la ${LDADD}
 tairclient_LDFLAGS= -static
 
 libtairclientapi_la_SOURCES=${api_source_list}
 libtairclientapi_c_la_SOURCES=tair_client_capi.cpp
-libtairclientapi_c_la_LIBADD=libtairclientapi.la 
+libtairclientapi_c_la_LIBADD=libtairclientapi.la
 
-simpletest_SOURCES=simpletest.cpp  
-simpletest_LDADD= libtairclientapi.la ${LDADD} 
+simpletest_SOURCES=simpletest.cpp
+simpletest_LDADD= libtairclientapi.la ${LDADD}
 simpletest_LDFLAGS= -static
 
 

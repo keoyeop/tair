@@ -105,6 +105,25 @@ namespace tair
         return rc;
       }
 
+      int LdbManager::batch_put(int bucket_number, int area, mput_record_vec* record_vec, bool version_care)
+      {
+        log_debug("ldb::batch_put");
+        int rc = TAIR_RETURN_SUCCESS;
+        LdbInstance* db_instance = get_db_instance(bucket_number);
+
+        if (db_instance == NULL)
+        {
+          log_error("ldb_bucket[%d] not exist", bucket_number);
+          rc = TAIR_RETURN_FAILED;
+        }
+        else
+        {
+          rc = db_instance->batch_put(bucket_number, area, record_vec, version_care);
+        }
+
+        return rc;
+      }
+
       int LdbManager::get(int bucket_number, data_entry& key, data_entry& value)
       {
         log_debug("ldb::get");
@@ -301,6 +320,20 @@ namespace tair
         {
           cache_->set_area_quota(quota_map);
         }
+      }
+
+      int LdbManager::op_cmd(ServerCmdType cmd, std::vector<std::string>& params)
+      {
+        int ret = TAIR_RETURN_NOT_SUPPORTED;
+        for (int32_t i = 0; i < db_count_; ++i)
+        {
+          ret = ldb_instance_[i]->op_cmd(cmd, params);
+          if (ret != TAIR_RETURN_SUCCESS)
+          {
+            break;
+          }
+        }
+        return ret;
       }
 
       void LdbManager::get_stats(tair_stat* stat)

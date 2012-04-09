@@ -20,6 +20,8 @@
 #include "leveldb/db.h"
 
 #include "common/data_entry.hpp"
+#include "packets/put_packet.hpp"
+
 #include "ldb_define.hpp"
 #include "ldb_gc_factory.hpp"
 #include "bg_task.hpp"
@@ -51,8 +53,11 @@ namespace tair
         int put(int bucket_number, tair::common::data_entry& key,
                 tair::common::data_entry& value,
                 bool version_care, uint32_t expire_time);
+        int batch_put(int bucket_number, int area, mput_record_vec* record_vec, bool version_care);
         int get(int bucket_number, tair::common::data_entry& key, tair::common::data_entry& value);
         int remove(int bucket_number, tair::common::data_entry& key, bool version_care);
+
+        int op_cmd(ServerCmdType cmd, std::vector<std::string>& params);
 
         bool begin_scan(int bucket_number);
         bool end_scan();

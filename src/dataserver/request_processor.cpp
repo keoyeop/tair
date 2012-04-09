@@ -258,13 +258,13 @@ namespace tair {
          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
       }
 
-      send_return = true;
       int rc = 0;
-      if (request->record_vec!= NULL)
-      {
+      if (request->record_vec != NULL) {
          log_debug("batch put, area: %d, size: %d", request->area, request->record_vec->size());
          rc = tair_mgr->batch_put(request->area, request->record_vec, request, heart_beat->get_client_version());
       }
+      send_return = request->server_flag != TAIR_SERVERFLAG_DUPLICATE ?
+        (TAIR_DUP_WAIT_RSP != rc) : (TAIR_RETURN_SUCCESS != rc);
       return rc;
    }
 
@@ -656,6 +656,16 @@ namespace tair {
       }
 
       return rc;
+   }
+
+   int request_processor::process(request_op_cmd *request, bool &send_return)
+   {
+     if (tair_mgr->is_working() == false) {
+       return TAIR_RETURN_SERVER_CAN_NOT_WORK;
+     }
+
+     send_return = true;
+     return tair_mgr->op_cmd(request->cmd, request->params);
    }
 
    bool request_processor::do_proxy(uint64_t target_server_id, base_packet *proxy_packet, base_packet *packet)

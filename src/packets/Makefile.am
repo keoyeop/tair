@@ -1,5 +1,6 @@
 AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 			 -I$(TBLIB_ROOT)/include/tbnet \
+			 -I${top_srcdir}/src/ \
 			 -I${top_srcdir}/src/common \
 			 -I${top_srcdir}/src/storage/fdb \
 			 -I${top_srcdir}/src/storage \
@@ -42,4 +43,5 @@ libtair_packets_a_SOURCES=packet_factory.cpp	\
 			  remove_packet.hpp	\
 			  response_return_packet.hpp	\
 			  server_hash_table_packet.hpp	\
-			  set_master_packet.hpp
+			  set_master_packet.hpp \
+                          op_cmd_packet.hpp

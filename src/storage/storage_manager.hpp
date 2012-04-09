@@ -23,6 +23,7 @@
 #include "data_entry.hpp"
 #include "define.hpp"
 #include "stat_info.hpp"
+#include "packets/put_packet.hpp"
 
 namespace tair {
   typedef struct _migrate_dump_index
@@ -48,6 +49,9 @@ namespace tair {
       virtual int put(int bucket_number, data_entry & key, data_entry & value,
                       bool version_care, int expire_time) = 0;
 
+      virtual int batch_put(int bucket_number, int area, mput_record_vec* record_vec, bool version_care)
+      { return TAIR_RETURN_FAILED;}
+
       virtual int get(int bucket_number, data_entry & key,
                       data_entry & value) = 0;
 
@@ -68,6 +72,8 @@ namespace tair {
 
       virtual void set_area_quota(int area, uint64_t quota) = 0;
       virtual void set_area_quota(std::map<int, uint64_t> &quota_map) = 0;
+
+      virtual int op_cmd(ServerCmdType cmd, std::vector<std::string>& params) { return TAIR_RETURN_NOT_SUPPORTED; }
 
       virtual void set_bucket_count(uint32_t bucket_count)
       {

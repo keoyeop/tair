@@ -25,6 +25,7 @@
 #include "duplicate_packet.hpp"
 #include "items_packet.hpp"
 #include "mupdate_packet.hpp"
+#include "op_cmd_packet.hpp"
 
 namespace tair {
    class request_processor {
@@ -44,6 +45,7 @@ namespace tair {
       int process(request_get_and_remove_items *request, bool &send_return);
       int process(request_get_items_count *request,bool &send_return);
       int process(request_mupdate *request,bool &send_return);
+      int process(request_op_cmd *request, bool &send_return);
 
    private:
       bool do_proxy(uint64_t target_server_id, base_packet *proxy_packet, base_packet *packet);

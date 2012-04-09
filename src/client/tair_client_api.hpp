@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "data_entry.hpp"
+#include "define.hpp"
 namespace tair {
 
   class tair_client_impl;
@@ -91,7 +92,10 @@ namespace tair {
 
       int mput(int area,
           const tair_client_kv_map& kvs,
-          int& fail_request);
+          int& fail_request,
+          bool compress = true);
+
+      int op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr = NULL);
 
       /**
        * @brief get data from tair cluster

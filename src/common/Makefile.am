@@ -1,6 +1,7 @@
 AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     -I$(TBLIB_ROOT)/include/tbnet \
 	     -I${top_srcdir}/src/storage \
+	     -I${top_srcdir}/src/ \
 	     @BOOST_CPPFLAGS@
 
 AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB} \

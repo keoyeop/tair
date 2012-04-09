@@ -38,7 +38,7 @@
 #include "query_info_packet.hpp"
 #include "get_migrate_machine.hpp"
 #include "data_server_ctrl_packet.hpp"
-
+#include "op_cmd_packet.hpp"
 
 namespace tair {
 
@@ -271,7 +271,7 @@ FAIL:
     return ret;
   }
 
-  int tair_client_impl::mput(int area, const tair_client_kv_map& kvs, int& fail_request/*tair_dataentry_vector& fail_keys*/)
+  int tair_client_impl::mput(int area, const tair_client_kv_map& kvs, int& fail_request/*tair_dataentry_vector& fail_keys*/, bool compress)
   {
     fail_request = 0;
     request_put_map request_puts;
@@ -290,9 +290,15 @@ FAIL:
       map<uint32_t, request_mput*>::iterator mit = rq_iter->second.begin();
       while (mit != rq_iter->second.end())
       {
+        // compress here
+        if (compress)
+        {
+          mit->second->compress();
+        }
         //server_id, request, wait_id
         if (send_request(rq_iter->first, mit->second, cwo->get_id()) < 0)
         {
+          log_error("send request fail: %s", tbsys::CNetUtil::addrToString(rq_iter->first).c_str());
           delete mit->second;
           rq_iter->second.erase(mit++);
           ++fail_request;
@@ -338,12 +344,14 @@ FAIL:
               new_config_version = tpacket->config_version;
               send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
             }
+            log_error("get response fail: ret: %d", ret);
             ++fail_request;
           }
         }
       }
       else
       {
+        log_error("not get response packet: %d", (*bp_iter)->getPCode());
         ++fail_request;
       }
     }
@@ -813,13 +821,13 @@ FAIL:
     this_wait_object_manager->destroy_wait_object(cwo);
 
     return ret;
-FAIL:
+  FAIL:
 
     this_wait_object_manager->destroy_wait_object(cwo);
 
     TBSYS_LOG(INFO, "remove failure: %s:%s",
-        tbsys::CNetUtil::addrToString(server_list[0]).c_str(),
-        get_error_msg(ret));
+              tbsys::CNetUtil::addrToString(server_list[0]).c_str(),
+              get_error_msg(ret));
     return ret;
   }
 
@@ -951,9 +959,9 @@ FAIL:
 
   int tair_client_impl::add_count(int area,
 
-      const data_entry &key,
-      int count, int *ret_count,
-      int init_value /*=0*/,int  expire_time  /*=0*/)
+                                  const data_entry &key,
+                                  int count, int *ret_count,
+                                  int init_value /*=0*/,int  expire_time  /*=0*/)
   {
     if( area < 0 || area >= TAIR_MAX_AREA_COUNT || expire_time < 0 ){
       return TAIR_RETURN_INVALID_ARGUMENT;
@@ -1008,7 +1016,7 @@ FAIL:
 
     return ret;
 
-FAIL:
+  FAIL:
     if (tpacket && tpacket->getPCode() == TAIR_RESP_RETURN_PACKET) {
       response_return *r = (response_return*)tpacket;
       ret = r->get_code();
@@ -1131,11 +1139,100 @@ FAIL:
 
   }
 
+  int tair_client_impl::op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr)
+  {
+    std::map<uint64_t, request_op_cmd*> request_map;
+    std::map<uint64_t, request_op_cmd*>::iterator it;
+
+    if (dest_server_addr != NULL) {       // specify server_id
+      request_op_cmd *packet = new request_op_cmd();
+      packet->cmd = cmd;
+      packet->params = params;
+      request_map[tbsys::CNetUtil::strToAddr(dest_server_addr, 0)] = packet;
+    } else {                    // send request to all server
+      for (uint32_t i=0; i<my_server_list.size(); i++) {
+        uint64_t server_id = my_server_list[i];
+        if (server_id == 0) {
+          continue;
+        }
+        it = request_map.find(server_id);
+        if (it == request_map.end()) {
+          request_op_cmd *packet = new request_op_cmd();
+          packet->cmd = cmd;
+          packet->params = params;
+          request_map[server_id] = packet;
+        }
+      }
+    }
+
+    if (request_map.empty()) {
+      return TAIR_RETURN_SUCCESS;
+    }
+
+    wait_object *cwo = this_wait_object_manager->create_wait_object();
+
+    int send_count = 0;
+    int ret = TAIR_RETURN_SEND_FAILED;
+    it = request_map.begin();
+    while (it != request_map.end()) {
+      uint64_t server_id = it->first;
+      request_op_cmd *packet = it->second;
+      TBSYS_LOG(INFO, "request_op_cmd %d=>%s", cmd, tbsys::CNetUtil::addrToString(server_id).c_str());
+
+      if ((ret = send_request(server_id,packet,cwo->get_id())) != TAIR_RETURN_SUCCESS) {
+        log_error("send request_op_cmd request fail: %s", tbsys::CNetUtil::addrToString(server_id).c_str());
+        request_map.erase(it);
+        delete packet;
+      } else {
+        ++send_count;
+        it++;
+      }
+    }
+
+    vector<base_packet*> tpk;
+    if ((ret = get_response(cwo, send_count, tpk)) < 1) {
+      this_wait_object_manager->destroy_wait_object(cwo);
+      TBSYS_LOG(ERROR, "all requests are failed");
+      return ret;
+    }
+
+    int fail_request = 0;
+    vector<base_packet*>::iterator bp_iter = tpk.begin();
+    for (; bp_iter != tpk.end(); ++bp_iter)
+    {
+      if ((*bp_iter)->getPCode() == TAIR_RESP_RETURN_PACKET)
+      {
+        response_return* tpacket = dynamic_cast<response_return*>(*bp_iter);
+        if (tpacket != NULL)
+        {
+          ret = tpacket->get_code();
+          if (TAIR_RETURN_SUCCESS != ret)
+          {
+            if (TAIR_RETURN_SERVER_CAN_NOT_WORK == ret)
+            {
+              new_config_version = tpacket->config_version;
+              send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
+            }
+            log_error("get response fail: ret: %d", ret);
+            ++fail_request;
+          }
+        }
+      }
+      else
+      {
+        log_error("not get response packet: %d", (*bp_iter)->getPCode());
+        ++fail_request;
+      }
+    }
+
+    this_wait_object_manager->destroy_wait_object(cwo);
+    return fail_request > 0 ? TAIR_RETURN_PARTIAL_SUCCESS : TAIR_RETURN_SUCCESS;
+  }
 
   int tair_client_impl::remove_items(int area,
-      const data_entry &key,
-      int offset,
-      int count)
+                                     const data_entry &key,
+                                     int offset,
+                                     int count)
   {
     if( area < 0 || area >= TAIR_MAX_AREA_COUNT){
       return TAIR_RETURN_INVALID_ARGUMENT;
@@ -1186,7 +1283,7 @@ FAIL:
     } else {
       TBSYS_LOG(INFO, "remove to failure: %s(%d)", resp->get_message(), ret);
       if(ret == TAIR_RETURN_SERVER_CAN_NOT_WORK ||
-          ret == TAIR_RETURN_WRITE_NOT_ON_MASTER) {
+         ret == TAIR_RETURN_WRITE_NOT_ON_MASTER) {
         //update server table immediately
         send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
       }
@@ -1196,12 +1293,12 @@ FAIL:
     this_wait_object_manager->destroy_wait_object(cwo);
 
     return ret;
-FAIL:
+  FAIL:
     this_wait_object_manager->destroy_wait_object(cwo);
 
     TBSYS_LOG(INFO, "remove failure: %s:%s",
-        tbsys::CNetUtil::addrToString(server_list[0]).c_str(),
-        get_error_msg(ret));
+              tbsys::CNetUtil::addrToString(server_list[0]).c_str(),
+              get_error_msg(ret));
     return ret;
 
   }
@@ -1260,13 +1357,13 @@ FAIL:
     this_wait_object_manager->destroy_wait_object(cwo);
 
     return ret;
-FAIL:
+  FAIL:
 
     this_wait_object_manager->destroy_wait_object(cwo);
     TBSYS_LOG(INFO, "get_items_count failure: %s:%s",
 
-        tbsys::CNetUtil::addrToString(server_list[0]).c_str(),
-        get_error_msg(ret));
+              tbsys::CNetUtil::addrToString(server_list[0]).c_str(),
+              get_error_msg(ret));
     return ret;
   }
 
@@ -1369,7 +1466,7 @@ FAIL:
           uint64_t *server_list = rggp->get_server_list(bucket_count,copy_count);
           //assert(rggp->server_list_count == bucket_count * copy_count);
           for (uint32_t i=0; server_list != NULL && i<(uint32_t)rggp->server_list_count
-              && i<my_server_list.size(); i++) {
+                 && i<my_server_list.size(); i++) {
             TBSYS_LOG(DEBUG, "update server table: [%d] => [%s]", i, tbsys::CNetUtil::addrToString(server_list[i]).c_str());
             my_server_list[i] = server_list[i];
           }
@@ -1415,13 +1512,13 @@ FAIL:
       uint64_t serverId = config_server_list[config_server_index];
 
       TBSYS_LOG(WARN, "send request to configserver(%s), config_version: %u, new_config_version: %d",
-          tbsys::CNetUtil::addrToString(serverId).c_str(), config_version, new_config_version);
+                tbsys::CNetUtil::addrToString(serverId).c_str(), config_version, new_config_version);
 
       request_get_group *packet = new request_get_group();
       packet->set_group_name(group_name.c_str());
       if (connmgr->sendPacket(serverId, packet, NULL, NULL) == false) {
         TBSYS_LOG(ERROR, "send request_get_group to %s failure.",
-            tbsys::CNetUtil::addrToString(serverId).c_str());
+                  tbsys::CNetUtil::addrToString(serverId).c_str());
         delete packet;
       }
       send_fail_count = 0;
@@ -1438,7 +1535,7 @@ FAIL:
       packet->cmd = cmd;
       if (connmgr->sendPacket(conf_serverId, packet, NULL, NULL) == false) {
         TBSYS_LOG(ERROR, "send request_data_server_ctrl to %s failure.",
-            tbsys::CNetUtil::addrToString(server_id).c_str());
+                  tbsys::CNetUtil::addrToString(server_id).c_str());
         delete packet;
       }
     }
@@ -1484,7 +1581,7 @@ FAIL:
     this_wait_object_manager->destroy_wait_object(cwo);
 
     return;
-FAIL:
+  FAIL:
 
     TBSYS_LOG(DEBUG,"get_migrate_status failed:%s",get_error_msg(ret));
     this_wait_object_manager->destroy_wait_object(cwo);
@@ -1533,7 +1630,7 @@ FAIL:
     this_wait_object_manager->destroy_wait_object(cwo);
 
     return;
-FAIL:
+  FAIL:
 
     TBSYS_LOG(DEBUG,"query from config server failed:%s",get_error_msg(ret));
     this_wait_object_manager->destroy_wait_object(cwo);
@@ -1561,7 +1658,7 @@ FAIL:
       cwo = this_wait_object_manager->create_wait_object();
       if (connmgr->sendPacket(server_id, packet, NULL, (void*)((long)cwo->get_id())) == false) {
         TBSYS_LOG(ERROR, "Send RequestGetGroupPacket to %s failure.",
-            tbsys::CNetUtil::addrToString(server_id).c_str());
+                  tbsys::CNetUtil::addrToString(server_id).c_str());
         this_wait_object_manager->destroy_wait_object(cwo);
 
         delete packet;
@@ -1621,7 +1718,7 @@ FAIL:
     this_wait_object_manager->destroy_wait_object(cwo);
     thread.start(this, NULL);
     return true;
-OUT:
+  OUT:
     this_wait_object_manager->destroy_wait_object(cwo);
 
     return false;
@@ -1708,7 +1805,7 @@ OUT:
       send_fail_count ++;
       return TAIR_RETURN_SEND_FAILED;
     }
-  
+
     return 0;
   }
 #if 0
@@ -1721,7 +1818,7 @@ OUT:
       uint64_t serverId = server[i];
       if (conn_manager->sendPacket(serverId, packet, NULL, (void*)((long)waitId)) == false) {
         TBSYS_LOG(ERROR, "Send RequestGetPacket to %s failure.",
-            tbsys::CNetUtil::addrToString(serverId).c_str());
+                  tbsys::CNetUtil::addrToString(serverId).c_str());
         ++m_sendFailCount;
         continue;
       }

@@ -53,9 +53,15 @@ namespace tair {
 
   int tair_client_api::mput(int area,
       const tair_client_kv_map& kvs,
-      int& fail_request)
+      int& fail_request,
+      bool compress)
   {
-    return impl->mput(area, kvs, fail_request);
+    return impl->mput(area, kvs, fail_request, compress);
+  }
+
+  int tair_client_api::op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr)
+  {
+    return impl->op_cmd(cmd, params, dest_server_addr);
   }
 
   int tair_client_api::get(int area,

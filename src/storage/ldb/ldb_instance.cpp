@@ -15,6 +15,7 @@
  */
 
 #include <leveldb/env.h>
+#include <leveldb/write_batch.h>
 
 #include "common/define.hpp"
 #include "common/util.hpp"
@@ -352,6 +353,144 @@ namespace tair
         return rc;
       }
 
+      // batch_put is for importing data as fast as possible, so lock and cache/db consistency is ignored,
+      // once used when db is running, it may have the risk of data inconsistency.
+      int LdbInstance::batch_put(int bucket_number, int area, mput_record_vec* record_vec, bool version_care)
+      {
+        if (record_vec->size() <= 0)
+        {
+          return TAIR_RETURN_FAILED;
+        }
+
+        leveldb::WriteBatch batch;
+        int stat_data_size = 0, stat_use_size = 0, item_count = record_vec->size();
+
+        int rc = TAIR_RETURN_SUCCESS;
+
+        // NO lock here, cache maybe dirty
+        for (mput_record_vec::iterator it = record_vec->begin() ; it != record_vec->end(); ++it)
+        {
+          data_entry& key = *((*it)->key);
+          data_entry& value = (*it)->value->get_d_entry();
+          uint32_t cdate = 0, mdate = 0, edate = 0;
+          if (key.data_meta.cdate == 0 || version_care)
+          {
+            cdate = time(NULL);
+            mdate = cdate;
+            edate = (*it)->value->get_expire();
+            if(edate > 0 && edate < static_cast<uint32_t>(mdate))
+            {
+              edate += mdate;
+            }
+          }
+          else
+          {
+            cdate = key.data_meta.cdate;
+            mdate = key.data_meta.mdate;
+            edate = key.data_meta.edate;
+          }
+
+          data_entry mkey = key;
+          // merge area
+          mkey.merge_area(area);
+
+          LdbKey ldb_key(mkey.get_data(), mkey.get_size(), bucket_number, 0);
+          LdbItem ldb_item;
+          // db version care
+          if (db_version_care_)
+          {
+            std::string db_value;
+            rc = do_get(ldb_key, db_value, false, false); // not fill cache or update cache stat
+
+            if (TAIR_RETURN_SUCCESS == rc)
+            {
+              ldb_item.assign(const_cast<char*>(db_value.data()), db_value.size());
+              // ldb already check expired. no need here.
+              cdate = ldb_item.meta().cdate_; // set back the create time
+              if (version_care)
+              {
+                // item care version, check version
+                if (key.data_meta.version != 0
+                    && key.data_meta.version != ldb_item.meta().version_)
+                {
+                  rc = TAIR_RETURN_VERSION_ERROR;
+                }
+              }
+
+              if (rc == TAIR_RETURN_SUCCESS)
+              {
+                stat_data_size -= ldb_key.key_size() + ldb_item.value_size();
+                stat_use_size -= ldb_key.size() + ldb_item.size();
+                item_count--;
+              }
+            }
+            else
+            {
+              rc = TAIR_RETURN_SUCCESS; // get fail does not matter
+            }
+          }
+
+          if (TAIR_RETURN_SUCCESS != rc)
+          {
+            break;
+          }
+
+          // just remove cache.
+          // avoid cache lock, we can clear all cache when dump over
+          // if (cache_ != NULL)
+          // {
+          //   cache_->raw_remove(ldb_key.key(), ldb_key.key_size());
+          // }
+
+          ldb_item.meta().flag_ = value.data_meta.flag;
+          ldb_item.meta().cdate_ = cdate;
+          ldb_item.meta().mdate_ = mdate;
+          ldb_item.meta().edate_ = edate;
+
+          if (version_care)
+          {
+            ldb_item.meta().version_++;
+          }
+          else
+          {
+            ldb_item.meta().version_ = key.data_meta.version;
+          }
+
+          ldb_item.set(value.get_data(), value.get_size());
+          batch.Put(leveldb::Slice(ldb_key.data(), ldb_key.size()),
+                    leveldb::Slice(ldb_item.data(), ldb_item.size()));
+
+          stat_data_size += ldb_key.key_size() + ldb_item.value_size();
+          stat_use_size += ldb_key.size() + ldb_item.size();
+
+          //update key's meta info
+          key.data_meta.flag = ldb_item.meta().flag_;
+          key.data_meta.cdate = ldb_item.meta().cdate_;
+          key.data_meta.edate = edate;
+          key.data_meta.mdate = ldb_item.meta().mdate_;
+          key.data_meta.version = ldb_item.meta().version_;
+          key.data_meta.keysize = key.get_size();
+          key.data_meta.valsize = value.get_size();
+        }
+
+        if (TAIR_RETURN_SUCCESS == rc)
+        {
+          leveldb::Status status = db_->Write(write_options_, &batch, bucket_number);
+
+          if (!status.ok())
+          {
+            log_error("update batch ldb fail. %s", status.ToString().c_str());
+            rc = TAIR_RETURN_FAILED;
+          }
+          else
+          {
+            stat_add(bucket_number, area, stat_data_size, stat_use_size, item_count);
+          }
+        }
+
+        return rc;
+      }
+
       int LdbInstance::get(int bucket_number, tair::common::data_entry& key, tair::common::data_entry& value)
       {
         assert(db_ != NULL);
@@ -424,6 +563,32 @@ namespace tair
         return rc;
       }
 
+      int LdbInstance::op_cmd(ServerCmdType cmd, std::vector<std::string>& params)
+      {
+        assert(db_ != NULL);
+        int ret = TAIR_RETURN_SUCCESS;
+        log_warn("op cmd %d, param size: %d", cmd, params.size());
+
+        switch (cmd) {
+        case TAIR_SERVER_CMD_FLUSH_MEM:
+        {
+          leveldb::Status status = db_->ForceCompactMemTable();
+          if (!status.ok())
+          {
+            log_error("op cmd flush mem fail: %s", status.ToString().c_str());
+            ret = TAIR_RETURN_FAILED;
+          }
+          break;
+        }
+        default:
+        {
+          ret = TAIR_RETURN_NOT_SUPPORTED;
+          break;
+        }
+        }
+        return ret;
+      }
+
       bool LdbInstance::begin_scan(int bucket_number)
       {
         log_info("begin scan");
@@ -475,7 +640,7 @@ namespace tair
 
         static const int32_t migrate_batch_size =
           TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_SIZE, 1048576); // 1M default
-        static const int32_t migrate_batch_count = 
+        static const int32_t migrate_batch_count =
           TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MIGRATE_BATCH_COUNT, 2000); // 2000 default
 
         if (NULL == scan_it_)

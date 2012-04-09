@@ -41,6 +41,7 @@ namespace tair
 
         int put(int bucket_number, data_entry& key, data_entry& value,
                 bool version_care, int expire_time);
+        int batch_put(int bucket_number, int area, mput_record_vec* record_vec, bool version_care);
         int get(int bucket_number, data_entry& key, data_entry& value);
         int remove(int bucket_number, data_entry& key, bool version_care);
         int clear(int area);
@@ -54,6 +55,8 @@ namespace tair
 
         void set_area_quota(int area, uint64_t quota);
         void set_area_quota(std::map<int, uint64_t>& quota_map);
+
+        int op_cmd(ServerCmdType cmd, std::vector<std::string>& params);
 
         void get_stats(tair_stat* stat);
         void set_bucket_count(uint32_t bucket_count);

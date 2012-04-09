@@ -74,7 +74,7 @@ namespace tair {
 
       //typedef std::map<data_entry*, value_entry*, data_entry_hash> tair_client_kv_map;
       //typedef std::vector<data_entry *> tair_dataentry_vector;
-      int mput(int area, const tair_client_kv_map& kvs, int& fail_request/*tair_dataentry_vector& fail_keys*/);
+      int mput(int area, const tair_client_kv_map& kvs, int& fail_request/*tair_dataentry_vector& fail_keys*/, bool compress = true);
 
       //the caller will release the memory
       int get(int area,
@@ -155,6 +155,8 @@ namespace tair {
       int remove_area(int area);
       //    int getStatInfo(int type, int area, vector<ResponseStatPacket *> &list);
       int dump_area(std::set<dump_meta_info>& info);
+
+      int op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr = NULL);
 
       void force_change_dataserver_status(uint64_t server_id, int cmd);
       void get_migrate_status(uint64_t server_id,vector<pair<uint64_t,uint32_t> >& result);

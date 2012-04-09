@@ -33,7 +33,7 @@ namespace tair{
     delete  m_slots_locks;
   }
 
-  bool CPacket_wait_manager::isBucketFree(int bucket_number) 
+  bool CPacket_wait_manager::isBucketFree(int bucket_number)
   {
     assert(bucket_number>= 0 && bucket_number<TAIR_MAX_BUCKET_NUMBER);
     CScopedRwLock __scoped_lock(m_slots_locks->getlock(0),false);
@@ -108,7 +108,7 @@ namespace tair{
       if(0==ret)
       {
         changeBucketCount(bucket_number,-1);
-        *ppNode= itr->second; 
+        *ppNode= itr->second;
         m_PkgWaitMap[index].erase(itr);
       }
       else
@@ -138,10 +138,10 @@ namespace tair{
     //now we should clear it.
     clear_waitnode(max_packet_id);
     return TAIR_RETURN_DUPLICATE_ACK_TIMEOUT;
-  } 
+  }
 
-  int CPacket_wait_manager::clear_waitnode( uint32_t max_packet_id) 
-  { 
+  int CPacket_wait_manager::clear_waitnode( uint32_t max_packet_id)
+  {
     int index=get_map_index(max_packet_id);
     CScopedRwLock __scoped_lock(m_slots_locks->getlock(index),true);
 
@@ -189,7 +189,7 @@ namespace tair{
   {
     return true;
   }
-   
+
   //xinshu. add new function for directy duplicate.
   int dup_sync_sender_manager::duplicate_data(int area, const data_entry* key, const data_entry* value,int expire_time,int bucket_number, const vector<uint64_t>& des_server_ids,base_packet *request,int version)
   {
@@ -210,7 +210,7 @@ namespace tair{
       return ret;
     }
     ret=direct_send(area,key,value,0,bucket_number, des_server_ids,max_packet_id);
-    if(TAIR_RETURN_SUCCESS!=ret) 
+    if(TAIR_RETURN_SUCCESS!=ret)
     {
       //clear waitnode.
       packets_mgr.clear_waitnode(max_packet_id);
@@ -239,7 +239,7 @@ namespace tair{
 
     for(unsigned int  i=0;i < _copy_count; i++)
     {
-      //new a dup packet 
+      //new a dup packet
       request_duplicate* tmp_packet= new request_duplicate();
       tmp_packet->packet_id= max_packet_id;
       tmp_packet->area = area;
@@ -258,14 +258,14 @@ namespace tair{
       }
       tmp_packet->bucket_number = bucket_number;
 
-	  
+
       //and send it to slave
       log_debug("duplicate packet %d sent: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
-      if(conn_mgr->sendPacket(des_server_ids[i], tmp_packet, NULL, NULL, true) == false) 
+      if(conn_mgr->sendPacket(des_server_ids[i], tmp_packet, NULL, NULL, true) == false)
       {
         //duplicate sendpacket error.
         log_error("duplicate packet %d faile send: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
-        delete tmp_packet; 
+        delete tmp_packet;
         return TAIR_RETURN_DUPLICATE_BUSY;
       }
     }
@@ -291,23 +291,23 @@ namespace tair{
     for(unsigned int  i=0;i < _copy_count; i++)
     {
       request_mput* tmp_packet = new request_mput();
-      // we hold request here, no copy record.
-      tmp_packet->clone(*(dynamic_cast<request_mput*>(request)), false);
+      // just reuse original request's data.
+      tmp_packet->swap(*(dynamic_cast<request_mput*>(request)));
       tmp_packet->server_flag = TAIR_SERVERFLAG_DUPLICATE;
       tmp_packet->packet_id = max_packet_id;
       //and send it to slave
       log_debug("duplicate packet %d sent: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
-      if(conn_mgr->sendPacket(des_server_ids[i], tmp_packet, NULL, NULL, true) == false) 
+      if(conn_mgr->sendPacket(des_server_ids[i], tmp_packet, NULL, NULL, true) == false)
       {
         //duplicate sendpacket error.
         log_error("duplicate packet %d faile send: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
-        delete tmp_packet; 
+        delete tmp_packet;
         ret = TAIR_RETURN_DUPLICATE_BUSY;
         break;
       }
     }
 
-    if (TAIR_RETURN_SUCCESS != ret) 
+    if (TAIR_RETURN_SUCCESS != ret)
     {
       //clear waitnode.
       packets_mgr.clear_waitnode(max_packet_id);
@@ -363,7 +363,7 @@ namespace tair{
        case TAIR_REQ_PUT_PACKET:
        case TAIR_REQ_REMOVE_PACKET:
        case TAIR_REQ_MPUT_PACKET:
-         log_error("@@ dup sync return %d", pNode->pcode);
+         log_debug("@@ dup sync return %d", pNode->pcode);
          rv=tair_packet_factory::set_return_packet(pNode->conn,pNode->chid,pNode->pcode,0,"",pNode->conf_version);
          break;
        case TAIR_REQ_INCDEC_PACKET:
@@ -372,7 +372,7 @@ namespace tair{
            resp->value = pNode->inc_value_result ;
            resp->config_version = pNode->conf_version;
            resp->setChannelId(pNode->chid);
-           if (pNode->conn->postPacket(resp) == false) 
+           if (pNode->conn->postPacket(resp) == false)
            {
              delete resp;
              rv=TAIR_RETURN_DUPLICATE_SEND_ERROR;
@@ -391,20 +391,20 @@ namespace tair{
    {
       UNUSED(thread);
       UNUSED(arg);
-      while (!_stop) 
+      while (!_stop)
 	  {
-		try 
-		{   
+		try
+		{
           int index=(long)arg;//if need more thread,shoudld hash it.
 		  CPacket_Timeout_hint * _pkg=packets_mgr.get_timeout_hint(index,1000); //2s
 		  if(!_pkg) continue;
 		  handleTimeOutPacket(_pkg);
 		  delete _pkg;
-		}   
+		}
 		catch(...)
-		{   
+		{
           log_warn("unknow error! get timeoutqueue error!");
-		} 
+		}
 	  }
    }
 

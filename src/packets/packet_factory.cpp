@@ -39,6 +39,8 @@
 #include "response_return_packet.hpp"
 #include "server_hash_table_packet.hpp"
 #include "set_master_packet.hpp"
+#include "op_cmd_packet.hpp"
+
 namespace tair {
    tbnet::Packet *tair_packet_factory::createPacket(int pcode)
    {
@@ -53,6 +55,9 @@ namespace tair {
          case TAIR_REQ_MPUT_PACKET:
             packet = new tair::request_mput();
             break;
+         case TAIR_REQ_OP_CMD_PACKET:
+           packet = new tair::request_op_cmd();
+           break;
          case TAIR_REQ_GET_PACKET:
             packet = new request_get();
             break;
@@ -181,7 +186,7 @@ namespace tair {
    {
       response_return *return_packet = new response_return(chid,code, msg);
       return_packet->config_version = version;
-      if (!conn || conn->postPacket(return_packet) == false) 
+      if (!conn || conn->postPacket(return_packet) == false)
       {
          log_warn("send ReturnPacket failure, request pcode: %d", cmd_id);
          delete return_packet;

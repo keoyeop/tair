@@ -255,9 +255,11 @@ namespace tair {
          }
          case TAIR_REQ_MPUT_PACKET:
          {
-            request_mput *npacket = (request_mput*)packet;
-            ret = req_processor->process(npacket, send_return);
-            break;
+           request_mput *npacket = (request_mput*)packet;
+           // decompress here
+           npacket->decompress();
+           ret = req_processor->process(npacket, send_return);
+           break;
          }
          case TAIR_REQ_REMOVE_AREA_PACKET:
          {
@@ -345,6 +347,12 @@ namespace tair {
          {
             request_mupdate *mpacket = (request_mupdate *)(packet);
             ret = req_processor->process(mpacket, send_return);
+            break;
+         }
+         case TAIR_REQ_OP_CMD_PACKET:
+         {
+            request_op_cmd *opacket = (request_op_cmd*)(packet);
+            ret = req_processor->process(opacket,send_return);
             break;
          }
          default:

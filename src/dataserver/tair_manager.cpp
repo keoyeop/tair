@@ -409,175 +409,164 @@ namespace tair {
       return rc;
    }
 
-  int tair_manager::batch_put(int area, const mput_record_vec* record_vec, request_mput* request, int heart_version)
-  {
-    if (area < 0 || area >= TAIR_MAX_AREA_COUNT || record_vec == NULL) {
-      return TAIR_RETURN_INVALID_ARGUMENT;
-    }
+   int tair_manager::batch_put(int area, mput_record_vec* record_vec, request_mput* request, int heart_version)
+   {
+     if (area < 0 || area >= TAIR_MAX_AREA_COUNT || record_vec == NULL) {
+       return TAIR_RETURN_INVALID_ARGUMENT;
+     }
+     if (record_vec->size() <= 0) {
+       return TAIR_RETURN_INVALID_ARGUMENT;
+     }
 
-    int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    int bucket_number = -1;
-    mput_record_vec::const_iterator it;
-    for (it = record_vec->begin() ; it != record_vec->end(); ++it) {
-      if ((*it)->key->get_size() == 0 || (*it)->value->get_d_entry().get_size() == 0) {
-        log_error("put value is null, return failed");
-        return TAIR_RETURN_ITEMSIZE_ERROR;
-      }
+     int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
+     // we consider mput_record_vec are all one bucket's kv
+     int bucket_number = get_bucket_number(*((*record_vec->begin())->key));
+     int op_flag = get_op_flag(bucket_number, request->server_flag);
 
-      data_entry& key = *((*it)->key);
-      key.server_flag = request->server_flag;
-      data_entry mkey = key;
-      mkey.merge_area(area);
-      // consider all record are belong to one bucket.
-      if (bucket_number < 0) {
-        bucket_number = get_bucket_number(key);
-      }
+     if (should_write_local(bucket_number, request->server_flag, op_flag, rc) == false) {
+       return TAIR_RETURN_REMOVE_NOT_ON_MASTER;
+     }
 
-      // client flag (maybe skip cache)
-      int old_flag = key.data_meta.flag;
-      int op_flag = get_op_flag(bucket_number, key.server_flag);
+     bool version_care = op_flag & TAIR_OPERATION_VERSION;
+     PROFILER_BEGIN("do batch put");
+     rc = storage_mgr->batch_put(bucket_number, area, record_vec, version_care);
+     PROFILER_END();
 
-      rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-      if (should_write_local(bucket_number, key.server_flag, op_flag, rc) == false) {
-        return TAIR_RETURN_REMOVE_NOT_ON_MASTER;
-      }
+     TAIR_STAT.stat_put(area, record_vec->size());
 
-      bool version_care =  op_flag & TAIR_OPERATION_VERSION;
-      PROFILER_BEGIN("batch put into storage");
-      // put storage
-      rc = storage_mgr->put(bucket_number, mkey, (*it)->value->get_d_entry(), version_care, (*it)->value->get_expire());
-      PROFILER_END();
+     if (TAIR_RETURN_SUCCESS == rc && migrate_log != NULL && need_do_migrate_log(bucket_number)) {
+       // do migrate
+       for (mput_record_vec::const_iterator it = record_vec->begin() ; it != record_vec->end(); ++it) {
+         if (migrate_log != NULL && need_do_migrate_log(bucket_number)) {
+           // TODO. mkey everaywhere is NOT really necessary.
+           // Once get_bucket_number() check data_entry.is_merged(),
+           // key can be used no matter merged or not, so mkey can be demised.
+           data_entry mkey = *((*it)->key);
+           mkey.merge_area(area);
+           // migrate no flag here.
+           migrate_log->log(SN_PUT, mkey, (*it)->value->get_d_entry(), bucket_number);
+         } else {
+           // migrate status change, we don't handle this now
+           rc = TAIR_RETURN_MIGRATE_BUSY;
+           break;
+         }
+       }
+     }
 
-      if (rc != TAIR_RETURN_SUCCESS) {
-        return rc;
-      }
+     if (TAIR_RETURN_SUCCESS == rc) {
+       // do duplicate
+       if (request->server_flag != TAIR_SERVERFLAG_DUPLICATE) {
+         vector<uint64_t> slaves;
+         get_slaves(request->server_flag, bucket_number, slaves);
+         if (!slaves.empty()) {
+           rc = duplicator->duplicate_batch_data(bucket_number, record_vec, slaves, request, heart_version);
+         }
+       } else {
+         log_debug("bp send return packet to duplicate source");
+         response_duplicate *dresp = new response_duplicate();
+         dresp->setChannelId(request->getChannelId());
+         dresp->server_id = local_server_ip::ip;
+         dresp->packet_id = request->packet_id;
+         dresp->bucket_id = bucket_number;
+         if (request->get_connection()->postPacket(dresp) == false) {
+           delete dresp;
+         }
+       }
+     }
 
-      // rollback client flag
-      mkey.data_meta.flag = old_flag;
+     return rc;
+   }
 
-      if (migrate_log != NULL && need_do_migrate_log(bucket_number)) {
-        PROFILER_BEGIN("do migrate log");
-        migrate_log->log(SN_PUT, mkey, (*it)->value->get_d_entry(), bucket_number);
-        PROFILER_END();
-      }
+   int tair_manager::batch_remove(int area, const tair_dataentry_set * key_list,request_remove *request,int heart_version)
+   {
+     if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
+       return TAIR_RETURN_INVALID_ARGUMENT;
+     }
 
-      TAIR_STAT.stat_put(area);
-    }
+     int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
 
-    if (TAIR_RETURN_SUCCESS == rc) {
-      // do duplicate
-      if (request->server_flag != TAIR_SERVERFLAG_DUPLICATE) {
-        vector<uint64_t> slaves;
-        get_slaves(request->server_flag, bucket_number, slaves);
-        if (!slaves.empty()) {
-          rc = duplicator->duplicate_batch_data(bucket_number, record_vec, slaves, (base_packet*)request, heart_version);
-        }
-      } else {
-        log_debug("bp send return packet to duplicate source");
-        response_duplicate *dresp = new response_duplicate();
-        dresp->setChannelId(request->getChannelId());
-        dresp->server_id = local_server_ip::ip;
-        dresp->packet_id = request->packet_id;
-        dresp->bucket_id = bucket_number;
-        if (request->get_connection()->postPacket(dresp) == false) {
-          delete dresp;
-        }
-      }
-    }
+     set<data_entry*, data_entry_comparator>::iterator it;
+     //check param first, one fail,all fail.
+     for (it = key_list->begin(); it != key_list->end(); ++it)
+     {
+       uint64_t target_server_id = 0;
 
-    return rc;
-  }
+       data_entry *pkey = (*it);
+       data_entry key=*pkey; //for same code.
+       key.server_flag = request->server_flag;
 
-  int tair_manager::batch_remove(int area, const tair_dataentry_set * key_list,request_remove *request,int heart_version)
-  {
-    if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
-      return TAIR_RETURN_INVALID_ARGUMENT;
-    }
+       if (key.get_size() >= TAIR_MAX_KEY_SIZE || key.get_size() < 1) {
+         return TAIR_RETURN_ITEMSIZE_ERROR;
+       }
 
-    int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
+       if (should_proxy(key, target_server_id))
+       {
+         // proxyed, we will not touch it
+         // the previon assume it as a EXIT_FAILURE;
+         log_error("batch remove,but have key not proxy.");
+         return TAIR_RETURN_REMOVE_NOT_ON_MASTER;
+       }
+       //if (count != request->key_list->size()) rc = EXIT_FAILURE;
 
-    set<data_entry*, data_entry_comparator>::iterator it;
-    //check param first, one fail,all fail.
-    for (it = key_list->begin(); it != key_list->end(); ++it)
-    {
-      uint64_t target_server_id = 0;
+       data_entry mkey = key;
+       mkey.merge_area(area);
+       int bucket_number = get_bucket_number(key);
 
-      data_entry *pkey = (*it);
-      data_entry key=*pkey; //for same code.
-      key.server_flag = request->server_flag;
+       int op_flag = get_op_flag(bucket_number, key.server_flag);
 
-      if (key.get_size() >= TAIR_MAX_KEY_SIZE || key.get_size() < 1) {
-        return TAIR_RETURN_ITEMSIZE_ERROR;
-      }
+       int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
+       if (should_write_local(bucket_number, key.server_flag, op_flag, rc) == false) {
+         return TAIR_RETURN_REMOVE_NOT_ON_MASTER;
+       }
 
-      if (should_proxy(key, target_server_id))
-      {
-        // proxyed, we will not touch it
-        // the previon assume it as a EXIT_FAILURE;
-        log_error("batch remove,but have key not proxy.");
-        return TAIR_RETURN_REMOVE_NOT_ON_MASTER;
-      }
-      //if (count != request->key_list->size()) rc = EXIT_FAILURE;
+     }
 
-      data_entry mkey = key;
-      mkey.merge_area(area);
-      int bucket_number = get_bucket_number(key);
+     //the storage_mgr should has batch interface
+     for (it = key_list->begin(); it != key_list->end(); ++it)
+     {
+       data_entry *pkey = (*it);
+       data_entry key=*pkey; //for same code.
+       key.server_flag = request->server_flag;
 
-      int op_flag = get_op_flag(bucket_number, key.server_flag);
+       data_entry mkey = key;
+       mkey.merge_area(area);
 
-      int rc = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-      if (should_write_local(bucket_number, key.server_flag, op_flag, rc) == false) {
-        return TAIR_RETURN_REMOVE_NOT_ON_MASTER;
-      }
+       int bucket_number = get_bucket_number(key);
+       int op_flag = get_op_flag(bucket_number, key.server_flag);
 
-    }
+       bool version_care =  op_flag & TAIR_OPERATION_VERSION;
+       rc = storage_mgr->remove(bucket_number, mkey, version_care);
 
-    //the storage_mgr should has batch interface
-    for (it = key_list->begin(); it != key_list->end(); ++it)
-    {
-      data_entry *pkey = (*it);
-      data_entry key=*pkey; //for same code.
-      key.server_flag = request->server_flag;
+       if (rc == TAIR_RETURN_SUCCESS || rc == TAIR_RETURN_DATA_NOT_EXIST)
+       {
+         if (migrate_log != NULL && need_do_migrate_log(bucket_number)) {
+           migrate_log->log(SN_REMOVE, mkey, mkey, bucket_number);
+         }
+         if (op_flag & TAIR_OPERATION_DUPLICATE) {
+           vector<uint64_t> slaves;
+           get_slaves(key.server_flag, bucket_number, slaves);
+           if (slaves.empty() == false)
+           {
+             //for batch delete,don't wait response,let's retry it.
+             rc=duplicator->direct_send(area, &key, NULL, 0,bucket_number, slaves,0);
+             if(TAIR_RETURN_SUCCESS != rc)
+             {
+               return rc;
+             }
+           }
+         }
+       }
+       else
+       {
+         //one fail,all fail
+         return TAIR_RETURN_REMOVE_ONE_FAILED;
+       }
+       TAIR_STAT.stat_remove(area);
+     }
 
-      data_entry mkey = key;
-      mkey.merge_area(area);
-
-      int bucket_number = get_bucket_number(key);
-      int op_flag = get_op_flag(bucket_number, key.server_flag);
-
-      bool version_care =  op_flag & TAIR_OPERATION_VERSION;
-      rc = storage_mgr->remove(bucket_number, mkey, version_care);
-
-      if (rc == TAIR_RETURN_SUCCESS || rc == TAIR_RETURN_DATA_NOT_EXIST)
-      {
-        if (migrate_log != NULL && need_do_migrate_log(bucket_number)) {
-          migrate_log->log(SN_REMOVE, mkey, mkey, bucket_number);
-        }
-        if (op_flag & TAIR_OPERATION_DUPLICATE) {
-          vector<uint64_t> slaves;
-          get_slaves(key.server_flag, bucket_number, slaves);
-          if (slaves.empty() == false)
-          {
-            //for batch delete,don't wait response,let's retry it.
-            rc=duplicator->direct_send(area, &key, NULL, 0,bucket_number, slaves,0);
-            if(TAIR_RETURN_SUCCESS != rc)
-            {
-              return rc;
-            }
-          }
-        }
-      }
-      else
-      {
-        //one fail,all fail
-        return TAIR_RETURN_REMOVE_ONE_FAILED;
-      }
-      TAIR_STAT.stat_remove(area);
-    }
-
-    //if(_need_dup)
-    return rc;
-  }
+     //if(_need_dup)
+     return rc;
+   }
 
    int tair_manager::clear(int area)
    {
@@ -586,6 +575,14 @@ namespace tair {
       }
 
       return storage_mgr->clear(area);
+   }
+
+   int tair_manager::op_cmd(ServerCmdType cmd, std::vector<std::string>& params)
+   {
+      if (status != STATUS_CAN_WORK) {
+         return TAIR_RETURN_SERVER_CAN_NOT_WORK;
+      }
+      return storage_mgr->op_cmd(cmd, params);
    }
 
    int tair_manager::add_items(int area,
