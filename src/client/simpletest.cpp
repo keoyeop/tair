@@ -82,24 +82,23 @@ int main(int argc,char * argv[])
 		return false;
 	}
 
-  vector<string> group_status;
-  group_status.push_back("group_1");
-  group_status.push_back("group_2");
+  vector<string> group;
+  vector<string> status;
+  group.push_back("group_1");
+  group.push_back("group_2");
 
-  client_helper.get_group_status(group_status);
-  log_error("%s", group_status[0].c_str());
-  log_error("%s", group_status[1].c_str());
+  client_helper.get_group_status(group, status);
+  log_error("%s", status[0].c_str());
+  log_error("%s", status[1].c_str());
 
-  group_status.clear();
   int rc = client_helper.set_group_status("group_1", "on");
   log_error("code: %d", rc);
 
-  group_status.push_back("group_1");
-  group_status.push_back("group_2");
+  client_helper.get_group_status(group, status);
+  log_error("%s", status[0].c_str());
+  log_error("%s", status[1].c_str());
 
-  client_helper.get_group_status(group_status);
-  log_error("%s", group_status[0].c_str());
-  log_error("%s", group_status[1].c_str());
+  client_helper.reset_group(group);
   return 0;
 	//do it .
 

@@ -231,6 +231,18 @@ namespace tair {
   {
     return impl->get_copy_count();
   }
+  int tair_client_api::get_group_status(vector<string> &group, vector<string> &status)
+  {
+    return impl->get_group_status(group, status);
+  }
+  int tair_client_api::set_group_status(const char *group, const char *status)
+  {
+    return impl->set_group_status(group, status);
+  }
+  int tair_client_api::reset_group(vector<string> &groups)
+  {
+    return impl->reset_group(groups);
+  }
   void tair_client_api::get_server_with_key(const data_entry& key,std::vector<std::string>& servers) const
   {
     return impl->get_server_with_key(key,servers);

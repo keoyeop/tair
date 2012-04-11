@@ -1188,14 +1188,15 @@ namespace tair {
         int total_size = 0;
         for (sit = tmp_down_server.begin(); sit != tmp_down_server.end(); ++sit)
         {
-          int size = tbsys::CNetUtil::addrToString(*sit).size() + 1;
+          string str = tbsys::CNetUtil::addrToString(*sit);
+          int size = str.size() + 1;
           if (total_size + size + 1 > alloc_size)
           {
             log_error("alloc size error. alloc size: %d, total size: %d, down server size: %d, down server value: %s ",
                 alloc_size, total_size + size, tmp_down_server.size(), down_servers_value);
             return EXIT_FAILURE;
           }
-          snprintf(down_servers_value + total_size, size, "%s%s", tbsys::CNetUtil::addrToString(*sit).c_str(), ";");
+          snprintf(down_servers_value + total_size, size, "%s%s", str.c_str(), ";");
           total_size += size;
         }
         down_servers_value[total_size] = '\0';

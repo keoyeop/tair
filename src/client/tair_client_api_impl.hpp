@@ -158,9 +158,22 @@ namespace tair {
 
       int op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr = NULL);
 
+      /**
+       * @param group: group name
+       * @param status: on/off
+       */
       int set_group_status(const char *group, const char *status);
 
-      int get_group_status(vector<string> &group_status);
+      /**
+       * @param group: group names of which you wanna know the status
+       * @param status: group statuses, in the format of 'group_1=on'
+       */
+      int get_group_status(vector<string> &group, vector<string> &status);
+
+      /**
+       * @param groups: group names to reset
+       */
+      int reset_group(vector<string> &groups);
 
       void force_change_dataserver_status(uint64_t server_id, int cmd);
       void get_migrate_status(uint64_t server_id,vector<pair<uint64_t,uint32_t> >& result);

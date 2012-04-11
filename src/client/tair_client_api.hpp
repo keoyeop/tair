@@ -308,6 +308,23 @@ namespace tair {
        */
       uint32_t get_copy_count() const;
 
+      /**
+       * @param group: group names of which you wanna know the status
+       * @param status: group statuses, in the format of 'group_1=on'
+       */
+      int get_group_status(vector<string> &group, vector<string> &status);
+
+      /**
+       * @param group: group name
+       * @param status: on/off
+       */
+      int set_group_status(const char *group, const char *status);
+
+      /**
+       * @param groups: group names to reset
+       */
+      int reset_group(vector<string> &groups);
+
       const char *get_error_msg(int ret);
 
       void get_server_with_key(const data_entry& key,std::vector<std::string>& servers) const;

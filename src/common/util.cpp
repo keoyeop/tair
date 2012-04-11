@@ -78,7 +78,7 @@ namespace tair {
         while (*p && (*p == ' ' || *p == '\t')) ++p;
         if (*p == '#')
           continue;
-        if (strstr(p, TAIR_GROUP_STATUS) != NULL) {
+        if (strstr(p, key) != NULL) {
           lines[k] = key_value;
           break;
         }
