@@ -1715,6 +1715,115 @@ FAIL:
 
   }
 
+  int tair_client_impl::retrieve_server_config(tbsys::STR_STR_MAP& config_map, uint32_t& version, bool update)
+  {
+    if (config_server_list.size() == 0U || group_name.empty()) {
+      TBSYS_LOG(WARN, "config server list is empty, or groupname is NULL, return false");
+      return TAIR_RETURN_FAILED;
+    }
+    wait_object *cwo = 0;
+    int send_success = 0;
+
+    base_packet *tpacket = NULL;
+
+    for (uint32_t i=0; i<config_server_list.size(); i++) {
+      uint64_t server_id = config_server_list[i];
+      request_get_group *packet = new request_get_group();
+      packet->set_group_name(group_name.c_str());
+
+      cwo = this_wait_object_manager->create_wait_object();
+      if (connmgr->sendPacket(server_id, packet, NULL, (void*)((long)cwo->get_id())) == false) {
+        TBSYS_LOG(ERROR, "Send RequestGetGroupPacket to %s failure.",
+                  tbsys::CNetUtil::addrToString(server_id).c_str());
+        this_wait_object_manager->destroy_wait_object(cwo);
+
+        delete packet;
+        continue;
+      }
+      cwo->wait_done(1,timeout);
+      tpacket = cwo->get_packet();
+      if (tpacket == 0 || tpacket->getPCode() != TAIR_RESP_GET_GROUP_PACKET) {
+        TBSYS_LOG(ERROR,"get group packet failed,retry");
+        tpacket = 0;
+
+        this_wait_object_manager->destroy_wait_object(cwo);
+
+        cwo = 0;
+        continue;
+      }else{
+        ++send_success;
+        break;
+      }
+    }
+
+    if (send_success <= 0) {
+      //delete packet;
+      log_error("cann't connect");
+      return TAIR_RETURN_FAILED;
+    }
+
+    int ret = TAIR_RETURN_SUCCESS;
+    response_get_group *rggp = dynamic_cast<response_get_group*>(tpacket);
+
+    if (rggp->config_version <= 0) {
+      log_error("group doesn't exist: %s", group_name.c_str());
+      ret = TAIR_RETURN_FAILED;
+    } else {
+      bucket_count = rggp->bucket_count;
+      copy_count = rggp->copy_count;
+
+      if (bucket_count <= 0 || copy_count <= 0) {
+        log_error("bucket or copy count doesn't correct");
+        ret = TAIR_RETURN_FAILED;
+      } else {
+        if (update) {           // update server
+          uint32_t server_list_count = 0;
+          uint64_t* server_list = rggp->get_server_list(bucket_count, copy_count);
+          if (rggp->server_list_count <= 0 || server_list == NULL) {
+            log_warn("server table is empty");
+            ret = TAIR_RETURN_FAILED;
+          } else {
+            server_list_count = (uint32_t)(rggp->server_list_count);
+            new_config_version = config_version = rggp->config_version;
+            assert(server_list_count == bucket_count * copy_count);
+            for (uint32_t i=0; server_list != 0 && i< server_list_count; ++i) {
+              log_debug("server table: [%d] => [%s]", i, tbsys::CNetUtil::addrToString(server_list[i]).c_str());
+              my_server_list.push_back(server_list[i]);
+            }
+          }
+        }
+
+        if (TAIR_RETURN_SUCCESS == ret) {
+          // set return value
+          config_map = rggp->config_map;
+          version = rggp->config_version;
+        }
+      }
+    }
+
+    this_wait_object_manager->destroy_wait_object(cwo);
+
+    return TAIR_RETURN_SUCCESS;    
+  }
+
+  void tair_client_impl::get_buckets_by_server(uint64_t server_id, std::set<int32_t>& buckets)
+  {
+    buckets.clear();
+    if (server_id <= 0)
+    {
+      return;
+    }
+
+    // only parse the first copy of bucket in bucket server list.
+    for (size_t i = 0; i < bucket_count; i++)
+    {
+      if (my_server_list[i] == server_id)
+      {
+        buckets.insert(i);
+      }
+    }
+  }
+
   bool tair_client_impl::retrieve_server_addr()
   {
     if (config_server_list.size() == 0U || group_name.empty()) {
