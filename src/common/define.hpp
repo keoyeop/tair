@@ -205,6 +205,8 @@
 #define TAIR_DEFAULT_BUCKET_NUMBER      (1023)
 #define TAIR_STR_REPORT_INTERVAL        "_report_interval"
 #define TAIR_DEFAULT_REPORT_INTERVAL    (5)       //means 5 seconds
+#define TAIR_PRE_LOAD_FLAG              "_pre_load_flag" // 1: need preload; 0: no need; default 0
+#define TAIR_TMP_DOWN_SERVER            "tmp_down_server"
 
 #define TAIR_SERVER_OP_TIME             (4)
 //////////////////////////////////////////////

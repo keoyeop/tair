@@ -47,7 +47,8 @@ namespace tair {
       pos_mask = TAIR_POS_MASK;
       server_down_time = TAIR_SERVER_DOWNTIME;
       min_data_server_count = 0;
-
+      pre_load_flag = 0;
+      tmp_down_server.clear();
       // server table name
       char server_table_file_name[256];
       const char *sz_data_dir =
@@ -324,9 +325,15 @@ namespace tair {
           if(it == live_machines.end()) {
             if(is_sync) {
               (*sit)->server->status = server_info::DOWN;
-              log_debug("set server %s status is down",
+              //illegal server
+              log_warn("set server %s status is down",
                         tbsys::CNetUtil::addrToString((*sit)->server->
                                                       server_id).c_str());
+
+              if (get_pre_load_flag() == 1)
+              {
+                add_down_server((*sit)->server->server_id);
+              }
             }
           }
           else {
@@ -556,6 +563,31 @@ namespace tair {
           need_rebuild_hash_table = now;
         }
       }
+
+      pre_load_flag = config.getInt(group_name, TAIR_PRE_LOAD_FLAG, 0);
+      const char* down_servers = config.getString(group_name, TAIR_TMP_DOWN_SERVER, "");
+      if (pre_load_flag == 0)
+      {
+        if (strlen(down_servers) != 0)
+        {
+          assert(false);
+        }
+        tmp_down_server.clear();
+      }
+      else
+      {
+        // parse down server list and init tmp_down_server
+        vector<char*> down_server_vec;
+        char* tmp_servers = new char[strlen(down_servers) + 1];
+        strcpy(tmp_servers, down_servers);
+        tbsys::CStringUtil::split(tmp_servers, ";", down_server_vec);
+        delete []tmp_servers;
+        vector<char*>::iterator vit;
+        for (vit = down_server_vec.begin(); vit != down_server_vec.end(); ++vit)
+        {
+          tmp_down_server.insert(tbsys::CNetUtil::strToAddr(*vit));
+        }
+      }
       return true;
     }
     // isNeedRebuild
@@ -588,6 +620,11 @@ namespace tair {
             log_info("node: <%s> DOWN",
                      tbsys::CNetUtil::addrToString(node->server->server_id).c_str());
             node->server->status = server_info::DOWN;
+
+            if (get_pre_load_flag() == 1)
+            {
+              add_down_server(node->server->server_id);
+            }
           }
           else {
             log_info("get up node: <%s>",
@@ -1129,6 +1166,67 @@ namespace tair {
       stat_info_rw_locker.unlock();
       return;
     }
+
+    int group_info::add_down_server(uint64_t server_id)
+    {
+      int ret = EXIT_SUCCESS;
+      std::set<uint64_t>::const_iterator sit = tmp_down_server.find(server_id);
+      if (sit == tmp_down_server.end())
+      {
+        // add
+        tmp_down_server.insert(server_id);
+        // serialize to group.conf
+        const char *group_file_name =
+          TBSYS_CONFIG.getString(CONFSERVER_SECTION, TAIR_GROUP_FILE, NULL);
+        if (group_file_name == NULL) {
+          log_error("not found %s:%s ", CONFSERVER_SECTION, TAIR_GROUP_FILE);
+          return EXIT_FAILURE;
+        }
+        assert(group_name != NULL);
+        int alloc_size = tmp_down_server.size() * 32;
+        char* down_servers_value = new char[alloc_size];
+        int total_size = 0;
+        for (sit = tmp_down_server.begin(); sit != tmp_down_server.end(); ++sit)
+        {
+          int size = tbsys::CNetUtil::addrToString(*sit).size() + 1;
+          if (total_size + size + 1 > alloc_size)
+          {
+            log_error("alloc size error. alloc size: %d, total size: %d, down server size: %d, down server value: %s ",
+                alloc_size, total_size + size, tmp_down_server.size(), down_servers_value);
+            return EXIT_FAILURE;
+          }
+          snprintf(down_servers_value + total_size, size, "%s%s", tbsys::CNetUtil::addrToString(*sit).c_str(), ";");
+          total_size += size;
+        }
+        down_servers_value[total_size] = '\0';
+        //ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, down_servers_value);
+        delete []down_servers_value;
+      }
+      else //do nothing
+      {
+      }
+      return ret;
+    }
+
+    // when reset;
+    int group_info::clear_down_server()
+    {
+      int ret = EXIT_SUCCESS;
+      //do it when has down server
+      if (tmp_down_server.size() > 0)
+      {
+        const char *group_file_name =
+          TBSYS_CONFIG.getString(CONFSERVER_SECTION, TAIR_GROUP_FILE, NULL);
+        if (group_file_name == NULL) {
+          log_error("not found %s:%s ", CONFSERVER_SECTION, TAIR_GROUP_FILE);
+          return EXIT_FAILURE;
+        }
+        tmp_down_server.clear();
+      //ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, "");
+      }
+      return ret;
+    }
+
     int group_info::get_server_down_time() const
     {
       return server_down_time;

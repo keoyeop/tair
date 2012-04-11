@@ -230,6 +230,12 @@ namespace tair {
             log_warn("HOST DOWN: %s lastTime is %u now is %u ",
                      tbsys::CNetUtil::addrToString(sit->second->server_id).
                      c_str(), sit->second->last_time, heartbeat_curr_time);
+
+            // if (need add down server config) then set downserver in group.conf
+            if (sit->second->group_info_data->get_pre_load_flag() == 1)
+            {
+              sit->second->group_info_data->add_down_server(sit->second->server_id);
+            }
           }
         }
       }
@@ -1145,6 +1151,29 @@ namespace tair {
         group_info_rw_locker.unlock();
       }
 
+      return ret;
+    }
+
+    bool server_conf_thread::do_reset_group_packet(/*response_op_cmd* resp,*/ const vector<string>& params)
+    {
+      int ret = true;
+      //params vector<group_name>
+      vector<string>::const_iterator vit = params.begin();
+      group_info_rw_locker.wrlock();
+      for ( ; vit != params.end(); ++vit)
+      {
+        group_info_map::iterator mit = group_info_map_data.find((*vit).c_str());
+        if (mit == group_info_map_data.end())
+        {
+          log_warn("reset group: %s is not exist.", (*vit).c_str());
+          ret = false;
+          break;
+        }
+        mit->second->clear_down_server();
+        mit->second->inc_version();
+        mit->second->set_force_send_table();
+      }
+      group_info_rw_locker.unlock();
       return ret;
     }
 

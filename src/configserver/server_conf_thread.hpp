@@ -66,6 +66,8 @@ namespace tair {
 
       bool do_set_master_packet(request_set_master * req);
 
+      bool do_reset_group_packet(/*response_op_cmd *resp,*/ const std::vector<std::string>& params);
+
       uint64_t get_slave_server_id();
 
       void do_conf_heartbeat_packet(request_conf_heartbeart * req);
