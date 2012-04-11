@@ -585,7 +585,7 @@ namespace tair {
         vector<char*>::iterator vit;
         for (vit = down_server_vec.begin(); vit != down_server_vec.end(); ++vit)
         {
-          tmp_down_server.insert(tbsys::CNetUtil::strToAddr(*vit));
+          tmp_down_server.insert(tbsys::CNetUtil::strToAddr(*vit, 0));
         }
       }
       return true;
@@ -1199,7 +1199,7 @@ namespace tair {
           total_size += size;
         }
         down_servers_value[total_size] = '\0';
-        //ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, down_servers_value);
+        ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, down_servers_value);
         delete []down_servers_value;
       }
       else //do nothing
@@ -1222,7 +1222,7 @@ namespace tair {
           return EXIT_FAILURE;
         }
         tmp_down_server.clear();
-      //ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, "");
+        ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, "");
       }
       return ret;
     }

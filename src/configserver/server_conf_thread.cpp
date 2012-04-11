@@ -1154,9 +1154,82 @@ namespace tair {
       return ret;
     }
 
-    bool server_conf_thread::do_reset_group_packet(/*response_op_cmd* resp,*/ const vector<string>& params)
+    void server_conf_thread::do_op_cmd(request_op_cmd *req) {
+      int rc = TAIR_RETURN_SUCCESS;
+      response_op_cmd *resp = new response_op_cmd();
+      const char *group_file_name = TBSYS_CONFIG.getString(CONFSERVER_SECTION, TAIR_GROUP_FILE, NULL);
+      ServerCmdType cmd = req->cmd;
+      switch (cmd) {
+        case TAIR_SERVER_CMD_GET_GROUP_STATUS:
+        {
+          rc = get_group_status(resp, req->params, group_file_name);
+          break;
+        }
+        case TAIR_SERVER_CMD_SET_GROUP_STATUS:
+        {
+          rc = set_group_status(resp, req->params, group_file_name);
+          break;
+        }
+        case TAIR_SERVER_CMD_RESET_GROUP:
+        {
+          rc = do_reset_group_packet(resp, req->params);
+          break;
+        }
+        default:
+        {
+          log_error("unknown command received.");
+          rc = TAIR_RETURN_FAILED;
+          break;
+        }
+      }
+
+      resp->code = rc;
+      resp->setChannelId(req->getChannelId());
+      if (req->get_connection()->postPacket(resp) == false) {
+        delete resp;
+      }
+    }
+
+    int server_conf_thread::get_group_status(response_op_cmd *resp,
+        const vector<string> &params, const char *group_file_name) {
+      if (group_file_name == NULL) {
+        return TAIR_RETURN_FAILED;
+      }
+      tbsys::CConfig config;
+      if (config.load((char*) group_file_name) == EXIT_FAILURE) {
+        log_error("load group file %s failed", group_file_name);
+        return TAIR_RETURN_FAILED;
+      }
+
+      for (size_t i = 0; i < params.size(); ++i) {
+        const char *status = config.getString(params[i].c_str(), TAIR_GROUP_STATUS, NULL);
+        if (status == NULL || *status == '\0')
+          status = "on";
+        char buf[128];
+        snprintf(buf, sizeof(buf), "%s=%s", params[i].c_str(), status);
+        resp->infos.push_back(string(buf));
+      }
+
+      return TAIR_RETURN_SUCCESS;
+    }
+
+    int server_conf_thread::set_group_status(response_op_cmd *resp,
+        const vector<string> &params, const char *group_file_name) {
+      if (group_file_name == NULL)
+        return TAIR_RETURN_FAILED;
+      if (params.empty())
+        return TAIR_RETURN_FAILED;
+
+      char group_name[64];
+      char status[8];
+      sscanf(params[0].c_str(), "%[^=]=%s", group_name, status);
+
+      return util::file_util::change_conf(group_file_name, group_name, TAIR_GROUP_STATUS, status);
+    }
+
+    int server_conf_thread::do_reset_group_packet(response_op_cmd* resp, const vector<string>& params)
     {
-      int ret = true;
+      int ret = TAIR_RETURN_SUCCESS;
       //params vector<group_name>
       vector<string>::const_iterator vit = params.begin();
       group_info_rw_locker.wrlock();
@@ -1166,7 +1239,7 @@ namespace tair {
         if (mit == group_info_map_data.end())
         {
           log_warn("reset group: %s is not exist.", (*vit).c_str());
-          ret = false;
+          ret = TAIR_RETURN_FAILED;
           break;
         }
         mit->second->clear_down_server();

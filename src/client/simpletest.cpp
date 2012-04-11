@@ -1,12 +1,12 @@
-#include <iostream> 
-#include <string> 
-#include <cstdlib> 
-#include <fstream> 
+#include <iostream>
+#include <string>
+#include <cstdlib>
+#include <fstream>
 #include "data_entry.hpp"
 
 #include "tair_client_api_impl.hpp"
-using namespace std; 
-using namespace tair; 
+using namespace std;
+using namespace tair;
 
 
 #ifndef __UNITTEST_TIME_CALC_ENABLE
@@ -42,10 +42,10 @@ int main(int argc,char * argv[])
 	const char *group_name;
 
 	opterr = 0;
-	while ((opt = getopt_long(argc, argv, optstring, longopts, NULL)) != -1) 
+	while ((opt = getopt_long(argc, argv, optstring, longopts, NULL)) != -1)
 	{
 	  switch (opt) {
-		case 'c': 
+		case 'c':
 		  server_addr = optarg;
 		  break;
 		case 'g':
@@ -60,13 +60,13 @@ int main(int argc,char * argv[])
 	  }
 
 	}
-	if (server_addr == NULL || group_name == NULL) 
+	if (server_addr == NULL || group_name == NULL)
 	{
 	  fprintf(stderr, "%s -c configserver:port -g groupname\n\n",argv[0]);
 	  return -1;
 	}
 
-	TBSYS_LOGGER.setLogLevel("INFO");
+	TBSYS_LOGGER.setLogLevel("DEBUG");
 	//TBSYS_LOGGER.setLogLevel("DEBUG");
 	TBSYS_LOGGER.setFileName("./simple.log");
 
@@ -76,11 +76,31 @@ int main(int argc,char * argv[])
 
 
 	bool rv= client_helper.startup(server_addr , server_addr , group_name);
-	if (rv== false) 
+	if (rv== false)
 	{
 		log_error("%s can not connect ",server_addr );
 		return false;
 	}
+
+  vector<string> group_status;
+  group_status.push_back("group_1");
+  group_status.push_back("group_2");
+
+  client_helper.get_group_status(group_status);
+  log_error("%s", group_status[0].c_str());
+  log_error("%s", group_status[1].c_str());
+
+  group_status.clear();
+  int rc = client_helper.set_group_status("group_1", "on");
+  log_error("code: %d", rc);
+
+  group_status.push_back("group_1");
+  group_status.push_back("group_2");
+
+  client_helper.get_group_status(group_status);
+  log_error("%s", group_status[0].c_str());
+  log_error("%s", group_status[1].c_str());
+  return 0;
 	//do it .
 
       int initValue = 100;

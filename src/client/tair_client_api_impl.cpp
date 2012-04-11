@@ -1139,6 +1139,84 @@ FAIL:
 
   }
 
+  int tair_client_impl::set_group_status(const char *group, const char *status) {
+    if (group == NULL || status == NULL) {
+      return TAIR_RETURN_FAILED;
+    }
+    if (config_server_list.empty() || config_server_list[0] == 0L) {
+      log_error("no configserver available");
+      return TAIR_RETURN_FAILED;
+    }
+
+    char group_status[64];
+    snprintf(group_status, sizeof(group_status), "%s=%s", group, status);
+    uint64_t master = config_server_list[0];
+    request_op_cmd *req = new request_op_cmd();
+    req->cmd = TAIR_SERVER_CMD_SET_GROUP_STATUS;
+    req->params.push_back(group_status);
+
+    wait_object *cwo = this_wait_object_manager->create_wait_object();
+
+    int ret = TAIR_RETURN_SEND_FAILED;
+    base_packet *tpacket = NULL;
+    do {
+      if ((ret = send_request(master, req, cwo->get_id())) != TAIR_RETURN_SUCCESS) {
+        delete req;
+        break;
+      }
+      if ((ret = get_response(cwo, 1, tpacket)) < 0) {
+        break;
+      }
+      response_op_cmd * resp = dynamic_cast<response_op_cmd*>(tpacket);
+      if (resp == NULL) {
+        ret = TAIR_RETURN_FAILED;
+        break;
+      }
+      ret = resp->code;
+    } while (false);
+
+    this_wait_object_manager->destroy_wait_object(cwo);
+    return ret;
+  }
+
+  int tair_client_impl::get_group_status(vector<string> &group_status) {
+    if (config_server_list.empty() || config_server_list[0] == 0L) {
+      log_error("no configserver available");
+      return TAIR_RETURN_FAILED;
+    }
+    if (group_status.empty()) {
+      return TAIR_RETURN_FAILED;
+    }
+    uint64_t master = config_server_list[0];
+    request_op_cmd *req = new request_op_cmd();
+    req->cmd = TAIR_SERVER_CMD_GET_GROUP_STATUS;
+    req->params.swap(group_status);
+
+    wait_object *cwo = this_wait_object_manager->create_wait_object();
+
+    int ret = TAIR_RETURN_SEND_FAILED;
+    base_packet *tpacket = NULL;
+    do {
+      if ((ret = send_request(master, req, cwo->get_id())) != TAIR_RETURN_SUCCESS) {
+        delete req;
+        break;
+      }
+      if ((ret = get_response(cwo, 1, tpacket)) < 0) {
+        break;
+      }
+      response_op_cmd * resp = dynamic_cast<response_op_cmd*>(tpacket);
+      if (resp == NULL) {
+        ret = TAIR_RETURN_FAILED;
+        break;
+      }
+      ret = resp->code;
+      group_status.swap(resp->infos);
+    } while (false);
+
+    this_wait_object_manager->destroy_wait_object(cwo);
+    return ret;
+  }
+
   int tair_client_impl::op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr)
   {
     std::map<uint64_t, request_op_cmd*> request_map;

@@ -69,6 +69,42 @@ namespace tair
     ServerCmdType cmd;
     std::vector<std::string> params;
   };
+
+  class response_op_cmd : public base_packet {
+  public:
+    response_op_cmd() {
+      setPCode(TAIR_RESP_OP_CMD_PACKET);
+      code = 0;
+    }
+
+    bool encode(tbnet::DataBuffer *output) {
+      output->writeInt32(code);
+      output->writeInt32(infos.size());
+      for (size_t i = 0; i < infos.size(); ++i) {
+        output->writeString(infos[i]);
+      }
+      return true;
+    }
+
+    bool decode(tbnet::DataBuffer *input, tbnet::PacketHeader *header) {
+      code = input->readInt32();
+      int ninfo = input->readInt32();
+      if (ninfo < 0) {
+        return false;
+      }
+      infos.reserve(ninfo);
+      for (int i = 0; i < ninfo; ++i) {
+        char *tmp = NULL;
+        input->readString(tmp, 0);
+        infos.push_back(tmp);
+        ::free(tmp);
+      }
+      return true;
+    }
+
+    int code;
+    std::vector<std::string> infos;
+  };
 }
 
 #endif

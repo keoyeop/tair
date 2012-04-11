@@ -58,6 +58,9 @@ namespace tair {
          case TAIR_REQ_OP_CMD_PACKET:
            packet = new tair::request_op_cmd();
            break;
+         case TAIR_RESP_OP_CMD_PACKET:
+           packet = new response_op_cmd();
+           break;
          case TAIR_REQ_GET_PACKET:
             packet = new request_get();
             break;

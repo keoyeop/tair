@@ -158,6 +158,10 @@ namespace tair {
 
       int op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr = NULL);
 
+      int set_group_status(const char *group, const char *status);
+
+      int get_group_status(vector<string> &group_status);
+
       void force_change_dataserver_status(uint64_t server_id, int cmd);
       void get_migrate_status(uint64_t server_id,vector<pair<uint64_t,uint32_t> >& result);
       void query_from_configserver(uint32_t query_type, const string group_name, map<string, string>&, uint64_t server_id = 0);

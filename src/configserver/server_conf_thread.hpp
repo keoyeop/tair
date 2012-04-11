@@ -32,6 +32,7 @@
 #include "data_server_ctrl_packet.hpp"
 #include "get_migrate_machine.hpp"
 #include "wait_object.hpp"
+#include "op_cmd_packet.hpp"
 
 namespace tair {
   namespace config_server {
@@ -66,8 +67,6 @@ namespace tair {
 
       bool do_set_master_packet(request_set_master * req);
 
-      bool do_reset_group_packet(/*response_op_cmd *resp,*/ const std::vector<std::string>& params);
-
       uint64_t get_slave_server_id();
 
       void do_conf_heartbeat_packet(request_conf_heartbeart * req);
@@ -89,6 +88,8 @@ namespace tair {
 
       void get_migrating_machines(request_get_migrate_machine * req,
                                   response_get_migrate_machine * resp);
+
+      void do_op_cmd(request_op_cmd *req);
 
     private:
       enum
@@ -112,6 +113,14 @@ namespace tair {
                                  int size, int modified_time);
       void read_group_file_to_packet(response_get_server_table * resp);
       void send_group_file_packet();
+
+      int get_group_status(response_op_cmd *resp,
+          const vector<string> &params, const char *group_file_name);
+
+      int set_group_status(response_op_cmd *resp,
+          const vector<string> &params, const char *group_file_name);
+
+      int do_reset_group_packet(response_op_cmd *resp, const std::vector<std::string>& params);
 
     private:
       group_info_map group_info_map_data;

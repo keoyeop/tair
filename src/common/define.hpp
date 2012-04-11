@@ -205,6 +205,7 @@
 #define TAIR_DEFAULT_BUCKET_NUMBER      (1023)
 #define TAIR_STR_REPORT_INTERVAL        "_report_interval"
 #define TAIR_DEFAULT_REPORT_INTERVAL    (5)       //means 5 seconds
+#define TAIR_GROUP_STATUS               "_group_status"
 #define TAIR_PRE_LOAD_FLAG              "_pre_load_flag" // 1: need preload; 0: no need; default 0
 #define TAIR_TMP_DOWN_SERVER            "tmp_down_server"
 
@@ -281,7 +282,11 @@ enum {
 
 typedef enum {
   TAIR_SERVER_CMD_NONE = 0,
-  TAIR_SERVER_CMD_FLUSH_MEM
+  TAIR_SERVER_CMD_FLUSH_MEM,
+  TAIR_SERVER_CMD_CLEAR_DB,
+  TAIR_SERVER_CMD_RESET_GROUP,
+  TAIR_SERVER_CMD_GET_GROUP_STATUS,
+  TAIR_SERVER_CMD_SET_GROUP_STATUS,
 } ServerCmdType;
 #endif
 /////////////

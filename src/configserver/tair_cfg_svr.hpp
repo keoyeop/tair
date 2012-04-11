@@ -23,6 +23,7 @@
 #include <tbnet.h>
 #include "server_conf_thread.hpp"
 #include "packet_factory.hpp"
+#include "op_cmd_packet.hpp"
 
 using namespace std;
 using namespace __gnu_cxx;
