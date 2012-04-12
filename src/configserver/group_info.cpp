@@ -1188,31 +1188,16 @@ namespace tair {
           return EXIT_FAILURE;
         }
         assert(group_name != NULL);
-        int alloc_size = tmp_down_server.size() * 32;
-        char* down_servers_value = new char[alloc_size];
-        int total_size = 0;
+        string down_server_list;
+        down_server_list.reserve(tmp_down_server.size() * 32);
         for (sit = tmp_down_server.begin(); sit != tmp_down_server.end(); ++sit)
         {
           string str = tbsys::CNetUtil::addrToString(*sit);
-          log_debug("add down server: %s", str.c_str());
-          int size = str.size();
-          if (total_size + size + 1 > alloc_size)
-          {
-            log_error("alloc size error. alloc size: %d, total size: %d, down server size: %d, down server value: %s ",
-                alloc_size, total_size + size, tmp_down_server.size(), down_servers_value);
-            return EXIT_FAILURE;
-          }
-          strncpy(down_servers_value + total_size, str.c_str(), size);
-          strncpy(down_servers_value + total_size + size, ";", 1);
-          //snprintf(down_servers_value + total_size, size, "%s;", str.c_str());
-          total_size += size + 1;
-          down_servers_value[total_size] = '\0';
-          log_debug("tmp down_servers_value: %s", down_servers_value);
+          down_server_list += str;
+          down_server_list += ';';
         }
-        down_servers_value[total_size] = '\0';
-        log_debug("down_servers_value: %s", down_servers_value);
-        ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, down_servers_value);
-        delete []down_servers_value;
+        log_debug("current down servers: %s", down_server_list.c_str());
+        ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, down_server_list.c_str());
       }
       else //do nothing
       {

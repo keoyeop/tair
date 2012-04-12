@@ -47,8 +47,6 @@ namespace tair {
       }
       fclose(fd);
 
-      char key_value[1024];
-      snprintf(key_value, sizeof(key_value), "%s=%s\n", key, value);
       //~ searching for target section
       size_t i = 0;
       for (; i < lines.size(); ++i) {
@@ -75,6 +73,13 @@ namespace tair {
         if (*p == '[')
           break;
       }
+
+      string key_value;
+      key_value.reserve(strlen(key) + strlen(value) + 3); //~ plus '=', '\n' and '\0'
+      key_value += key;
+      key_value += "=";
+      key_value += value;
+      key_value += "\n";
       //~ searching for the specific _group_status
       size_t k = i;
       for (; k < j; ++k) {
@@ -86,7 +91,7 @@ namespace tair {
           p += strlen(key);
           while (*p && (*p == ' ' || *p == '\t')) ++p;
           if (*p == '=') { //~ regarding prefix
-            lines[k] = key_value;
+            lines[k].swap(key_value);
             break;
           }
         }
