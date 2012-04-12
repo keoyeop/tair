@@ -37,6 +37,7 @@
 #include "util.hpp"
 #include "dump_data_info.hpp"
 #include "remove_packet.hpp"
+#include "op_cmd_packet.hpp"
 
 namespace tair {
 
@@ -174,6 +175,14 @@ namespace tair {
        * @param groups: group names to reset
        */
       int reset_group(vector<string> &groups);
+
+    private:
+      /**
+       * @param req: request packet
+       * @param resp: response packet you would get, if successful
+       */
+      int do_op_cmd(request_op_cmd *req, response_op_cmd *&resp, wait_object *cwo);
+    public:
 
       void force_change_dataserver_status(uint64_t server_id, int cmd);
       void get_migrate_status(uint64_t server_id,vector<pair<uint64_t,uint32_t> >& result);

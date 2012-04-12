@@ -1177,7 +1177,7 @@ namespace tair {
         }
         default:
         {
-          log_error("unknown command received.");
+          log_error("unknown command %d received", cmd);
           rc = TAIR_RETURN_FAILED;
           break;
         }
@@ -1193,6 +1193,7 @@ namespace tair {
     int server_conf_thread::get_group_status(response_op_cmd *resp,
         const vector<string> &params, const char *group_file_name) {
       if (group_file_name == NULL) {
+        log_error("group_file_name is NULL");
         return TAIR_RETURN_FAILED;
       }
       tbsys::CConfig config;
@@ -1204,7 +1205,7 @@ namespace tair {
       for (size_t i = 0; i < params.size(); ++i) {
         const char *status = config.getString(params[i].c_str(), TAIR_GROUP_STATUS, NULL);
         if (status == NULL || *status == '\0')
-          status = "on";
+          status = "off";
         char buf[128];
         snprintf(buf, sizeof(buf), "%s=%s", params[i].c_str(), status);
         resp->infos.push_back(string(buf));
@@ -1215,10 +1216,14 @@ namespace tair {
 
     int server_conf_thread::set_group_status(response_op_cmd *resp,
         const vector<string> &params, const char *group_file_name) {
-      if (group_file_name == NULL)
+      if (group_file_name == NULL) {
+        log_error("group_file_name is NULL");
         return TAIR_RETURN_FAILED;
-      if (params.empty())
+      }
+      if (params.empty()) {
+        log_error("no parameters specified");
         return TAIR_RETURN_FAILED;
+      }
 
       char group_name[64];
       char status[8];

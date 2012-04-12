@@ -20,9 +20,7 @@ namespace tair {
     uint64_t local_server_ip::ip;
 
     int file_util::change_conf(const char *group_file_name, const char *section_name, const char *key, const char *value) {
-      FILE *fd = fopen(group_file_name, "r+");
-      if (fd == NULL) {
-        log_error("open group file %s failed: %m", group_file_name);
+      if (group_file_name == NULL) {
         return TAIR_RETURN_FAILED;
       }
       if (key == NULL) {
@@ -30,6 +28,12 @@ namespace tair {
       }
       if (value == NULL) {
         value = "";
+      }
+
+      FILE *fd = fopen(group_file_name, "r+");
+      if (fd == NULL) {
+        log_error("open group file %s failed: %s", group_file_name, strerror(errno));
+        return TAIR_RETURN_FAILED;
       }
 
       char section[128];
@@ -78,9 +82,13 @@ namespace tair {
         while (*p && (*p == ' ' || *p == '\t')) ++p;
         if (*p == '#')
           continue;
-        if (strstr(p, key) != NULL) {
-          lines[k] = key_value;
-          break;
+        if ((p = strstr(p, key)) != NULL) {
+          p += strlen(key);
+          while (*p && (*p == ' ' || *p == '\t')) ++p;
+          if (*p == '=') { //~ regarding prefix
+            lines[k] = key_value;
+            break;
+          }
         }
       }
       if (k == j) {
@@ -92,7 +100,7 @@ namespace tair {
       snprintf(tmpfile, sizeof(tmpfile), "%s.%d", group_file_name, getpid());
       fd = fopen(tmpfile, "w+");
       if (fd == NULL) {
-        log_error("open temp file %s failed, %m", tmpfile);
+        log_error("open temp file %s failed, %s", tmpfile, strerror(errno));
         return TAIR_RETURN_FAILED;
       }
       for (i = 0; i < lines.size(); ++i) {
@@ -102,6 +110,7 @@ namespace tair {
       if (0 == rename(tmpfile, group_file_name)) {
         return TAIR_RETURN_SUCCESS;
       } else {
+        log_error("rename from %s to %s failed", tmpfile, group_file_name);
         return TAIR_RETURN_FAILED;
       }
     }
