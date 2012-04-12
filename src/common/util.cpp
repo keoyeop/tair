@@ -47,7 +47,7 @@ namespace tair {
       }
       fclose(fd);
 
-      char key_value[64];
+      char key_value[1024];
       snprintf(key_value, sizeof(key_value), "%s=%s\n", key, value);
       //~ searching for target section
       size_t i = 0;

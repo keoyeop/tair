@@ -234,7 +234,11 @@ namespace tair {
             // if (need add down server config) then set downserver in group.conf
             if (sit->second->group_info_data->get_pre_load_flag() == 1)
             {
+              log_error("add down host: %s lastTime is %u now is %u ",
+                  tbsys::CNetUtil::addrToString(sit->second->server_id).
+                  c_str(), sit->second->last_time, heartbeat_curr_time);
               sit->second->group_info_data->add_down_server(sit->second->server_id);
+              sit->second->group_info_data->set_force_send_table();
             }
           }
         }

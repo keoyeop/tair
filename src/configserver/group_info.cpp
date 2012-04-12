@@ -449,6 +449,33 @@ namespace tair {
         pos_mask = TAIR_POS_MASK;
       log_info(" %s = %llX", TAIR_STR_POS_MASK, pos_mask);
 
+      pre_load_flag = config.getInt(group_name, TAIR_PRE_LOAD_FLAG, 0);
+      const char* down_servers = config.getString(group_name, TAIR_TMP_DOWN_SERVER, "");
+      log_debug("pre load flag: %d", pre_load_flag);
+      log_debug("down servers: %s", down_servers);
+      if (pre_load_flag == 0)
+      {
+        if (strlen(down_servers) != 0)
+        {
+          assert(false);
+        }
+        tmp_down_server.clear();
+      }
+      else
+      {
+        // parse down server list and init tmp_down_server
+        vector<char*> down_server_vec;
+        char* tmp_servers = new char[strlen(down_servers) + 1];
+        strcpy(tmp_servers, down_servers);
+        tbsys::CStringUtil::split(tmp_servers, ";", down_server_vec);
+        vector<char*>::iterator vit;
+        for (vit = down_server_vec.begin(); vit != down_server_vec.end(); ++vit)
+        {
+          tmp_down_server.insert(tbsys::CNetUtil::strToAddr(*vit, 0));
+        }
+        delete []tmp_servers;
+      }
+
       vector<string> key_list;
       config.getSectionKey(group_name, key_list);
       for(uint32_t i = 0; i < key_list.size(); i++) {
@@ -564,30 +591,7 @@ namespace tair {
         }
       }
 
-      pre_load_flag = config.getInt(group_name, TAIR_PRE_LOAD_FLAG, 0);
-      const char* down_servers = config.getString(group_name, TAIR_TMP_DOWN_SERVER, "");
-      if (pre_load_flag == 0)
-      {
-        if (strlen(down_servers) != 0)
-        {
-          assert(false);
-        }
-        tmp_down_server.clear();
-      }
-      else
-      {
-        // parse down server list and init tmp_down_server
-        vector<char*> down_server_vec;
-        char* tmp_servers = new char[strlen(down_servers) + 1];
-        strcpy(tmp_servers, down_servers);
-        tbsys::CStringUtil::split(tmp_servers, ";", down_server_vec);
-        delete []tmp_servers;
-        vector<char*>::iterator vit;
-        for (vit = down_server_vec.begin(); vit != down_server_vec.end(); ++vit)
-        {
-          tmp_down_server.insert(tbsys::CNetUtil::strToAddr(*vit, 0));
-        }
-      }
+
       return true;
     }
     // isNeedRebuild
@@ -1173,6 +1177,7 @@ namespace tair {
       std::set<uint64_t>::const_iterator sit = tmp_down_server.find(server_id);
       if (sit == tmp_down_server.end())
       {
+        log_debug("add server: %"PRI64_PREFIX"u not exist", server_id);
         // add
         tmp_down_server.insert(server_id);
         // serialize to group.conf
@@ -1189,22 +1194,29 @@ namespace tair {
         for (sit = tmp_down_server.begin(); sit != tmp_down_server.end(); ++sit)
         {
           string str = tbsys::CNetUtil::addrToString(*sit);
-          int size = str.size() + 1;
+          log_debug("add down server: %s", str.c_str());
+          int size = str.size();
           if (total_size + size + 1 > alloc_size)
           {
             log_error("alloc size error. alloc size: %d, total size: %d, down server size: %d, down server value: %s ",
                 alloc_size, total_size + size, tmp_down_server.size(), down_servers_value);
             return EXIT_FAILURE;
           }
-          snprintf(down_servers_value + total_size, size, "%s%s", str.c_str(), ";");
-          total_size += size;
+          strncpy(down_servers_value + total_size, str.c_str(), size);
+          strncpy(down_servers_value + total_size + size, ";", 1);
+          //snprintf(down_servers_value + total_size, size, "%s;", str.c_str());
+          total_size += size + 1;
+          down_servers_value[total_size] = '\0';
+          log_debug("tmp down_servers_value: %s", down_servers_value);
         }
         down_servers_value[total_size] = '\0';
+        log_debug("down_servers_value: %s", down_servers_value);
         ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, down_servers_value);
         delete []down_servers_value;
       }
       else //do nothing
       {
+        log_debug("add server: %"PRI64_PREFIX"u exist", server_id);
       }
       return ret;
     }
