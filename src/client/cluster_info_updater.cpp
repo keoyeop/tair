@@ -89,8 +89,6 @@ namespace tair
       return TAIR_RETURN_FAILED;
     }
 
-    urgent = false;
-
     CLUSTER_INFO_LIST cluster_infos;
     uint32_t old_version = 0, new_version = 0;
     int ret = retrieve_cluster_info(force, cluster_infos, old_version, new_version);

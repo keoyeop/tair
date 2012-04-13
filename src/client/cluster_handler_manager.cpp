@@ -125,7 +125,7 @@ namespace tair
     int32_t bucket = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % bucket_count_;
     int32_t index = bucket_to_handler_index(bucket);
     log_debug("pick: %s => %d => %d => %s", key.get_data(), bucket, index,
-              index >= 0 ? (*handlers_)[index]->get_cluster_info().debug_string().c_str() : NULL);
+              index >= 0 ? (*handlers_)[index]->get_cluster_info().debug_string().c_str() : "none");
     return index >= 0 ? (*handlers_)[index] : NULL;
   }
 
@@ -173,7 +173,7 @@ namespace tair
   void handlers_node::mark_clear(const handlers_node& diff_handlers_node)
   {
     CLUSTER_HANDLER_MAP* diff_handler_map = diff_handlers_node.handler_map_;
-    for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end(); ++it)
+    for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end();)
     {
       // handler not reused
       if (diff_handler_map->find(it->first) == diff_handler_map->end())
@@ -182,6 +182,13 @@ namespace tair
         // this handler has not been at service
         log_debug("mark cluster out-of-service: %s", handler->get_cluster_info().debug_string().c_str());
         handler->set_index(-1);
+        ++it;
+      }
+      else
+      {
+        // handler has been reused by diff_handlers_node,
+        // erase here to avoid multi referenced.
+        handler_map_->erase(it++);
       }
     }
   }
@@ -537,8 +544,10 @@ namespace tair
     current_->clear(true);
     delete current_;
 
+    // force clear all node
+    cleanup_using_node_list(true);
     using_head_->unref();
-    cleanup_using_node_list();
+    delete using_head_;
   }
 
   bool bucket_shard_cluster_handler_manager::update(const CLUSTER_INFO_LIST& cluster_infos)
@@ -572,12 +581,12 @@ namespace tair
       ::fflush(stdout);
     }
 
-    // add to using node list to cleanup later
-    add_to_using_node_list(old_handlers_node);
     // mark clear out-of-service cluster handler
     old_handlers_node->mark_clear(*current_);
     // unref now
     old_handlers_node->unref();
+    // add to using node list to cleanup later
+    add_to_using_node_list(old_handlers_node);
     // cleanup using node list, clear trash node
     cleanup_using_node_list();
 
@@ -637,22 +646,19 @@ namespace tair
   }
 
   // lock hold
-  void bucket_shard_cluster_handler_manager::cleanup_using_node_list()
+  void bucket_shard_cluster_handler_manager::cleanup_using_node_list(bool force)
   {
     if (using_head_ != NULL)
     {
-      handlers_node* prev_node = NULL;
-      handlers_node* node = using_head_;
-      handlers_node* next_node = using_head_;
+      handlers_node* prev_node = using_head_;
+      handlers_node* next_node = NULL;
+      handlers_node* node = using_head_->next_;
       while (node != NULL)
       {
         next_node = node->next_;
-        if (node->get_ref() <= 0)
+        if (force || node->get_ref() <= 0)
         {
-          if (prev_node != NULL)
-          {
-            prev_node->next_ = node->next_;
-          }
+          prev_node->next_ = next_node;
           delete node;
         }
         else
@@ -687,7 +693,7 @@ namespace tair
 
   bucket_shard_cluster_handler_manager_delegate::~bucket_shard_cluster_handler_manager_delegate()
   {
-    if (handler_ != NULL && handler_->get_version() > version_)
+    if (handler_ != NULL && handler_->get_version() != version_)
     {
       // one cluster handler version changes then clusters' version MUST be changed.
       manager_->update();

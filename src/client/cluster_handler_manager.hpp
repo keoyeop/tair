@@ -88,7 +88,7 @@ namespace tair
 
     std::string debug_string();
 
-    inline bool ok(int32_t bucket)
+    inline bool ok(int32_t bucket) const
     {
       return down_buckets_.empty() || (down_buckets_.find(bucket) == down_buckets_.end());
     }
@@ -323,7 +323,7 @@ namespace tair
 
   private:
     void add_to_using_node_list(handlers_node* node);
-    void cleanup_using_node_list();
+    void cleanup_using_node_list(bool force = false);
 
     bucket_shard_cluster_handler_manager();
     bucket_shard_cluster_handler_manager(const bucket_shard_cluster_handler_manager&);
