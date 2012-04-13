@@ -18,8 +18,7 @@
 namespace tair
 {
   cluster_info_updater::cluster_info_updater() :
-    inited_(false), interval_s_(DEFAULT_CLUSTER_UPDATE_INTERVAL_S), stopped_(false),
-    version_(0), manager_(NULL)
+    inited_(false), interval_ms_(DEFAULT_CLUSTER_UPDATE_INTERVAL_MS), last_update_time_(0), manager_(NULL)
   {
   }
 
@@ -30,8 +29,7 @@ namespace tair
   }
 
   void cluster_info_updater::init(cluster_handler_manager* manager,
-                             const char* master_cs_addr, const char* slave_cs_addr, const char* group_name,
-                             int64_t interval_s)
+                                  const char* master_cs_addr, const char* slave_cs_addr, const char* group_name)
   {
     if (NULL != manager && NULL != master_cs_addr && NULL != group_name)
     {
@@ -40,33 +38,51 @@ namespace tair
     }
   }
 
+  void cluster_info_updater::stop()
+  {
+    _stop = true;
+    interval_ms_ = 0;
+    cond_.signal();
+  }
+
+  int cluster_info_updater::signal_update()
+  {
+    cond_.signal();
+    log_debug("signal update");
+    return TAIR_RETURN_SUCCESS;
+  }
+
+  int cluster_info_updater::force_update()
+  {
+    bool urgent = false;
+    log_debug("force update");
+    return update_cluster_info(true, urgent);
+  }
+
   void cluster_info_updater::run(tbsys::CThread*, void*)
   {
-    static const int32_t FAIL_UPDATE_CLUSTER_INFO_INTERVAL_S = 1;
-    static const int32_t URGENT_UPDATE_CLUSTER_INFO_INTERVAL_S = 1;
-
     int ret;
     bool urgent = false;
-    int32_t interval = interval_s_;
+    int32_t interval = interval_ms_;
     while (!_stop)
     {
-      ret = update_cluster_info(urgent);
+      ret = update_cluster_info(false, urgent);
       if (ret != TAIR_RETURN_SUCCESS)
       {
-        interval = FAIL_UPDATE_CLUSTER_INFO_INTERVAL_S;
-        log_error("update cluster info fail: %d. retry after %d(s).", interval, ret);
+        interval = FAIL_UPDATE_CLUSTER_INFO_INTERVAL_MS;
+        log_error("update cluster info fail, ret: %d. retry after %d(ms).", ret, interval);
       }
       else if (urgent)
       {
-        interval = URGENT_UPDATE_CLUSTER_INFO_INTERVAL_S;
-        log_warn("urgent condition, maybe all cluster are dead. retry after %d(s)", interval);
+        interval = URGENT_UPDATE_CLUSTER_INFO_INTERVAL_MS;
+        log_warn("urgent condition, maybe all cluster are dead. retry after %d(ms)", interval);
       }
-      TAIR_SLEEP(stopped_, interval);
-      interval = interval_s_;
+      cond_.wait(interval);
+      interval = interval_ms_;
     }
   }
 
-  int cluster_info_updater::update_cluster_info(bool& urgent)
+  int cluster_info_updater::update_cluster_info(bool force, bool& urgent)
   {
     if (!inited_ && !(inited_ = master_handler_.start()))
     {
@@ -74,42 +90,51 @@ namespace tair
     }
 
     urgent = false;
+
     CLUSTER_INFO_LIST cluster_infos;
-    uint32_t new_version = 0;
-    int ret = retrieve_cluster_info(cluster_infos, new_version);
-    // version change, do update
-    if (TAIR_RETURN_SUCCESS == ret && new_version > version_)
+    uint32_t old_version = 0, new_version = 0;
+    int ret = retrieve_cluster_info(force, cluster_infos, old_version, new_version);
+    // force and version changed, do update.
+    // cluster may be restarted and version may be reseted,
+    // so new version can be less than old version.
+    // TODO: If cluster is restarted and new_version happends to change to old_version unluckily,
+    //       we will miss the update.
+    if (TAIR_RETURN_SUCCESS == ret && (force || old_version != new_version))
     {
       urgent = manager_->update(cluster_infos);
-      version_ = new_version;
+      last_update_time_ = time(NULL);
+    }
+    else
+    {
+      log_debug("do not update 'cause ret: %d, force: %d, version change: %d <> %d", ret, force, old_version, new_version);
     }
 
     return ret;
   }
 
-  int cluster_info_updater::retrieve_cluster_info(CLUSTER_INFO_LIST& cluster_infos, uint32_t& new_version)
+  int cluster_info_updater::retrieve_cluster_info(bool force, CLUSTER_INFO_LIST& cluster_infos,
+                                                  uint32_t& old_version, uint32_t& new_version)
   {
     CONFIG_MAP config_map;
-    int ret = master_handler_.retrieve_server_config(config_map, new_version, false);
+    old_version = master_handler_.get_version();
+    // don't need update server table
+    int ret = master_handler_.retrieve_server_config(false, config_map, new_version);
     if (ret != TAIR_RETURN_SUCCESS)
     {
       return ret;
     }
 
-    // need no update
-    if (new_version <= version_)
+    if (!force && new_version == old_version)
     {
       return ret;
     }
-
-    const static char* CLUSTER_INFO_CONFIG_KEY = "groups";
-    const static char* CLUSTER_INFO_CONFIG_VALUE_DELIMITER = " ,";
 
     std::vector<std::string> clusters;
-    ret = parse_config(config_map, CLUSTER_INFO_CONFIG_KEY, CLUSTER_INFO_CONFIG_VALUE_DELIMITER, clusters);
-    if (ret != TAIR_RETURN_SUCCESS)
+    parse_config(config_map, TAIR_MULTI_GROUPS, TAIR_CONFIG_VALUE_DELIMITERS, clusters);
+    if (clusters.empty())
     {
-      log_error("invalid cluster info config");
+      log_error("no cluster info config");
+      ret = TAIR_RETURN_FAILED;
     }
     else
     {

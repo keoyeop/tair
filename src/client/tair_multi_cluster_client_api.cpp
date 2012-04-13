@@ -22,10 +22,12 @@
 
 namespace tair
 {
+  using namespace tair::common;
+
   tair_multi_cluster_client_api::tair_multi_cluster_client_api()
   {
     updater_ = new cluster_info_updater();
-    handler_mgr_ = new bucket_shard_cluster_handler_manager();
+    handler_mgr_ = new bucket_shard_cluster_handler_manager(updater_);
   }
 
   tair_multi_cluster_client_api::~tair_multi_cluster_client_api()
@@ -43,11 +45,16 @@ namespace tair
     }
 
     updater_->init(handler_mgr_, master_addr, slave_addr, group_name);
-    bool urgent;
-    int ret = updater_->update_cluster_info(urgent);
+    int ret = updater_->force_update();
     if (ret != TAIR_RETURN_SUCCESS)
     {
       log_error("update cluster info fail. ret: %d", ret);
+      return false;
+    }
+
+    if (handler_mgr_->get_handler_count() <= 0)
+    {
+      log_error("no alive cluster servicing now");
       return false;
     }
 
@@ -63,18 +70,19 @@ namespace tair
     return ret;
   }
 
-    int tair_multi_cluster_client_api::put(int area, const data_entry& key, const data_entry& data,
+#if 1
+  int tair_multi_cluster_client_api::put(int area, const data_entry& key, const data_entry& data,
                                          int expire, int version, bool fill_cache)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    ALL_CLUSTER_HANDLER_OP(ret, put(area, key, data, expire, version, fill_cache));
+    ALL_CLUSTER_HANDLER_OP(ret, key, put(area, key, data, expire, version, fill_cache));
     return ret;
   }
 
   int tair_multi_cluster_client_api::remove(int area, const data_entry& key)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    ALL_CLUSTER_HANDLER_OP(ret, remove(area, key));
+    ALL_CLUSTER_HANDLER_OP(ret, key, remove(area, key));
     return ret;
   }
 
@@ -82,7 +90,7 @@ namespace tair
                                           int init_value, int expire)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    ALL_CLUSTER_HANDLER_OP(ret, add_count(area, key, count, ret_count, init_value, expire));
+    ALL_CLUSTER_HANDLER_OP(ret, key, add_count(area, key, count, ret_count, init_value, expire));
     return ret;
   }
 
@@ -90,20 +98,30 @@ namespace tair
                                           int init_value, int expire)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    ALL_CLUSTER_HANDLER_OP(ret, add_count(area, key, (-count), ret_count, init_value, expire));
+    ALL_CLUSTER_HANDLER_OP(ret, key, add_count(area, key, (-count), ret_count, init_value, expire));
     return ret;
   }
 
   int tair_multi_cluster_client_api::add_count(int area, const data_entry& key, int count, int* ret_count, int init_value)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    ALL_CLUSTER_HANDLER_OP(ret, add_count(area, key, count, ret_count, init_value));
+    ALL_CLUSTER_HANDLER_OP(ret, key, add_count(area, key, count, ret_count, init_value));
     return ret;
   }
-
-  void tair_multi_cluster_client_api::set_timeout(int timeout_ms)
+#endif
+  void tair_multi_cluster_client_api::set_timeout(int32_t timeout_ms)
   {
     handler_mgr_->set_timeout(timeout_ms);
+  }
+
+  void tair_multi_cluster_client_api::set_update_interval(int32_t interval_ms)
+  {
+    updater_->set_interval(interval_ms);
+  }
+
+  void tair_multi_cluster_client_api::set_log_level(const char* level)
+  {
+    TBSYS_LOGGER.setLogLevel(level);
   }
 
   void tair_multi_cluster_client_api::close()

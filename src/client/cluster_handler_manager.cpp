@@ -13,13 +13,16 @@
  *
  */
 
+#include "cluster_info_updater.hpp"
 #include "cluster_handler_manager.hpp"
 
 namespace tair
 {
+  using namespace tair::common;
   //////////////////////////// cluster_handler ////////////////////////////
-  cluster_handler::cluster_handler() : client_(NULL), index_(-1), down_servers_(NULL), down_buckets_(NULL)
+  cluster_handler::cluster_handler() : index_(-1)
   {
+    client_ = new tair_client_impl();
   }
 
   cluster_handler::~cluster_handler()
@@ -29,7 +32,6 @@ namespace tair
       client_->close();
       delete client_;
     }
-    clear_update_temp();
   }
 
   void cluster_handler::init(const char* master_cs_addr, const char* slave_cs_addr, const char* group_name)
@@ -49,39 +51,55 @@ namespace tair
     if (client_ != NULL)
     {
       client_->close();
-      delete client_;
     }
-    client_ = new tair_client_impl();
     client_->set_timeout(timeout_ms);
     return client_->startup(info_.master_cs_addr_.c_str(), info_.slave_cs_addr_.c_str(), info_.group_name_.c_str());
   }
 
-  int cluster_handler::retrieve_server_config(CONFIG_MAP& config_map, uint32_t& version, bool update)
+  std::string cluster_handler::debug_string()
   {
-    return client_->retrieve_server_config(config_map, version, update);
-  }
-
-  void cluster_handler::get_buckets_by_server(uint64_t server_id, DOWN_BUCKET_LIST& buckets)
-  {
-    return client_->get_buckets_by_server(server_id, buckets);
+    char tmp_buf[64];
+    std::string result("cluster: ");
+    result.append(info_.debug_string());
+    snprintf(tmp_buf, sizeof(tmp_buf), ", version: %u, bucket count: %d, index: %d. ",
+             get_version(), get_bucket_count(), get_index());
+    result.append(tmp_buf);
+    snprintf(tmp_buf, sizeof(tmp_buf), "\ndown servers: %zd [ ", down_servers_.size());
+    result.append(tmp_buf);
+    for (DOWN_SERVER_LIST::const_iterator it = down_servers_.begin(); it != down_servers_.end(); ++it)
+    {
+      result.append(tbsys::CNetUtil::addrToString(*it));
+      result.append(" ");
+    }
+    snprintf(tmp_buf, sizeof(tmp_buf), "]\ndown buckets: %zd [ ", down_buckets_.size());
+    result.append(tmp_buf);
+    for (DOWN_BUCKET_LIST::const_iterator it = down_buckets_.begin(); it != down_buckets_.end(); ++it)
+    {
+      snprintf(tmp_buf, sizeof(tmp_buf), "%d ", *it);
+      result.append(tmp_buf);
+    }
+    result.append("]\n");
+    return result;
   }
 
   //////////////////////////// handlers_node ////////////////////////////
   handlers_node::handlers_node()
-    : prev_(NULL), next_(NULL), timeout_ms_(DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS),
+    : prev_(NULL), next_(NULL), timeout_ms_(DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS), bucket_count_(0),
       handler_map_(NULL), handlers_(NULL), extra_bucket_map_(NULL)
   {
     atomic_set(&ref_, 0);
   }
 
   handlers_node::handlers_node(CLUSTER_HANDLER_MAP* handler_map, CLUSTER_HANDLER_LIST* handlers, BUCKET_INDEX_MAP* extra_bucket_map)
-    : prev_(NULL), next_(NULL), handler_map_(handler_map), handlers_(handlers), extra_bucket_map_(extra_bucket_map)
+    : prev_(NULL), next_(NULL), timeout_ms_(DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS), bucket_count_(0),
+      handler_map_(handler_map), handlers_(handlers), extra_bucket_map_(extra_bucket_map)
   {
     atomic_set(&ref_, 0);
   }
 
   handlers_node::~handlers_node()
   {
+    log_debug("handlers node delete");
     clear(false);
   }
 
@@ -104,14 +122,22 @@ namespace tair
       return NULL;
     }
 
-    int bucket = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % bucket_count_;
-    int index = bucket_to_handler_index(bucket);
+    int32_t bucket = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % bucket_count_;
+    int32_t index = bucket_to_handler_index(bucket);
+    log_debug("pick: %s => %d => %d => %s", key.get_data(), bucket, index,
+              index >= 0 ? (*handlers_)[index]->get_cluster_info().debug_string().c_str() : NULL);
     return index >= 0 ? (*handlers_)[index] : NULL;
   }
 
-  cluster_handler* handlers_node::pick_handler(int32_t index)
+  cluster_handler* handlers_node::pick_handler(int32_t index, const tair::common::data_entry& key)
   {
-    return (index < 0 || index > (int32_t)handlers_->size()) ? NULL : (*handlers_)[index];
+    if (index < 0 || index > (int32_t)handlers_->size())
+    {
+      return NULL;
+    }
+
+    int32_t bucket = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % bucket_count_;
+    return (*handlers_)[index]->ok(bucket) ? (*handlers_)[index] : NULL;
   }
 
   void handlers_node::clear(bool force)
@@ -123,8 +149,10 @@ namespace tair
       {
         cluster_handler* handler = it->second;
         ++it;
-        if (force || it->second->get_index() >= 0)
+        if (force || handler->get_index() < 0)
         {
+          log_debug("delete cluster handler: %s, service index: %d",
+                    handler->get_cluster_info().debug_string().c_str(), handler->get_index());
           delete handler;
         }
       }
@@ -142,33 +170,25 @@ namespace tair
       extra_bucket_map_ = NULL;
     }
   }
-  // we reuse cluster_handler, so cluster_handler should be marked whether is should be cleared later
+
   void handlers_node::mark_clear(const handlers_node& diff_handlers_node)
   {
-    CLUSTER_HANDLER_MAP* cur_handler_map = diff_handlers_node.handler_map_;
-    for (CLUSTER_HANDLER_MAP::const_iterator it = handler_map_->begin(); it != handler_map_->end();)
+    CLUSTER_HANDLER_MAP* diff_handler_map = diff_handlers_node.handler_map_;
+    for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end();)
     {
-      if (cur_handler_map->find(it->first) == cur_handler_map->end())
+      // handler not reused
+      if (diff_handler_map->find(it->first) == diff_handler_map->end())
       {
         cluster_handler* handler = it->second;
         ++it;
         // this handler has not been at service
+        log_debug("mark cluster out-of-service: %s", handler->get_cluster_info().debug_string().c_str());
         handler->set_index(-1);
       }
       else
       {
         ++it;
       }
-    }
-  }
-
-  void handlers_node::clear_update_temp()
-  {
-    for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end();)
-    {
-      cluster_handler* handler = it->second;
-      ++it;
-      handler->clear_update_temp();
     }
   }
 
@@ -208,15 +228,15 @@ namespace tair
         handler->init(*info_it);
 
         // be tolerable to one cluster's down
-        if ((ret = handler->start(timeout_ms_)) != TAIR_RETURN_SUCCESS)
+        if (!handler->start(timeout_ms_))
         {
-          log_error("start cluster handler fail. ret: %d, info: %s", ret, info_it->debug_string().c_str());
+          log_error("start cluster handler fail. info: %s", ret, info_it->debug_string().c_str());
           delete handler;
           continue;
         }
       }
 
-      int32_t new_bucket_count = handler->get_client()->get_bucket_count();
+      int32_t new_bucket_count = handler->get_bucket_count();
       // multi-cluster must have same bucket count
       if (bucket_count_ > 0 && bucket_count_ != new_bucket_count)
       {
@@ -236,7 +256,7 @@ namespace tair
       CONFIG_MAP config_map;
       uint32_t new_version;
       // update server table
-      ret = handler->retrieve_server_config(config_map, new_version, true);
+      ret = handler->retrieve_server_config(true, config_map, new_version);
       if (ret != TAIR_RETURN_SUCCESS)
       {
         log_error("retrieve cluster config fail. ret: %d, info: %s", ret, info_it->debug_string().c_str());
@@ -248,18 +268,12 @@ namespace tair
         continue;
       }
 
-      // TODO: move to common
-      static const char* CLUSTER_STATUS_CONFIG_KEY = "status";
-      static const char* CLUSTER_STATUS_ON = "on";
-      static const char* CLUSTER_DOWN_SERVER_CONFIG_KEY = "down_server";
-      static const char* CLUSTER_DOWN_SERVER_CONFIG_VALUE_DELIMITER = "; ";
-
       // check get cluster status
       std::string status;
-      parse_config(config_map, CLUSTER_STATUS_CONFIG_KEY, status);
+      parse_config(config_map, TAIR_GROUP_STATUS, status);
       // cluster status not ON.
       // no status config means OFF.
-      if (strcasecmp(status.c_str(), CLUSTER_STATUS_ON) != 0)
+      if (strcasecmp(status.c_str(), TAIR_GROUP_STATUS_ON) != 0)
       {
         log_info("cluster OFF: %s", info_it->debug_string().c_str());
 
@@ -270,24 +284,35 @@ namespace tair
         continue;
       }
 
+      handler->reset();
       // this handler will at service
       CLUSTER_HANDLER_MAP::iterator new_handler_it =
         handler_map_->insert(CLUSTER_HANDLER_MAP::value_type(*info_it, handler)).first;
 
       // check cluster servers
       std::vector<std::string> down_servers;
-      parse_config(config_map, CLUSTER_DOWN_SERVER_CONFIG_KEY, CLUSTER_DOWN_SERVER_CONFIG_VALUE_DELIMITER, down_servers);
+      parse_config(config_map, TAIR_TMP_DOWN_SERVER, TAIR_CONFIG_VALUE_DELIMITERS, down_servers);
 
       if (!down_servers.empty())
       {
-        DOWN_SERVER_LIST* down_server_ids = new DOWN_SERVER_LIST();
+        DOWN_SERVER_LIST& down_server_ids = handler->get_down_servers();
         for (std::vector<std::string>::const_iterator it = down_servers.begin(); it != down_servers.end(); ++it)
         {
-          down_server_ids->push_back(tbsys::CNetUtil::strToAddr(it->c_str(), 0));
+          uint64_t server_id = tbsys::CNetUtil::strToAddr(it->c_str(), 0);
+          if (server_id > 0)
+          {
+            down_server_ids.push_back(server_id);
+          }
+          else
+          {
+            log_warn("get invalid down server address: %s", it->c_str());
+          }
         }
 
-        handler->set_down_servers(down_server_ids);
-        has_down_server_handlers.push_back(new_handler_it);
+        if (!down_server_ids.empty())
+        {
+          has_down_server_handlers.push_back(new_handler_it);
+        }
       }
     }
   }
@@ -301,10 +326,12 @@ namespace tair
     }
 
     int32_t i = 0;
-    for (CLUSTER_HANDLER_MAP::const_iterator it = handler_map_->begin(); it != handler_map_->end(); ++it)
+    for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end();)
     {
-      handlers_->push_back(it->second);
-      it->second->set_index(i);
+      cluster_handler* handler = it->second;
+      ++it;
+      handler->set_index(i++);
+      handlers_->push_back(handler);
     }
   }
 
@@ -337,22 +364,19 @@ namespace tair
          handler_it_it != has_down_server_handlers.end(); ++handler_it_it)
     {
       cluster_handler* handler = (*handler_it_it)->second;
-      DOWN_SERVER_LIST* down_servers = handler->get_down_servers();
-      if (NULL == down_servers || down_servers->empty())
+      DOWN_SERVER_LIST& down_servers = handler->get_down_servers();
+      if (down_servers.empty())
       {
         continue;
       }
 
-      DOWN_BUCKET_LIST* down_buckets = new DOWN_BUCKET_LIST();
-      for (DOWN_SERVER_LIST::const_iterator server_it = down_servers->begin(); server_it != down_servers->end(); ++server_it)
+      DOWN_BUCKET_LIST& down_buckets = handler->get_down_buckets();
+      for (DOWN_SERVER_LIST::const_iterator server_it = down_servers.begin(); server_it != down_servers.end(); ++server_it)
       {
-        handler->get_buckets_by_server(*server_it, *down_buckets);
+        handler->get_buckets_by_server(*server_it, down_buckets);
       }
 
-      // handler->clear_update_temp() will delete
-      handler->set_down_buckets(down_buckets);
-
-      if (!down_buckets->empty())
+      if (!down_buckets.empty())
       {
         has_down_bucket_handlers.push_back(*handler_it_it);
       }
@@ -376,13 +400,13 @@ namespace tair
     for (CLUSTER_HANDLER_MAP_ITER_LIST::const_iterator handler_it_it = has_down_bucket_handlers.begin();
          handler_it_it != has_down_bucket_handlers.end(); ++handler_it_it)
     {
-      DOWN_BUCKET_LIST* down_buckets = (*handler_it_it)->second->get_down_buckets();
-      if (down_buckets == NULL || down_buckets->empty())
+      DOWN_BUCKET_LIST& down_buckets = (*handler_it_it)->second->get_down_buckets();
+      if (down_buckets.empty())
       {
         continue;
       }
 
-      for (DOWN_BUCKET_LIST::const_iterator bucket_it = down_buckets->begin(); bucket_it != down_buckets->end(); ++bucket_it)
+      for (DOWN_BUCKET_LIST::const_iterator bucket_it = down_buckets.begin(); bucket_it != down_buckets.end(); ++bucket_it)
       {
         // already operate
         if (extra_bucket_map_->find(*bucket_it) != extra_bucket_map_->end())
@@ -392,8 +416,8 @@ namespace tair
 
         get_handler_index_of_bucket(*bucket_it, (*handler_it_it)->first, indexs);
 
-        (*extra_bucket_map_)[*bucket_it] = indexs.empty() ? -1 :        // this bucket has no handler service
-          indexs[hash_bucket(*bucket_it) % indexs.size()];                     // hash sharding to one handler
+        (*extra_bucket_map_)[*bucket_it] = indexs.empty() ? -1 : // this bucket has no handler service
+          indexs[hash_bucket(*bucket_it) % indexs.size()]; // hash sharding to one handler
       }
     }
   }
@@ -410,13 +434,64 @@ namespace tair
         continue;
       }
 
-      DOWN_BUCKET_LIST* down_buckets = handler_it->second->get_down_buckets();
+      DOWN_BUCKET_LIST& down_buckets = handler_it->second->get_down_buckets();
       // bucket is not down in this cluster handler
-      if (NULL == down_buckets || down_buckets->empty() || down_buckets->find(bucket) == down_buckets->end())
+      if (down_buckets.empty() || down_buckets.find(bucket) == down_buckets.end())
       {
         indexs.push_back(handler_it->second->get_index());
       }
     }
+  }
+
+  std::string handlers_node::debug_string()
+  {
+    if (handlers_->empty())
+    {
+      return std::string("no alive handler servicing");
+    }
+
+    std::vector<std::string> shard_buckets(handlers_->size());
+    std::vector<int32_t> shard_bucket_counts(shard_buckets.size(), 0);
+
+    std::string dead_buckets;
+    int32_t dead_bucket_count = 0;
+
+    int32_t index = 0;
+    char tmp_buf[64];
+
+    for (int32_t i = 0; i < bucket_count_; ++i)
+    {
+      index = bucket_to_handler_index(i);
+      snprintf(tmp_buf, sizeof(tmp_buf), "%d ", i);
+      if (index < 0)
+      {
+        dead_buckets.append(tmp_buf);
+        ++dead_bucket_count;
+      }
+      else
+      {
+        shard_buckets[index].append(tmp_buf);
+        shard_bucket_counts[index]++;
+      }
+    }
+
+    std::string result;
+    snprintf(tmp_buf, sizeof(tmp_buf), "[ buckets: %d, clusters on service: %zd ]\n", bucket_count_, handlers_->size());
+    result.append(tmp_buf);
+    snprintf(tmp_buf, sizeof(tmp_buf), "{\ndead buckets: %d [ ", dead_bucket_count);
+    result.append(tmp_buf);
+    result.append(dead_buckets);
+    result.append("]\n}\n");
+    for (size_t i = 0; i < handlers_->size(); ++i)
+    {
+      result.append("{\n");
+      result.append((*handlers_)[i]->debug_string());
+      snprintf(tmp_buf, sizeof(tmp_buf), "sharded buckets: %d [ ", shard_bucket_counts[i]);
+      result.append(tmp_buf);
+      result.append(shard_buckets[(*handlers_)[i]->get_index()]);
+      result.append("]\n}\n");
+    }
+    return result;
   }
 
   int32_t handlers_node::bucket_to_handler_index(int32_t bucket)
@@ -444,7 +519,8 @@ namespace tair
 
 
   //////////////////////////// bucket_shard_cluster_handler_manager ////////////////////////////
-  bucket_shard_cluster_handler_manager::bucket_shard_cluster_handler_manager()
+  bucket_shard_cluster_handler_manager::bucket_shard_cluster_handler_manager(cluster_info_updater* updater)
+    : updater_(updater)
   {
     current_ = new handlers_node(new CLUSTER_HANDLER_MAP(), new CLUSTER_HANDLER_LIST(), new BUCKET_INDEX_MAP());
     current_->ref();
@@ -463,17 +539,17 @@ namespace tair
     // clear using handlers node
     if (using_head_ != NULL)
     {
-      handlers_node* prev_node = using_head_;
       handlers_node* node = using_head_;
-      while (node->next_ != NULL)
+      handlers_node* next_node = node->next_;
+      while (next_node != NULL)
       {
-        node = node->next_;
-        delete prev_node;
-        prev_node = node;
+        delete node;
+        node = next_node;
+        next_node = node->next_;
       }
-      if (prev_node != NULL)
+      if (node != NULL)
       {
-        delete prev_node;
+        delete node;
       }
     }
   }
@@ -487,6 +563,7 @@ namespace tair
       new handlers_node(new CLUSTER_HANDLER_MAP(),
                         new CLUSTER_HANDLER_LIST(),
                         new BUCKET_INDEX_MAP());
+    new_handlers_node->set_timeout(timeout_ms_);
     new_handlers_node->update(cluster_infos, *current_);
 
     if (new_handlers_node->handler_map_->empty())
@@ -498,19 +575,37 @@ namespace tair
     handlers_node* old_handlers_node = current_;
     // ref
     new_handlers_node->ref();
-    // clear update temp data
-    new_handlers_node->clear_update_temp();
     // update
     current_ = new_handlers_node;
 
-    // just expect to skip the occurrence between getting current_ and current_->ref()
-    ::usleep(200);
+    // length of debug_string() is over tblog's buffer.
+    if (TBSYS_LOGGER._level >= TBSYS_LOG_LEVEL_DEBUG)
+    {
+      ::fprintf(stdout, "current cluster handler manager status:\n%s", debug_string().c_str());
+      ::fflush(stdout);
+    }
+
+    // add to using node list to cleanup later
+    add_to_using_node_list(old_handlers_node);
     // mark clear out-of-service cluster handler
     old_handlers_node->mark_clear(*current_);
-    add_to_using_node_list(old_handlers_node);
+    // unref now
+    old_handlers_node->unref();
+    // cleanup using node list, clear trash node
     cleanup_using_node_list();
 
     return urgent;
+  }
+
+  bool bucket_shard_cluster_handler_manager::update()
+  {
+    updater_->signal_update();
+    return true;
+  }
+
+  int32_t bucket_shard_cluster_handler_manager::get_handler_count()
+  {
+    return current_->get_handler_count();
   }
 
   cluster_handler* bucket_shard_cluster_handler_manager::pick_handler(const data_entry& key)
@@ -518,14 +613,29 @@ namespace tair
     return current_->pick_handler(key);
   }
 
-  cluster_handler* bucket_shard_cluster_handler_manager::pick_handler(int32_t index)
+  cluster_handler* bucket_shard_cluster_handler_manager::pick_handler(int32_t index, const tair::common::data_entry& key)
   {
-    return current_->pick_handler(index);
+    return current_->pick_handler(index, key);
   }
 
   void bucket_shard_cluster_handler_manager::close()
   {
 
+  }
+
+  std::string bucket_shard_cluster_handler_manager::debug_string()
+  {
+    char tmp_buf[32];
+    std::string result;
+    handlers_node* node = current_;
+    node->ref();
+    snprintf(tmp_buf, sizeof(tmp_buf), "[ ref: %d ]\n", current_->get_ref());
+    result.append(updater_->debug_string());
+    result.append("\n");
+    result.append(tmp_buf);
+    result.append(node->debug_string());
+    node->unref();
+    return result;
   }
 
   // lock_ hold
@@ -542,7 +652,6 @@ namespace tair
       using_head_->next_->prev_ = node;
     }
     using_head_->next_ = node;
-    node->unref();
   }
 
   // lock hold
@@ -551,8 +660,10 @@ namespace tair
     if (using_head_ != NULL && using_head_->next_ != NULL)
     {
       handlers_node* node = using_head_->next_;
+      handlers_node* next_node = node;
       while (node != NULL)
       {
+        next_node = node->next_;
         if (node->get_ref() <= 0)
         {
           node->prev_->next_ = node->next_;
@@ -562,9 +673,60 @@ namespace tair
           }
           delete node;
         }
-        node = node->next_;
+        node = next_node;
       }
     }
+  }
+
+  //////////////////////////// cluster_handler_manager_delegate ////////////////////////////
+  bucket_shard_cluster_handler_manager_delegate::bucket_shard_cluster_handler_manager_delegate(cluster_handler_manager* manager)
+  {
+    manager_ = manager;
+    handler_ = NULL;
+    node_ = static_cast<handlers_node*>(manager_->current());
+    node_->ref();
+    version_ = 0;
+  }
+
+  bucket_shard_cluster_handler_manager_delegate::bucket_shard_cluster_handler_manager_delegate(
+    const bucket_shard_cluster_handler_manager_delegate& delegate)
+  {
+    manager_ = delegate.manager_;
+    handler_ = NULL;
+    // this is what we really want
+    node_ = delegate.node_;
+    node_->ref();
+    version_ = 0;
+  }
+
+  bucket_shard_cluster_handler_manager_delegate::~bucket_shard_cluster_handler_manager_delegate()
+  {
+    if (handler_ != NULL && handler_->get_version() > version_)
+    {
+      // one cluster handler version changes then clusters' version MUST be changed.
+      manager_->update();
+    }
+    node_->unref();
+  }
+
+  cluster_handler* bucket_shard_cluster_handler_manager_delegate::pick_handler(const data_entry& key)
+  {
+    handler_ = node_->pick_handler(key);
+    if (handler_ != NULL)
+    {
+      version_ = handler_->get_version();
+    }
+    return handler_;
+  }
+
+  cluster_handler* bucket_shard_cluster_handler_manager_delegate::pick_handler(int32_t index, const tair::common::data_entry& key)
+  {
+    handler_ = node_->pick_handler(index, key);
+    if (handler_ != NULL)
+    {
+      version_ = handler_->get_version();
+    }
+    return handler_;
   }
 
   //////////////////////////// utility function ////////////////////////////
@@ -583,31 +745,28 @@ namespace tair
     // return h;
   }
 
-  int parse_config(const CONFIG_MAP& config_map, const char* key, std::string& value)
+  void parse_config(const CONFIG_MAP& config_map, const char* key, std::string& value)
   {
     CONFIG_MAP::const_iterator it = config_map.find(key);
     if (it == config_map.end())
     {
-      return TAIR_RETURN_FAILED;
+      return;
     }
     value.assign(it->second);
-    return TAIR_RETURN_SUCCESS;
   }
 
-  int parse_config(const std::map<std::string, std::string>& config_map,
-                   const char* key, const char* delim, std::vector<std::string>& values)
+  void parse_config(const CONFIG_MAP& config_map,
+                    const char* key, const char* delim, std::vector<std::string>& values)
   {
-    std::map<std::string, std::string>::const_iterator it = config_map.find(key);
+    CONFIG_MAP::const_iterator it = config_map.find(key);
     if (it == config_map.end())
     {
-      return TAIR_RETURN_FAILED;
+      return;
     }
     else
     {
       split_str(it->second.c_str(), delim, values);
     }
-
-    return values.empty() ? TAIR_RETURN_FAILED : TAIR_RETURN_SUCCESS;
   }
 
   void split_str(const char* str, const char* delim, std::vector<std::string>& values)
@@ -622,18 +781,13 @@ namespace tair
     }
     else
     {
-      int32_t delim_len = strlen(delim);
-      const char* last_pos = str;
-      const char* pos = NULL;
-      while ((pos = strstr(last_pos, delim)) != NULL)
+      const char* pos = str;
+      size_t len = 0;
+      while ((len = strcspn(pos, delim)) > 0)
       {
-        values.push_back(std::string(last_pos, pos - last_pos));
-        last_pos += delim_len;
-      }
-
-      if (str == last_pos)
-      {
-        values.push_back(std::string(str));
+        values.push_back(std::string(pos, len));
+        pos += len;
+        pos += strspn(pos, delim);
       }
     }
   }

@@ -1717,7 +1717,7 @@ FAIL:
 
   }
 
-  int tair_client_impl::retrieve_server_config(tbsys::STR_STR_MAP& config_map, uint32_t& version, bool update)
+  int tair_client_impl::retrieve_server_config(bool update_server_table, tbsys::STR_STR_MAP& config_map, uint32_t& version)
   {
     if (config_server_list.size() == 0U || group_name.empty()) {
       TBSYS_LOG(WARN, "config server list is empty, or groupname is NULL, return false");
@@ -1778,7 +1778,7 @@ FAIL:
         log_error("bucket or copy count doesn't correct");
         ret = TAIR_RETURN_FAILED;
       } else {
-        if (update) {           // update server
+        if (update_server_table) {           // update server table
           uint32_t server_list_count = 0;
           uint64_t* server_list = rggp->get_server_list(bucket_count, copy_count);
           if (rggp->server_list_count <= 0 || server_list == NULL) {
@@ -1786,7 +1786,6 @@ FAIL:
             ret = TAIR_RETURN_FAILED;
           } else {
             server_list_count = (uint32_t)(rggp->server_list_count);
-            new_config_version = config_version = rggp->config_version;
             assert(server_list_count == bucket_count * copy_count);
             for (uint32_t i=0; server_list != 0 && i< server_list_count; ++i) {
               log_debug("server table: [%d] => [%s]", i, tbsys::CNetUtil::addrToString(server_list[i]).c_str());
@@ -1796,6 +1795,7 @@ FAIL:
         }
 
         if (TAIR_RETURN_SUCCESS == ret) {
+          new_config_version = config_version = rggp->config_version;
           // set return value
           config_map = rggp->config_map;
           version = rggp->config_version;
@@ -1810,7 +1810,6 @@ FAIL:
 
   void tair_client_impl::get_buckets_by_server(uint64_t server_id, std::set<int32_t>& buckets)
   {
-    buckets.clear();
     if (server_id <= 0)
     {
       return;

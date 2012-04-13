@@ -188,8 +188,9 @@ namespace tair {
       void get_migrate_status(uint64_t server_id,vector<pair<uint64_t,uint32_t> >& result);
       void query_from_configserver(uint32_t query_type, const string group_name, map<string, string>&, uint64_t server_id = 0);
 
-      int retrieve_server_config(tbsys::STR_STR_MAP& config_map, uint32_t& version, bool update = true);
+      int retrieve_server_config(bool update_server_table, tbsys::STR_STR_MAP& config_map, uint32_t& version);
       void get_buckets_by_server(uint64_t server_id, std::set<int32_t>& buckets);
+      uint32_t get_version() { return new_config_version; }
 
 #if  0     /* ----- #if 0 : If0Label_1 ----- */
       bool dumpKey(int area, char *file_name, int timeout = 0);

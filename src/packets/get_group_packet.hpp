@@ -131,9 +131,11 @@ namespace tair {
          char value[1024];
          char *tmp;
          for (int i=0; i<size; i++) {
+            key[0] = '\0';
             tmp = key;
             input->readString(tmp, 64);
             key[63] = '\0';
+            value[0] = '\0';
             tmp = value;
             input->readString(tmp, 1024);
             value[1023] = '\0';

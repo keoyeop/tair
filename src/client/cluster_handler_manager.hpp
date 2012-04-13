@@ -33,18 +33,15 @@ namespace tair
 {
   struct cluster_info
   {
-    cluster_info()
-    {}
+    cluster_info() {}
     cluster_info(const std::string& m_cs_addr, const std::string& s_cs_addr, const std::string& g_name)
-      : master_cs_addr_(m_cs_addr), slave_cs_addr_(s_cs_addr), group_name_(g_name)
-    {}
+      : master_cs_addr_(m_cs_addr), slave_cs_addr_(s_cs_addr), group_name_(g_name) {}
 
     inline bool operator==(const cluster_info& info) const
     {
       // cluster are separated by group_name now.
       return group_name_ == info.group_name_;
     }
-
     inline std::string debug_string() const
     {
       return std::string("[ ") + master_cs_addr_ + " | " + slave_cs_addr_ + " | " + group_name_ + " ]";
@@ -65,6 +62,7 @@ namespace tair
   };
 
   class cluster_handler;
+  class cluster_info_updater;
 
   typedef std::vector<cluster_info> CLUSTER_INFO_LIST;
   typedef std::unordered_map<cluster_info, cluster_handler*, hash_cluster_info> CLUSTER_HANDLER_MAP;
@@ -77,6 +75,7 @@ namespace tair
 
   static const int32_t DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS = 2000;
 
+  // cluster handler
   class cluster_handler
   {
   public:
@@ -86,9 +85,13 @@ namespace tair
     void init(const char* master_cs_addr, const char* slave_cs_addr, const char* group_name);
     void init(const cluster_info& info);
     bool start(int32_t timeout_ms = DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS);
-    int retrieve_server_config(CONFIG_MAP& config_map, uint32_t& version, bool update = true);
-    void get_buckets_by_server(uint64_t server_id, DOWN_BUCKET_LIST& buckets);
 
+    std::string debug_string();
+
+    inline bool ok(int32_t bucket)
+    {
+      return down_buckets_.empty() || (down_buckets_.find(bucket) == down_buckets_.end());
+    }
     inline tair_client_impl* get_client() const
     {
       return client_;
@@ -97,8 +100,6 @@ namespace tair
     {
       return info_;
     }
-
-    // convenient use when update
     inline void set_index(int32_t index)
     {
       index_ = index;
@@ -107,59 +108,76 @@ namespace tair
     {
       return index_;
     }
-    inline void set_down_servers(DOWN_SERVER_LIST* servers)
-    {
-      down_servers_ = servers;
-    }
-    inline DOWN_SERVER_LIST* get_down_servers()
+    inline DOWN_SERVER_LIST& get_down_servers()
     {
       return down_servers_;
     }
-    inline void set_down_buckets(DOWN_BUCKET_LIST* buckets)
-    {
-      down_buckets_ = buckets;
-    }
-    inline DOWN_BUCKET_LIST* get_down_buckets()
+    inline DOWN_BUCKET_LIST& get_down_buckets()
     {
       return down_buckets_;
     }
-    inline void clear_update_temp()
+    inline void reset()
     {
-      if (down_servers_ != NULL)
-      {
-        delete down_servers_;
-        down_servers_ = NULL;
-      }
-      if (down_buckets_ != NULL)
-      {
-        delete down_buckets_;
-        down_buckets_ = NULL;
-      }
+      // reuse client_/info_
+      index_ = -1;
+      down_servers_.clear();
+      down_buckets_.clear();
+    }
+
+    inline int32_t get_bucket_count()
+    {
+      return client_->get_bucket_count();
+    }
+    inline uint32_t get_version()
+    {
+      return client_->get_version();
+    }
+    inline int retrieve_server_config(bool update_server_table, CONFIG_MAP& config_map, uint32_t& version)
+    {
+      return client_->retrieve_server_config(update_server_table, config_map, version);
+    }
+    inline void get_buckets_by_server(uint64_t server_id, DOWN_BUCKET_LIST& buckets)
+    {
+      client_->get_buckets_by_server(server_id, buckets);
     }
 
   private:
     // use tair_client_impl to shadow modification from public tair_client_api user
     tair_client_impl* client_;
+    // cluster information
     cluster_info info_;
-
-    // for convenient use when update
+    // handler service index
     int32_t index_;
-    DOWN_SERVER_LIST* down_servers_;
-    DOWN_BUCKET_LIST* down_buckets_;
+    // tmp down servers
+    DOWN_SERVER_LIST down_servers_;
+    // tmp down buckets of down servers
+    DOWN_BUCKET_LIST down_buckets_;
   };
 
+  // cluster handler manager interface
   class cluster_handler_manager
   {
   public:
     cluster_handler_manager() : timeout_ms_(DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS) {};
     virtual ~cluster_handler_manager() {};
 
+    // update cluster handlers based on new cluster information
     virtual bool update(const CLUSTER_INFO_LIST& cluster_infos) = 0;
+    // force update cluster handlers
+    virtual bool update() = 0;
+    // current servicing cluster handler manager
     virtual void* current() = 0;
-    virtual cluster_handler* pick_handler(const data_entry& key) = 0;
-    virtual cluster_handler* pick_handler(int32_t index) = 0;
+    // current servicing cluster handlers count
+    virtual int32_t get_handler_count() = 0;
+    // pick handler based on key
+    virtual cluster_handler* pick_handler(const tair::common::data_entry& key) = 0;
+    // pick handler based on index and key
+    virtual cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key) = 0;
+    // close all cluster handler
     virtual void close() = 0;
-
+    // debug string
+    virtual std::string debug_string() = 0;
+    // set timeout
     void set_timeout(int32_t timeout_ms)
     {
       if (timeout_ms > 0)
@@ -171,9 +189,37 @@ namespace tair
   protected:
     int32_t timeout_ms_;
   private:
-    cluster_handler_manager(const cluster_handler_manager&);
+    cluster_handler_manager(const cluster_handler_manager&) {};
   };
 
+  // cluster handler manager delegate interface
+  class cluster_handler_manager_delegate
+  {
+  public:
+    explicit cluster_handler_manager_delegate(cluster_handler_manager* manager)
+      : manager_(manager) {}
+    virtual ~cluster_handler_manager_delegate() {};
+
+    virtual cluster_handler* pick_handler(const tair::common::data_entry& key) = 0;
+    virtual cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key) = 0;
+
+    inline cluster_handler_manager* get_delegate()
+    {
+      return manager_;
+    }
+
+  protected:
+    cluster_handler_manager_delegate() {};
+    cluster_handler_manager_delegate(const cluster_handler_manager_delegate&) {};
+
+  protected:
+    cluster_handler_manager* manager_;
+  };
+
+
+  ////////////////////////////////////////////////////////
+  // specified cluster handler manger by bucket sharding
+  ////////////////////////////////////////////////////////
   class handlers_node
   {
   public:
@@ -184,11 +230,14 @@ namespace tair
     ~handlers_node();
 
     void update(const CLUSTER_INFO_LIST& cluster_infos, const handlers_node& diff_handlers_node);
-    cluster_handler* pick_handler(const data_entry& key);
-    cluster_handler* pick_handler(int32_t index);
-    void clear(bool force);
+    cluster_handler* pick_handler(const tair::common::data_entry& key);
+    cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key);
+    // we reuse cluster handler, so cluster handler should be marked whether it should be cleared later.
     void mark_clear(const handlers_node& diff_handlers_node);
-    void clear_update_temp();
+    // clear all. do clear cluster handler based on force flag or out-of-service flag
+    void clear(bool force);
+
+    std::string debug_string();
 
     inline int32_t get_handler_count()
     {
@@ -201,13 +250,9 @@ namespace tair
     inline void unref()
     {
       atomic_dec(&ref_);
-      if (atomic_read(&ref_) <= 0)
-      {
-        // we collect handlers_node by list,
-        // delete() will occur updating list concurrently,
-        // just gc some memory here.
-        clear(false);
-      }
+      // we collect handlers_node by list,
+      // delete() will occur updating list concurrently,
+      // so do nothing here. node will be deleted when do list op(cleanup_using_node_list())
     }
     inline int32_t get_ref()
     {
@@ -238,6 +283,8 @@ namespace tair
     handlers_node(const handlers_node&);
 
   public:
+    // Avoid wild cluster_handler crashing when concurrent using and updating,
+    // we use reference count to protect cluster_handler from unexpected destructing.
     atomic_t ref_;
     handlers_node* prev_;
     handlers_node* next_;
@@ -259,7 +306,7 @@ namespace tair
   class bucket_shard_cluster_handler_manager : public cluster_handler_manager
   {
   public:
-    bucket_shard_cluster_handler_manager();
+    bucket_shard_cluster_handler_manager(cluster_info_updater* updater);
     virtual ~bucket_shard_cluster_handler_manager();
 
     void* current()
@@ -268,15 +315,22 @@ namespace tair
     }
 
     bool update(const CLUSTER_INFO_LIST& cluster_infos);
-    cluster_handler* pick_handler(const data_entry& key);
-    cluster_handler* pick_handler(int32_t index);
+    bool update();
+    int32_t get_handler_count();
+    cluster_handler* pick_handler(const tair::common::data_entry& key);
+    cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key);
     void close();
+    std::string debug_string();
 
   private:
     void add_to_using_node_list(handlers_node* node);
     void cleanup_using_node_list();
 
+    bucket_shard_cluster_handler_manager();
+    bucket_shard_cluster_handler_manager(const bucket_shard_cluster_handler_manager&);
+
   private:
+    cluster_info_updater* updater_;
     // mutex for update
     tbsys::CThreadMutex lock_;
     handlers_node* current_;
@@ -285,10 +339,28 @@ namespace tair
     handlers_node* using_head_;
   };
 
+  class bucket_shard_cluster_handler_manager_delegate : public cluster_handler_manager_delegate
+  {
+  public:
+    explicit bucket_shard_cluster_handler_manager_delegate(cluster_handler_manager* manager);
+    bucket_shard_cluster_handler_manager_delegate(const bucket_shard_cluster_handler_manager_delegate& delegate);
+
+    virtual ~bucket_shard_cluster_handler_manager_delegate();
+
+    virtual cluster_handler* pick_handler(const tair::common::data_entry& key);
+    virtual cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key);
+
+  private:
+    cluster_handler* handler_;
+    handlers_node* node_;
+    uint32_t version_;
+  };
+
+  // utility function
   extern int32_t hash_bucket(int32_t bucket);
-  extern int parse_config(const CONFIG_MAP& config_map, const char* key, std::string& value);
-  extern int parse_config(const CONFIG_MAP& config_map,
-                          const char* key, const char* delim, std::vector<std::string>& values);
+  extern void parse_config(const CONFIG_MAP& config_map, const char* key, std::string& value);
+  extern void parse_config(const CONFIG_MAP& config_map,
+                           const char* key, const char* delim, std::vector<std::string>& values);
   extern void split_str(const char* str, const char* delim, std::vector<std::string>& values);
 }
 #endif

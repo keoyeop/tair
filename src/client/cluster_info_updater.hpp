@@ -22,7 +22,9 @@
 
 namespace tair
 {
-  static const int64_t DEFAULT_CLUSTER_UPDATE_INTERVAL_S = 30;
+  static const int32_t DEFAULT_CLUSTER_UPDATE_INTERVAL_MS = 60000;  // 1min
+  static const int32_t FAIL_UPDATE_CLUSTER_INFO_INTERVAL_MS = 1000; // 1s
+  static const int32_t URGENT_UPDATE_CLUSTER_INFO_INTERVAL_MS = 2000; // 2s
 
   class cluster_info_updater : public tbsys::CDefaultRunnable
   {
@@ -33,18 +35,42 @@ namespace tair
     void run(tbsys::CThread* thread, void* arg);
 
     void init(cluster_handler_manager* manager,
-              const char* master_cs_addr, const char* slave_cs_addr, const char* group_name,
-              int64_t interval_s = DEFAULT_CLUSTER_UPDATE_INTERVAL_S);
-    int update_cluster_info(bool& urgent);
+              const char* master_cs_addr, const char* slave_cs_addr, const char* group_name);
+    void stop();
+
+    // just signal update later
+    int signal_update();
+    // force do real update
+    int force_update();
+
+    inline void set_interval(int32_t interval_ms)
+    {
+      if (interval_ms > 0)
+      {
+        interval_ms_ = interval_ms;
+      }
+    }
+
+    std::string debug_string()
+    {
+      char tmp_buf[64];
+      snprintf(tmp_buf, sizeof(tmp_buf), "[ updater version: %u, last update time: ", master_handler_.get_version());
+      std::string result(tmp_buf);
+      tbsys::CTimeUtil::timeToStr(last_update_time_, tmp_buf);
+      result.append(tmp_buf);
+      result.append(" ]");
+      return result;
+    }
 
   private:
-    int retrieve_cluster_info(CLUSTER_INFO_LIST& cluster_infos, uint32_t& new_version);
+    int update_cluster_info(bool force, bool& urgent);
+    int retrieve_cluster_info(bool force, CLUSTER_INFO_LIST& cluster_infos, uint32_t& old_version, uint32_t& new_version);
 
   private:
     bool inited_;
-    int64_t interval_s_;
-    bool stopped_;
-    uint32_t version_;
+    int32_t interval_ms_;
+    time_t last_update_time_;
+    tbsys::CThreadCond cond_;
     cluster_handler master_handler_;
     cluster_handler_manager* manager_;
   };
