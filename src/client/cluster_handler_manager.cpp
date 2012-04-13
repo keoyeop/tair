@@ -84,14 +84,14 @@ namespace tair
 
   //////////////////////////// handlers_node ////////////////////////////
   handlers_node::handlers_node()
-    : prev_(NULL), next_(NULL), timeout_ms_(DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS), bucket_count_(0),
+    : next_(NULL), timeout_ms_(DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS), bucket_count_(0),
       handler_map_(NULL), handlers_(NULL), extra_bucket_map_(NULL)
   {
     atomic_set(&ref_, 0);
   }
 
   handlers_node::handlers_node(CLUSTER_HANDLER_MAP* handler_map, CLUSTER_HANDLER_LIST* handlers, BUCKET_INDEX_MAP* extra_bucket_map)
-    : prev_(NULL), next_(NULL), timeout_ms_(DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS), bucket_count_(0),
+    : next_(NULL), timeout_ms_(DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS), bucket_count_(0),
       handler_map_(handler_map), handlers_(handlers), extra_bucket_map_(extra_bucket_map)
   {
     atomic_set(&ref_, 0);
@@ -145,10 +145,9 @@ namespace tair
     // not remove from list here for simplicity
     if (handler_map_ != NULL)
     {
-      for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end();)
+      for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end(); ++it)
       {
         cluster_handler* handler = it->second;
-        ++it;
         if (force || handler->get_index() < 0)
         {
           log_debug("delete cluster handler: %s, service index: %d",
@@ -174,20 +173,15 @@ namespace tair
   void handlers_node::mark_clear(const handlers_node& diff_handlers_node)
   {
     CLUSTER_HANDLER_MAP* diff_handler_map = diff_handlers_node.handler_map_;
-    for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end();)
+    for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end(); ++it)
     {
       // handler not reused
       if (diff_handler_map->find(it->first) == diff_handler_map->end())
       {
         cluster_handler* handler = it->second;
-        ++it;
         // this handler has not been at service
         log_debug("mark cluster out-of-service: %s", handler->get_cluster_info().debug_string().c_str());
         handler->set_index(-1);
-      }
-      else
-      {
-        ++it;
       }
     }
   }
@@ -205,6 +199,8 @@ namespace tair
     int ret = TAIR_RETURN_SUCCESS;
     cluster_handler* handler = NULL;
     bool new_handler = false;
+
+    CLUSTER_INFO_LIST has_down_server_infos;
 
     for (CLUSTER_INFO_LIST::const_iterator info_it = cluster_infos.begin(); info_it != cluster_infos.end(); ++info_it)
     {
@@ -284,10 +280,10 @@ namespace tair
         continue;
       }
 
+
       handler->reset();
-      // this handler will at service
-      CLUSTER_HANDLER_MAP::iterator new_handler_it =
-        handler_map_->insert(CLUSTER_HANDLER_MAP::value_type(*info_it, handler)).first;
+      // this handler will at service.
+      (*handler_map_)[*info_it] = handler;
 
       // check cluster servers
       std::vector<std::string> down_servers;
@@ -311,9 +307,17 @@ namespace tair
 
         if (!down_server_ids.empty())
         {
-          has_down_server_handlers.push_back(new_handler_it);
+          has_down_server_infos.push_back(*info_it);
         }
       }
+    }
+
+    for (CLUSTER_INFO_LIST::const_iterator it = has_down_server_infos.begin(); it != has_down_server_infos.end(); ++it)
+    {
+      // handler_map_ is constructd over here, won't change any more,
+      // iterator is safe to use.
+      // MUST have here
+      has_down_server_handlers.push_back(handler_map_->find(*it));
     }
   }
 
@@ -326,10 +330,9 @@ namespace tair
     }
 
     int32_t i = 0;
-    for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end();)
+    for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end(); ++it)
     {
       cluster_handler* handler = it->second;
-      ++it;
       handler->set_index(i++);
       handlers_->push_back(handler);
     }
@@ -447,7 +450,7 @@ namespace tair
   {
     if (handlers_->empty())
     {
-      return std::string("no alive handler servicing");
+      return std::string("[ NO alive cluster servicing ]\n");
     }
 
     std::vector<std::string> shard_buckets(handlers_->size());
@@ -525,33 +528,17 @@ namespace tair
     current_ = new handlers_node(new CLUSTER_HANDLER_MAP(), new CLUSTER_HANDLER_LIST(), new BUCKET_INDEX_MAP());
     current_->ref();
     using_head_ = new handlers_node();
+    using_head_->ref();
   }
 
   bucket_shard_cluster_handler_manager::~bucket_shard_cluster_handler_manager()
   {
     // clear all cluster handler
     current_->clear(true);
-    if (current_ != NULL)
-    {
-      delete current_;
-    }
+    delete current_;
 
-    // clear using handlers node
-    if (using_head_ != NULL)
-    {
-      handlers_node* node = using_head_;
-      handlers_node* next_node = node->next_;
-      while (next_node != NULL)
-      {
-        delete node;
-        node = next_node;
-        next_node = node->next_;
-      }
-      if (node != NULL)
-      {
-        delete node;
-      }
-    }
+    using_head_->unref();
+    cleanup_using_node_list();
   }
 
   bool bucket_shard_cluster_handler_manager::update(const CLUSTER_INFO_LIST& cluster_infos)
@@ -645,33 +632,32 @@ namespace tair
     {
       return;
     }
-    node->prev_ = using_head_;
     node->next_ = using_head_->next_;
-    if (using_head_->next_ != NULL)
-    {
-      using_head_->next_->prev_ = node;
-    }
     using_head_->next_ = node;
   }
 
   // lock hold
   void bucket_shard_cluster_handler_manager::cleanup_using_node_list()
   {
-    if (using_head_ != NULL && using_head_->next_ != NULL)
+    if (using_head_ != NULL)
     {
-      handlers_node* node = using_head_->next_;
-      handlers_node* next_node = node;
+      handlers_node* prev_node = NULL;
+      handlers_node* node = using_head_;
+      handlers_node* next_node = using_head_;
       while (node != NULL)
       {
         next_node = node->next_;
         if (node->get_ref() <= 0)
         {
-          node->prev_->next_ = node->next_;
-          if (node->next_ != NULL)
+          if (prev_node != NULL)
           {
-            node->next_->prev_ = node->prev_;
+            prev_node->next_ = node->next_;
           }
           delete node;
+        }
+        else
+        {
+          prev_node = node;
         }
         node = next_node;
       }

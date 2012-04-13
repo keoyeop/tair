@@ -286,7 +286,6 @@ namespace tair
     // Avoid wild cluster_handler crashing when concurrent using and updating,
     // we use reference count to protect cluster_handler from unexpected destructing.
     atomic_t ref_;
-    handlers_node* prev_;
     handlers_node* next_;
 
     // cluster handler timeout

@@ -58,6 +58,9 @@ namespace tair
       std::string result(tmp_buf);
       tbsys::CTimeUtil::timeToStr(last_update_time_, tmp_buf);
       result.append(tmp_buf);
+      result.append(", now: ");
+      tbsys::CTimeUtil::timeToStr(time(NULL), tmp_buf);
+      result.append(tmp_buf);
       result.append(" ]");
       return result;
     }
