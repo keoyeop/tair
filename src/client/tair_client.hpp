@@ -67,6 +67,9 @@ namespace tair {
       //void  doCmdAddItems(VSTRING &param);
       void  do_cmd_remove_area(VSTRING &param);
       void  do_cmd_dump_area(VSTRING &param);
+      void do_cmd_setstatus(VSTRING &params);
+      void do_cmd_getstatus(VSTRING &params);
+      void do_cmd_resetgroup(VSTRING &params);
 
     private:
       str_cmdcall_map cmd_map;

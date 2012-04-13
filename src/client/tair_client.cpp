@@ -50,6 +50,9 @@ namespace tair {
       cmd_map["delall"] = &tair_client::do_cmd_remove_area;
       cmd_map["dump"] = &tair_client::do_cmd_dump_area;
       cmd_map["stat"] = &tair_client::do_cmd_stat;
+      cmd_map["setstatus"] = &tair_client::do_cmd_setstatus;
+      cmd_map["getstatus"] = &tair_client::do_cmd_getstatus;
+      cmd_map["resetgroup"] = &tair_client::do_cmd_resetgroup;
       // cmd_map["additems"] = &tair_client::doCmdAddItems;
    }
 
@@ -332,6 +335,33 @@ namespace tair {
             );
       }
 
+      if (cmd == NULL || strcmp(cmd, "setstatus") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
+                 "SYNOPSIS   : setstatus group status\n"
+                 "DESCRIPTION: set group to on or off\n"
+                 "\tgroup: groupname to set, status: on/off\n"
+            );
+      }
+
+      if (cmd == NULL || strcmp(cmd, "getstatus") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
+                 "SYNOPSIS   : getstatus group1 group2...\n"
+                 "DESCRIPTION: get status of group(s)\n"
+                 "\tgroup[n]: groupnames of which to get status\n"
+            );
+      }
+
+      if (cmd == NULL || strcmp(cmd, "resetgroup") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
+                 "SYNOPSIS   : resetgroup group\n"
+                 "DESCRIPTION: clear the down server list, namely 'tmp_down_server' in group.conf\n"
+                 "\tgroup: groupname to reset\n"
+            );
+      }
+
       fprintf(stderr, "\n");
    }
 
@@ -588,40 +618,39 @@ namespace tair {
 
    void tair_client::do_cmd_stat(VSTRING &param) {
 
-	map<string, string> out_info;
-	map<string, string>::iterator it;
-	string group = group_name;
-	client_helper.query_from_configserver(request_query_info::Q_AREA_CAPACITY, group, out_info);
-	fprintf(stderr,"%20s %20s\n","area","quota");
-	for (it=out_info.begin(); it != out_info.end(); it++) {
-		fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
-	}
-	fprintf(stderr,"\n");
+     map<string, string> out_info;
+     map<string, string>::iterator it;
+     string group = group_name;
+     client_helper.query_from_configserver(request_query_info::Q_AREA_CAPACITY, group, out_info);
+     fprintf(stderr,"%20s %20s\n","area","quota");
+     for (it=out_info.begin(); it != out_info.end(); it++) {
+       fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
+     }
+     fprintf(stderr,"\n");
 
-	fprintf(stderr,"%20s %20s\n","server","status");
-	client_helper.query_from_configserver(request_query_info::Q_DATA_SEVER_INFO, group, out_info);
-	for (it=out_info.begin(); it != out_info.end(); it++) {
-		fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
-	}
+     fprintf(stderr,"%20s %20s\n","server","status");
+     client_helper.query_from_configserver(request_query_info::Q_DATA_SEVER_INFO, group, out_info);
+     for (it=out_info.begin(); it != out_info.end(); it++) {
+       fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
+     }
 
-	fprintf(stderr,"\n");
+     fprintf(stderr,"\n");
 
-	for (it=out_info.begin(); it != out_info.end(); it++) {
-		map<string, string> out_info2;
-		map<string, string>::iterator it2;
-		client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info2, tbsys::CNetUtil::strToAddr(it->first.c_str(), 0));
-		for (it2=out_info2.begin(); it2 != out_info2.end(); it2++) {
-			fprintf(stderr,"%s : %s %s\n",it->first.c_str(), it2->first.c_str(), it2->second.c_str());
-		}
-	}
-	map<string, string> out_info2;
-	map<string, string>::iterator it2;
-	client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info2, 0);
-	for (it2=out_info2.begin(); it2 != out_info2.end(); it2++) {
-		fprintf(stderr,"%s %s\n", it2->first.c_str(), it2->second.c_str());
-	}
-
-}
+     for (it=out_info.begin(); it != out_info.end(); it++) {
+       map<string, string> out_info2;
+       map<string, string>::iterator it2;
+       client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info2, tbsys::CNetUtil::strToAddr(it->first.c_str(), 0));
+       for (it2=out_info2.begin(); it2 != out_info2.end(); it2++) {
+         fprintf(stderr,"%s : %s %s\n",it->first.c_str(), it2->first.c_str(), it2->second.c_str());
+       }
+     }
+     map<string, string> out_info2;
+     map<string, string>::iterator it2;
+     client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info2, 0);
+     for (it2=out_info2.begin(); it2 != out_info2.end(); it2++) {
+       fprintf(stderr,"%s %s\n", it2->first.c_str(), it2->second.c_str());
+     }
+   }
 
 
    void tair_client::do_cmd_remove_area(VSTRING &param)
@@ -642,77 +671,119 @@ namespace tair {
 
    void tair_client::do_cmd_dump_area(VSTRING &param)
    {
-      if (param.size() != 1U) {
-         print_help("dump");
-         return;
-      }
+     if (param.size() != 1U) {
+       print_help("dump");
+       return;
+     }
 
-      FILE *fp = fopen(param[0],"r");
-      if (fp == NULL){
-         fprintf(stderr,"open file %s failed",param[0]);
-         return;
-      }
+     FILE *fp = fopen(param[0],"r");
+     if (fp == NULL){
+       fprintf(stderr,"open file %s failed",param[0]);
+       return;
+     }
 
-      char buf[1024];
-      struct tm start_time;
-      struct tm end_time;
-      set<dump_meta_info> dump_set;
-      while(fgets(buf,sizeof(buf),fp) != NULL){
-         dump_meta_info info;
-         if (sscanf(buf,"%d %4d-%2d-%2d %2d:%2d:%2d %4d-%2d-%2d %2d:%2d:%2d",\
-                    &info.area,\
-                    &start_time.tm_year,&start_time.tm_mon,\
-                    &start_time.tm_mday,&start_time.tm_hour,\
-                    &start_time.tm_min,&start_time.tm_sec,
-                    &end_time.tm_year,&end_time.tm_mon,\
-                    &end_time.tm_mday,&end_time.tm_hour,\
-                    &end_time.tm_min,&end_time.tm_sec) != 13){
-            fprintf(stderr,"syntax error : %s",buf);
-            continue;
-         }
+     char buf[1024];
+     struct tm start_time;
+     struct tm end_time;
+     set<dump_meta_info> dump_set;
+     while(fgets(buf,sizeof(buf),fp) != NULL){
+       dump_meta_info info;
+       if (sscanf(buf,"%d %4d-%2d-%2d %2d:%2d:%2d %4d-%2d-%2d %2d:%2d:%2d",\
+             &info.area,\
+             &start_time.tm_year,&start_time.tm_mon,\
+             &start_time.tm_mday,&start_time.tm_hour,\
+             &start_time.tm_min,&start_time.tm_sec,
+             &end_time.tm_year,&end_time.tm_mon,\
+             &end_time.tm_mday,&end_time.tm_hour,\
+             &end_time.tm_min,&end_time.tm_sec) != 13){
+         fprintf(stderr,"syntax error : %s",buf);
+         continue;
+       }
 
-         start_time.tm_year -= 1900;
-         end_time.tm_year -= 1900;
-         start_time.tm_mon -= 1;
-         end_time.tm_mon -= 1;
+       start_time.tm_year -= 1900;
+       end_time.tm_year -= 1900;
+       start_time.tm_mon -= 1;
+       end_time.tm_mon -= 1;
 
-         if (info.area < -1 || info.area >= TAIR_MAX_AREA_COUNT){
-            fprintf(stderr,"ilegal area");
-            continue;
-         }
+       if (info.area < -1 || info.area >= TAIR_MAX_AREA_COUNT){
+         fprintf(stderr,"ilegal area");
+         continue;
+       }
 
-         time_t tmp_time = -1;
-         if ( (tmp_time = mktime(&start_time)) == static_cast<time_t>(-1)){
-            fprintf(stderr,"incorrect time");
-            continue;
-         }
-         info.start_time = static_cast<uint32_t>(tmp_time);
+       time_t tmp_time = -1;
+       if ( (tmp_time = mktime(&start_time)) == static_cast<time_t>(-1)){
+         fprintf(stderr,"incorrect time");
+         continue;
+       }
+       info.start_time = static_cast<uint32_t>(tmp_time);
 
-         if ( (tmp_time = mktime(&end_time)) == static_cast<time_t>(-1)){
-            fprintf(stderr,"incorrect time");
-            continue;
-         }
-         info.end_time = static_cast<uint32_t>(tmp_time);
+       if ( (tmp_time = mktime(&end_time)) == static_cast<time_t>(-1)){
+         fprintf(stderr,"incorrect time");
+         continue;
+       }
+       info.end_time = static_cast<uint32_t>(tmp_time);
 
-         if (info.start_time < info.end_time){
-            std::swap(info.start_time,info.end_time);
-         }
-         dump_set.insert(info);
-      }
-      fclose(fp);
+       if (info.start_time < info.end_time){
+         std::swap(info.start_time,info.end_time);
+       }
+       dump_set.insert(info);
+     }
+     fclose(fp);
 
-      if (dump_set.empty()){
-         fprintf(stderr,"what do you want to dump?");
-         return;
-      }
+     if (dump_set.empty()){
+       fprintf(stderr,"what do you want to dump?");
+       return;
+     }
 
-      // dump
-      int ret = client_helper.dump_area(dump_set);
-      fprintf(stderr, "dump : %s\n",client_helper.get_error_msg(ret));
-      return;
+     // dump
+     int ret = client_helper.dump_area(dump_set);
+     fprintf(stderr, "dump : %s\n",client_helper.get_error_msg(ret));
+     return;
    }
 
+   void tair_client::do_cmd_setstatus(VSTRING &params) {
+     if (params.size() != 2) {
+       print_help("setstatus");
+       return ;
+     }
+     int ret = client_helper.set_group_status(params[0], params[1]);
+     if (ret == TAIR_RETURN_SUCCESS) {
+       fprintf(stderr, "successful\n");
+     } else {
+       fprintf(stderr, "failed with %d\n", ret);
+     }
+   }
 
+   void tair_client::do_cmd_getstatus(VSTRING &params) {
+     if (params.empty()) {
+       print_help("getstatus");
+       return ;
+     }
+     vector<string> status;
+     vector<string> groups(params.begin(), params.end());
+     int ret = client_helper.get_group_status(groups, status);
+     if (TAIR_RETURN_SUCCESS == ret) {
+       for (size_t i = 0; i < status.size(); ++i) {
+         fprintf(stderr, "\t%s\n", status[i].c_str());
+       }
+     } else {
+       fprintf(stderr, "failed with %d\n", ret);
+     }
+   }
+
+   void tair_client::do_cmd_resetgroup(VSTRING &params) {
+     if (params.size() != 1) {
+       print_help("resetgroup");
+       return ;
+     }
+     vector<string> groups(params.begin(), params.end());
+     int ret = client_helper.reset_group(groups);
+     if (ret == TAIR_RETURN_SUCCESS) {
+       fprintf(stderr, "successful\n");
+     } else {
+       fprintf(stderr, "failed with %d\n", ret);
+     }
+   }
 } // namespace tair
 
 
