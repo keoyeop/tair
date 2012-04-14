@@ -268,9 +268,8 @@ namespace tair
 
   private:
     void construct_handler_map(const CLUSTER_INFO_LIST& cluster_infos,
-                               const handlers_node& diff_handlers_node,
-                               CLUSTER_HANDLER_MAP_ITER_LIST& has_down_server_handlers);
-    void construct_handlers();
+                               const handlers_node& diff_handlers_node);
+    void construct_handlers(CLUSTER_HANDLER_MAP_ITER_LIST& has_down_server_handlers);
     void construct_extra_bucket_map(CLUSTER_HANDLER_MAP_ITER_LIST& has_down_server_handlers);
     void collect_down_bucket(CLUSTER_HANDLER_MAP_ITER_LIST& has_down_server_handlers,
                              CLUSTER_HANDLER_MAP_ITER_LIST& has_down_bucket_handlers);

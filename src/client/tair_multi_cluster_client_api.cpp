@@ -22,6 +22,39 @@
 
 namespace tair
 {
+// Effect op(read) over one cluster handler that is picked based on key
+#define ONE_CLUSTER_HANDLER_OP(ret, key, op)                            \
+  do {                                                                  \
+    bucket_shard_cluster_handler_manager_delegate delegate(handler_mgr_); \
+    cluster_handler* handler = delegate.pick_handler(key);              \
+    ret = (NULL == handler) ? TAIR_RETURN_SERVER_CAN_NOT_WORK : handler->get_client()->op; \
+  } while (0)
+
+// Effect op(write) over all cluster handler synchronously,
+// ignore update when operating, so we use one delegate all the time.
+// Break once one fail. There is no ANY data consistency guaranteed.
+// TODO.
+#define ALL_CLUSTER_HANDLER_OP(ret, key, op)                            \
+  do {                                                                  \
+    bucket_shard_cluster_handler_manager_delegate hold_delegate(handler_mgr_); \
+    int32_t handler_count = hold_delegate.get_delegate()->get_handler_count(); \
+    for (int32_t i = 0; i < handler_count; ++i)                         \
+    {                                                                   \
+      bucket_shard_cluster_handler_manager_delegate delegate(hold_delegate); \
+      cluster_handler* handler = delegate.pick_handler(i, key);         \
+      ret = (NULL == handler) ? TAIR_RETURN_SERVER_CAN_NOT_WORK : handler->get_client()->op; \
+      if (ret != TAIR_RETURN_SUCCESS)                                   \
+      {                                                                 \
+        break;                                                          \
+      }                                                                 \
+    }                                                                   \
+    if (ret != TAIR_RETURN_SUCCESS)                                     \
+    {                                                                   \
+      ret = TAIR_RETURN_PARTIAL_SUCCESS;                                \
+    }                                                                   \
+  } while (0)
+
+
   using namespace tair::common;
 
   tair_multi_cluster_client_api::tair_multi_cluster_client_api()

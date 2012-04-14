@@ -108,9 +108,9 @@ namespace tair
     CLUSTER_HANDLER_MAP_ITER_LIST has_down_server_handlers;
 
     // construct new handler_map
-    construct_handler_map(cluster_infos, diff_handlers_node, has_down_server_handlers);
+    construct_handler_map(cluster_infos, diff_handlers_node);
     // construct new handlers
-    construct_handlers();
+    construct_handlers(has_down_server_handlers);
     // construct new extra_bucket_map
     construct_extra_bucket_map(has_down_server_handlers);
   }
@@ -194,8 +194,7 @@ namespace tair
   }
 
   void handlers_node::construct_handler_map(const CLUSTER_INFO_LIST& cluster_infos,
-                                            const handlers_node& diff_handlers_node,
-                                            CLUSTER_HANDLER_MAP_ITER_LIST& has_down_server_handlers)
+                                            const handlers_node& diff_handlers_node)
   {
     handler_map_->clear();
     if (cluster_infos.empty())
@@ -206,8 +205,6 @@ namespace tair
     int ret = TAIR_RETURN_SUCCESS;
     cluster_handler* handler = NULL;
     bool new_handler = false;
-
-    CLUSTER_INFO_LIST has_down_server_infos;
 
     for (CLUSTER_INFO_LIST::const_iterator info_it = cluster_infos.begin(); info_it != cluster_infos.end(); ++info_it)
     {
@@ -311,24 +308,11 @@ namespace tair
             log_warn("get invalid down server address: %s", it->c_str());
           }
         }
-
-        if (!down_server_ids.empty())
-        {
-          has_down_server_infos.push_back(*info_it);
-        }
       }
-    }
-
-    for (CLUSTER_INFO_LIST::const_iterator it = has_down_server_infos.begin(); it != has_down_server_infos.end(); ++it)
-    {
-      // handler_map_ is constructd over here, won't change any more,
-      // iterator is safe to use.
-      // MUST have here
-      has_down_server_handlers.push_back(handler_map_->find(*it));
     }
   }
 
-  void handlers_node::construct_handlers()
+  void handlers_node::construct_handlers(CLUSTER_HANDLER_MAP_ITER_LIST& has_down_server_handlers)
   {
     handlers_->clear();
     if (handler_map_->empty())
@@ -342,6 +326,13 @@ namespace tair
       cluster_handler* handler = it->second;
       handler->set_index(i++);
       handlers_->push_back(handler);
+
+      if (!handler->get_down_servers().empty())
+      {
+        // handler_map_ is constructd over here, won't change any more,
+        // iterator is safe to use.
+        has_down_server_handlers.push_back(it);
+      }
     }
   }
 
