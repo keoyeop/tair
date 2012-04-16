@@ -27,6 +27,16 @@ namespace tair
     {
       LdbManager::LdbManager() : cache_(NULL), scan_ldb_(NULL)
       {
+        init();
+      }
+
+      LdbManager::~LdbManager()
+      {
+        destroy();
+      }
+
+      int LdbManager::init()
+      {
         std::string cache_stat_path;
         if (TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_USE_CACHE, 1) > 0)
         {
@@ -49,7 +59,7 @@ namespace tair
             }
 
             if (!cache_stat_.start(cache_stat_path.c_str(),
-                                  TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_STAT_FILE_SIZE, (20*1<<20))))
+                                   TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_CACHE_STAT_FILE_SIZE, (20*1<<20))))
             {
               log_error("start cache stat fail.");
             }
@@ -66,24 +76,30 @@ namespace tair
 
         log_warn("ldb storage engine construct count: %d, db version care: %s, use cache: %s, cache stat path: %s",
                  db_count_, db_version_care ? "yes" : "no", cache_ != NULL ? "yes" : "no", cache_stat_path.c_str());
+
+        return TAIR_RETURN_SUCCESS;
       }
 
-      LdbManager::~LdbManager()
+      int LdbManager::destroy()
       {
-        if (ldb_instance_ != NULL)
+        LdbInstance** instance = ldb_instance_;
+        ldb_instance_ = NULL;
+        if (instance != NULL)
         {
           for (int32_t i = 0; i < db_count_; ++i)
           {
-            delete ldb_instance_[i];
+            delete instance[i];
           }
         }
 
-        delete[] ldb_instance_;
+        delete[] instance;
 
         if (cache_ != NULL)
         {
           delete cache_;
+          cache_ = NULL;
         }
+        return TAIR_RETURN_SUCCESS;
       }
 
       int LdbManager::put(int bucket_number, data_entry& key, data_entry& value, bool version_care, int expire_time)
@@ -215,7 +231,7 @@ namespace tair
 
           for (std::vector<int>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
           {
-            tmp_buckets[hash(*it) % db_count_].push_back(*it);
+            tmp_buckets[bucket_to_instance(*it)].push_back(*it);
           }
 
           for (int32_t i = 0; i < db_count_; ++i)
@@ -247,7 +263,7 @@ namespace tair
           std::vector<int32_t>* tmp_buckets = new std::vector<int32_t>[db_count_];
           for (std::vector<int>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
           {
-            tmp_buckets[hash(*it) % db_count_].push_back(*it);
+            tmp_buckets[bucket_to_instance(*it)].push_back(*it);
           }
 
           for (int32_t i = 0; i < db_count_; ++i)
@@ -324,15 +340,71 @@ namespace tair
 
       int LdbManager::op_cmd(ServerCmdType cmd, std::vector<std::string>& params)
       {
-        int ret = TAIR_RETURN_NOT_SUPPORTED;
-        for (int32_t i = 0; i < db_count_; ++i)
+        int ret = TAIR_RETURN_FAILED;
+
+        switch (cmd)
         {
-          ret = ldb_instance_[i]->op_cmd(cmd, params);
-          if (ret != TAIR_RETURN_SUCCESS)
+          // do something special
+        case TAIR_SERVER_CMD_RESET_DB:
+        {
+          std::vector<int32_t>* tmp_buckets = new std::vector<int32_t>[db_count_];
+          for (int32_t i = 0; i < db_count_; ++i)
           {
-            break;
+            ldb_instance_[i]->get_buckets(tmp_buckets[i]);
+            ret = ldb_instance_[i]->op_cmd(cmd, params);
+            if (ret != TAIR_RETURN_SUCCESS)
+            {
+              log_error("do cmd fail. cmd: %d, instance: %d, ret: %d", cmd, i+1, ret);
+              break;
+            }
           }
+
+          if (ret == TAIR_RETURN_SUCCESS)
+          {
+            destroy();
+
+            // clear cache data
+            const char* cache_data_file = cache_ != NULL ? mdb_param::mdb_path : NULL;
+            if (cache_data_file != NULL && unlink(cache_data_file) != 0)
+            {
+              log_error("clear cache data fail: %s, error: %s", cache_data_file, strerror(errno));
+              ret = TAIR_RETURN_FAILED;
+            }
+
+            if (ret == TAIR_RETURN_SUCCESS)
+            {
+              // reinit
+              init();
+              for (int32_t i = 0; i < db_count_; i++)
+              {
+                log_debug("reinit instance %d own %d buckets.", i+1, tmp_buckets[i].size());
+                if (!ldb_instance_[i]->init_buckets(tmp_buckets[i]))
+                {
+                  log_error("destroydb reinit db fail. instance: %d", i+1);
+                  ret = TAIR_RETURN_FAILED;
+                  break;
+                }
+              }
+            }
+          }
+
+          delete[] tmp_buckets;
+          break;
         }
+        default:
+        {
+          for (int32_t i = 0; i < db_count_; ++i)
+          {
+            ret = ldb_instance_[i]->op_cmd(cmd, params);
+            if (ret != TAIR_RETURN_SUCCESS)
+            {
+              break;
+            }
+          }
+          break;
+        }
+        }
+
         return ret;
       }
 
@@ -382,12 +454,24 @@ namespace tair
 
       LdbInstance* LdbManager::get_db_instance(const int bucket_number)
       {
-        LdbInstance* ret = (1 == db_count_) ? ldb_instance_[0] :
-          ldb_instance_[hash(bucket_number) % db_count_];
-        assert(ret != NULL);
-        return ret->exist(bucket_number) ? ret : NULL;
+        LdbInstance* ret = NULL;
+        if (NULL != ldb_instance_)
+        {
+          ret = (1 == db_count_) ? ldb_instance_[0] :
+            ldb_instance_[bucket_to_instance(bucket_number)];
+          assert(ret != NULL);
+          if (!ret->exist(bucket_number))
+          {
+            ret = NULL;
+          }
+        }
+        return ret;
       }
 
+      int LdbManager::bucket_to_instance(int bucket_number)
+      {
+        return hash(bucket_number) % db_count_;
+      }
     }
   }
 }

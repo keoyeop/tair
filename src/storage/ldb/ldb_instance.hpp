@@ -71,6 +71,8 @@ namespace tair
         void stat_add(int32_t bucket_number, int32_t area, int32_t data_size, int32_t use_size, int32_t item_count);
         void stat_sub(int32_t bucket_number, int32_t area, int32_t data_size, int32_t use_size, int32_t item_count);
 
+        void get_buckets(std::vector<int32_t>& buckets);
+
         const char* db_path() { return db_path_; }
         // use inner leveldb/gc_factory when compact
         leveldb::DB* db() { return db_; }

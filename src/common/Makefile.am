@@ -28,7 +28,9 @@ base_src=data_dumpper.cpp	\
 	 util.hpp	\
 	 wait_object.hpp \
          file_op.hpp \
-         file_op.cpp
+         file_op.cpp \
+         directory_op.hpp \
+         directory_op.cpp
 
 noinst_LIBRARIES=libtair_common.a
 

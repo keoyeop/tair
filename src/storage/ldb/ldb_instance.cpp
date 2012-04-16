@@ -19,6 +19,7 @@
 
 #include "common/define.hpp"
 #include "common/util.hpp"
+#include "common/directory_op.hpp"
 #include "storage/storage_manager.hpp"
 #include "storage/mdb/mdb_manager.hpp"
 #include "ldb_instance.hpp"
@@ -580,6 +581,26 @@ namespace tair
           }
           break;
         }
+        case TAIR_SERVER_CMD_RESET_DB:
+        {
+          stop();
+          // delete directory may cost too much time. we just rename here.
+          // if (!DirectoryOp::delete_directory_recursively(db_path_))
+          // {
+          //   log_error("delete db path fail: %s", db_path_);
+          //   ret = TAIR_RETURN_FAILED;
+          // }
+          char back_db_path[PATH_MAX + 16];
+          char* pos = back_db_path;
+          pos += snprintf(back_db_path, PATH_MAX, "%s.bak.", db_path_);
+          tbsys::CTimeUtil::timeToStr(time(NULL), pos);
+          if (::rename(db_path_, back_db_path) != 0)
+          {
+            log_error("rename db %s to back db %s fail. error: %s", db_path_, back_db_path, strerror(errno));
+            ret = TAIR_RETURN_FAILED;
+          }
+          break;
+        }
         default:
         {
           ret = TAIR_RETURN_NOT_SUPPORTED;
@@ -875,6 +896,14 @@ namespace tair
         if (stat_it != stat_manager_->end())
         {
           stat_it->second->stat_sub(area, data_size, use_size, item_count);
+        }
+      }
+
+      void LdbInstance::get_buckets(std::vector<int32_t>& buckets)
+      {
+        for (STAT_MANAGER_MAP_ITER it = stat_manager_->begin(); it != stat_manager_->end(); ++it)
+        {
+          buckets.push_back(it->first);
         }
       }
 

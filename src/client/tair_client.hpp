@@ -70,6 +70,8 @@ namespace tair {
       void do_cmd_setstatus(VSTRING &params);
       void do_cmd_getstatus(VSTRING &params);
       void do_cmd_resetgroup(VSTRING &params);
+      void do_cmd_flushmmt(VSTRING &params);
+      void do_cmd_resetdb(VSTRING &params);
 
     private:
       str_cmdcall_map cmd_map;

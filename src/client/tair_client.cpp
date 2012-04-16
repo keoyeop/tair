@@ -53,6 +53,8 @@ namespace tair {
       cmd_map["setstatus"] = &tair_client::do_cmd_setstatus;
       cmd_map["getstatus"] = &tair_client::do_cmd_getstatus;
       cmd_map["resetgroup"] = &tair_client::do_cmd_resetgroup;
+      cmd_map["flushmmt"] = &tair_client::do_cmd_flushmmt;
+      cmd_map["resetdb"] = &tair_client::do_cmd_resetdb;
       // cmd_map["additems"] = &tair_client::doCmdAddItems;
    }
 
@@ -359,6 +361,24 @@ namespace tair {
                  "SYNOPSIS   : resetgroup group\n"
                  "DESCRIPTION: clear the down server list, namely 'tmp_down_server' in group.conf\n"
                  "\tgroup: groupname to reset\n"
+            );
+      }
+
+      if (cmd == NULL || strcmp(cmd, "flushmmt") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
+                 "SYNOPSIS   : flushmmt [ds_addr]\n"
+                 "DESCRIPTION: flush memtable of all tairserver or specified `ds_addr one. WARNING: use this cmd carefully\n"
+                 "\tds_addr: address of tairserver\n"
+            );
+      }
+
+      if (cmd == NULL || strcmp(cmd, "resetdb") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
+                 "SYNOPSIS   : resetdb [ds_addr]\n"
+                 "DESCRIPTION: reset db of all tairserver or specified `ds_addr one. WARNING: use this cmd carefully\n"
+                 "\tds_addr: address of tairserver\n"
             );
       }
 
@@ -784,6 +804,35 @@ namespace tair {
        fprintf(stderr, "failed with %d\n", ret);
      }
    }
+
+   void tair_client::do_cmd_flushmmt(VSTRING &params) {
+     if (params.size() > 1) {
+       print_help("flushmmt");
+       return ;
+     }
+     std::vector<std::string> cmd_params;
+     int ret = client_helper.op_cmd(TAIR_SERVER_CMD_FLUSH_MEM, cmd_params, params.size() > 0 ? params[0] : NULL);
+     if (ret == TAIR_RETURN_SUCCESS) {
+       fprintf(stderr, "successful\n");
+     } else {
+       fprintf(stderr, "failed with %d\n", ret);
+     }
+   }
+
+   void tair_client::do_cmd_resetdb(VSTRING &params) {
+     if (params.size() > 1) {
+       print_help("resetdb");
+       return ;
+     }
+     std::vector<std::string> cmd_params;
+     int ret = client_helper.op_cmd(TAIR_SERVER_CMD_RESET_DB, cmd_params, params.size() > 0 ? params[0] : NULL);
+     if (ret == TAIR_RETURN_SUCCESS) {
+       fprintf(stderr, "successful\n");
+     } else {
+       fprintf(stderr, "failed with %d\n", ret);
+     }
+   }
+
 } // namespace tair
 
 

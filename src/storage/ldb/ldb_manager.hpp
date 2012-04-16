@@ -62,8 +62,12 @@ namespace tair
         void set_bucket_count(uint32_t bucket_count);
 
       private:
+        int init();
+        int destroy();
+
         static int hash(int bucket_number);
         LdbInstance* get_db_instance(int bucket_number);
+        int bucket_to_instance(int bucket_number);
 
       private:
         LdbInstance** ldb_instance_;
