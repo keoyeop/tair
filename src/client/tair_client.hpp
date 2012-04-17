@@ -86,6 +86,10 @@ namespace tair {
       bool is_cancel;
       int key_format;
       int default_area;
+      // for convenient use of multi-cluster command. clusters are with same configserver address but
+      // different group name. User can operate command to groups in only one client.
+      std::map<std::string, tair_client_impl*> cmd_client_map;
+      tair_client_impl* get_cmd_client(const char* cmd_group_name);
   };
 }
 

@@ -72,6 +72,14 @@ namespace tair {
          free(cmd_file_name);
          cmd_file_name = NULL;
       }
+
+      // clear cmd_client_map
+      for (std::map<std::string, tair_client_impl*>::iterator it = cmd_client_map.begin();
+          it != cmd_client_map.end(); it++) {
+        if (it->second != &client_helper) {
+          delete it->second;
+        }
+      }
     }
 
    void tair_client::print_usage(char *prog_name)
@@ -210,6 +218,9 @@ namespace tair {
          fprintf(stderr, "%s cann't connect.\n", server_addr);
          return false;
       }
+
+      // add to client map
+      cmd_client_map[group_name] = &client_helper;
 
       char buffer[CMD_MAX_LEN];
       VSTRING param;
@@ -367,8 +378,9 @@ namespace tair {
       if (cmd == NULL || strcmp(cmd, "flushmmt") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
-                 "SYNOPSIS   : flushmmt [ds_addr]\n"
-                 "DESCRIPTION: flush memtable of all tairserver or specified `ds_addr one. WARNING: use this cmd carefully\n"
+                 "SYNOPSIS   : flushmmt group [ds_addr]\n"
+                 "DESCRIPTION: flush memtable of all tairserver or specified `ds_addr one of `group. WARNING: use this cmd carefully\n"
+                 "\tgroup: groupname\n"
                  "\tds_addr: address of tairserver\n"
             );
       }
@@ -376,8 +388,9 @@ namespace tair {
       if (cmd == NULL || strcmp(cmd, "resetdb") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
-                 "SYNOPSIS   : resetdb [ds_addr]\n"
-                 "DESCRIPTION: reset db of all tairserver or specified `ds_addr one. WARNING: use this cmd carefully\n"
+                 "SYNOPSIS   : resetdb group [ds_addr]\n"
+                 "DESCRIPTION: reset db of all tairserver or specified `ds_addr one of `group. WARNING: use this cmd carefully\n"
+                 "\tgroup: groupname\n"
                  "\tds_addr: address of tairserver\n"
             );
       }
@@ -806,12 +819,17 @@ namespace tair {
    }
 
    void tair_client::do_cmd_flushmmt(VSTRING &params) {
-     if (params.size() > 1) {
+     if (params.size() < 1 || params.size() > 2) {
        print_help("flushmmt");
        return ;
      }
      std::vector<std::string> cmd_params;
-     int ret = client_helper.op_cmd(TAIR_SERVER_CMD_FLUSH_MEM, cmd_params, params.size() > 0 ? params[0] : NULL);
+     tair_client_impl* cmd_client = get_cmd_client(params[0]);
+     if (cmd_client == NULL) {
+       fprintf(stderr, "connect group %s fail\n", params[0]);
+       return;
+     }
+     int ret = cmd_client->op_cmd(TAIR_SERVER_CMD_FLUSH_MEM, cmd_params, params.size() > 1 ? params[1] : NULL);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {
@@ -820,18 +838,45 @@ namespace tair {
    }
 
    void tair_client::do_cmd_resetdb(VSTRING &params) {
-     if (params.size() > 1) {
+     if (params.size() < 1 || params.size() > 2) {
        print_help("resetdb");
        return ;
      }
      std::vector<std::string> cmd_params;
-     int ret = client_helper.op_cmd(TAIR_SERVER_CMD_RESET_DB, cmd_params, params.size() > 0 ? params[0] : NULL);
+     tair_client_impl* cmd_client = get_cmd_client(params[0]);
+     if (cmd_client == NULL) {
+       fprintf(stderr, "connect group %s fail\n", params[0]);
+       return;
+     }
+     int ret = cmd_client->op_cmd(TAIR_SERVER_CMD_RESET_DB, cmd_params, params.size() > 1 ? params[1] : NULL);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {
        fprintf(stderr, "failed with %d\n", ret);
      }
    }
+
+  tair_client_impl* tair_client::get_cmd_client(const char* cmd_group_name) {
+    if (cmd_group_name == NULL) {
+      return NULL;
+    }
+
+    tair_client_impl* cmd_client = NULL;
+    std::map<std::string, tair_client_impl*>::iterator it = cmd_client_map.find(cmd_group_name);
+    if (it == cmd_client_map.end()) {
+      cmd_client = new tair_client_impl();
+      cmd_client->set_timeout(5000);
+      if (!cmd_client->startup(server_addr, slave_server_addr, cmd_group_name)) {
+        fprintf(stderr, "startup cmd client fail. group: %s\n", cmd_group_name);
+        delete cmd_client;
+        cmd_client = NULL;
+      }
+    } else {
+      cmd_client = it->second;
+    }
+
+    return cmd_client;
+  }
 
 } // namespace tair
 

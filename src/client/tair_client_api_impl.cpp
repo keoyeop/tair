@@ -324,7 +324,7 @@ FAIL:
     {
       this_wait_object_manager->destroy_wait_object(cwo);
       TBSYS_LOG(ERROR, "all requests are failed");
-      return ret;
+      return ret == 0 ? TAIR_RETURN_FAILED : ret;
     }
 
     vector<base_packet*>::iterator bp_iter = tpk.begin();
@@ -1246,7 +1246,8 @@ FAIL:
     }
 
     if (request_map.empty()) {
-      return TAIR_RETURN_SUCCESS;
+      log_error("no request");
+      return TAIR_RETURN_FAILED;
     }
 
     wait_object *cwo = this_wait_object_manager->create_wait_object();
@@ -1261,7 +1262,7 @@ FAIL:
 
       if ((ret = send_request(server_id,packet,cwo->get_id())) != TAIR_RETURN_SUCCESS) {
         log_error("send request_op_cmd request fail: %s", tbsys::CNetUtil::addrToString(server_id).c_str());
-        request_map.erase(it);
+        request_map.erase(it++);
         delete packet;
       } else {
         ++send_count;
@@ -1272,8 +1273,8 @@ FAIL:
     vector<base_packet*> tpk;
     if ((ret = get_response(cwo, send_count, tpk)) < 1) {
       this_wait_object_manager->destroy_wait_object(cwo);
-      TBSYS_LOG(ERROR, "all requests are failed");
-      return ret;
+      TBSYS_LOG(ERROR, "all requests are failed, ret: %d", ret);
+      return ret == 0 ? TAIR_RETURN_FAILED : ret;
     }
 
     int fail_request = 0;
