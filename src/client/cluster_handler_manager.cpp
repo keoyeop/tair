@@ -122,7 +122,7 @@ namespace tair
       return NULL;
     }
 
-    int32_t bucket = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % bucket_count_;
+    int32_t bucket = key_to_bucket(key);
     int32_t index = bucket_to_handler_index(bucket);
     log_debug("pick: %s => %d => %d => %s", key.get_data(), bucket, index,
               index >= 0 ? (*handlers_)[index]->get_cluster_info().debug_string().c_str() : "none");
@@ -131,12 +131,12 @@ namespace tair
 
   cluster_handler* handlers_node::pick_handler(int32_t index, const tair::common::data_entry& key)
   {
-    if (index < 0 || index > (int32_t)handlers_->size())
+    if (bucket_count_ <= 0 || index < 0 || index >= (int32_t)handlers_->size())
     {
       return NULL;
     }
 
-    int32_t bucket = util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % bucket_count_;
+    int32_t bucket = key_to_bucket(key);
     return (*handlers_)[index]->ok(bucket) ? (*handlers_)[index] : NULL;
   }
 
@@ -493,6 +493,11 @@ namespace tair
       result.append("]\n}\n");
     }
     return result;
+  }
+
+  int32_t handlers_node::key_to_bucket(const data_entry& key)
+  {
+    return util::string_util::mur_mur_hash(key.get_data(), key.get_size()) % bucket_count_;
   }
 
   int32_t handlers_node::bucket_to_handler_index(int32_t bucket)

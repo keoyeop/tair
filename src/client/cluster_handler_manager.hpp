@@ -276,6 +276,7 @@ namespace tair
     void shard_down_bucket(const CLUSTER_HANDLER_MAP_ITER_LIST& has_down_bucket_handlers);
     void get_handler_index_of_bucket(int32_t bucket, const cluster_info& exclude, std::vector<int32_t>& indexs);
 
+    int32_t key_to_bucket(const data_entry& key);
     int32_t bucket_to_handler_index(int32_t bucket);
 
   private:
