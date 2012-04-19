@@ -321,9 +321,21 @@ namespace tair {
       int set_group_status(const char *group, const char *status);
 
       /**
-       * @param groups: group names to reset
+       * @param group: group to reset
+       * @param dss  : if not NULL, then reset ds whose address is specified in `dss
        */
-      int reset_group(vector<string> &groups);
+      int reset_server(const char* group, vector<string>* dss = NULL);
+
+      /**
+       * @param group: group to flush memtable
+       * @param ds_addr  : if not NULL, then only flush ds whose address is `ds_addr
+       */
+      int flush_mmt(const char* group, const char* ds_addr = NULL);
+      /**
+       * @param group: group to reset db
+       * @param ds_addr  : if not NULL, then only reset ds whose address is `ds_addr
+       */
+      int reset_db(const char* group, const char* ds_addr = NULL);
 
       const char *get_error_msg(int ret);
 

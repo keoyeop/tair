@@ -457,7 +457,7 @@ namespace tair {
       {
         if (strlen(down_servers) != 0)
         {
-          assert(false);
+          log_error("no %s config or config 0, tmp down server %s config is ignored", TAIR_PRE_LOAD_FLAG, down_servers);
         }
         tmp_down_server.clear();
       }
@@ -1207,20 +1207,40 @@ namespace tair {
     }
 
     // when reset;
-    int group_info::clear_down_server()
+    int group_info::clear_down_server(const vector<uint64_t>& server_ids)
     {
-      int ret = EXIT_SUCCESS;
+      int ret = TAIR_RETURN_SUCCESS;
+      log_debug("clear down server. server size: %d, clear size: %d", tmp_down_server.size(), server_ids.size());
       //do it when has down server
-      if (tmp_down_server.size() > 0)
+      if (!tmp_down_server.empty())
       {
         const char *group_file_name =
           TBSYS_CONFIG.getString(CONFSERVER_SECTION, TAIR_GROUP_FILE, NULL);
         if (group_file_name == NULL) {
           log_error("not found %s:%s ", CONFSERVER_SECTION, TAIR_GROUP_FILE);
-          return EXIT_FAILURE;
+          return TAIR_RETURN_FAILED;
         }
-        tmp_down_server.clear();
-        ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, "");
+
+        std::string down_servers_str("");
+
+        if (server_ids.empty()) { // mean clear all down servers
+          tmp_down_server.clear();
+        } else {
+          for (vector<uint64_t>::const_iterator it = server_ids.begin(); it != server_ids.end(); ++it) {
+            tmp_down_server.erase(*it);
+          }
+          if (!tmp_down_server.empty()) {
+            down_servers_str.reserve(tmp_down_server.size() * 32);
+            for (std::set<uint64_t>::iterator sit = tmp_down_server.begin(); sit != tmp_down_server.end(); ++sit)
+            {
+              down_servers_str.append(tbsys::CNetUtil::addrToString(*sit));
+              down_servers_str.append(";");
+            }
+            log_info("current down servers: %s", down_servers_str.c_str());
+          }
+        }
+
+        ret = tair::util::file_util::change_conf(group_file_name, group_name, TAIR_TMP_DOWN_SERVER, down_servers_str.c_str());
       }
       return ret;
     }

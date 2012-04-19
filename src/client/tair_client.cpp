@@ -52,7 +52,7 @@ namespace tair {
       cmd_map["stat"] = &tair_client::do_cmd_stat;
       cmd_map["setstatus"] = &tair_client::do_cmd_setstatus;
       cmd_map["getstatus"] = &tair_client::do_cmd_getstatus;
-      cmd_map["resetgroup"] = &tair_client::do_cmd_resetgroup;
+      cmd_map["resetserver"] = &tair_client::do_cmd_resetserver;
       cmd_map["flushmmt"] = &tair_client::do_cmd_flushmmt;
       cmd_map["resetdb"] = &tair_client::do_cmd_resetdb;
       // cmd_map["additems"] = &tair_client::doCmdAddItems;
@@ -366,12 +366,13 @@ namespace tair {
             );
       }
 
-      if (cmd == NULL || strcmp(cmd, "resetgroup") == 0) {
+      if (cmd == NULL || strcmp(cmd, "resetserver") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
-                 "SYNOPSIS   : resetgroup group\n"
-                 "DESCRIPTION: clear the down server list, namely 'tmp_down_server' in group.conf\n"
+                 "SYNOPSIS   : resetserver group [ds_addr ds_addr]\n"
+                 "DESCRIPTION: clear the all or some specified by `ds_addr down server in group, namely 'tmp_down_server' in group.conf\n"
                  "\tgroup: groupname to reset\n"
+                 "\tds_addr: dataserver to reset\n"
             );
       }
 
@@ -804,13 +805,15 @@ namespace tair {
      }
    }
 
-   void tair_client::do_cmd_resetgroup(VSTRING &params) {
-     if (params.size() != 1) {
-       print_help("resetgroup");
+   void tair_client::do_cmd_resetserver(VSTRING &params) {
+     if (params.size() < 1) {
+       print_help("resetserver");
        return ;
      }
-     vector<string> groups(params.begin(), params.end());
-     int ret = client_helper.reset_group(groups);
+     VSTRING::iterator it = params.begin();
+     ++it;
+     vector<string> dss(it, params.end());
+     int ret = client_helper.reset_server(params[0], &dss);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {
@@ -829,7 +832,7 @@ namespace tair {
        fprintf(stderr, "connect group %s fail\n", params[0]);
        return;
      }
-     int ret = cmd_client->op_cmd(TAIR_SERVER_CMD_FLUSH_MEM, cmd_params, params.size() > 1 ? params[1] : NULL);
+     int ret = cmd_client->flush_mmt(params[0], params.size() > 1 ? params[1] : NULL);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {
@@ -848,7 +851,7 @@ namespace tair {
        fprintf(stderr, "connect group %s fail\n", params[0]);
        return;
      }
-     int ret = cmd_client->op_cmd(TAIR_SERVER_CMD_RESET_DB, cmd_params, params.size() > 1 ? params[1] : NULL);
+     int ret = cmd_client->reset_db(params[0], params.size() > 1 ? params[1] : NULL);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {

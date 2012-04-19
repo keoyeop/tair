@@ -1174,9 +1174,9 @@ namespace tair {
           rc = set_group_status(resp, req->params, group_file_name);
           break;
         }
-        case TAIR_SERVER_CMD_RESET_GROUP:
+        case TAIR_SERVER_CMD_RESET_DS:
         {
-          rc = do_reset_group_packet(resp, req->params);
+          rc = do_reset_ds_packet(resp, req->params);
           break;
         }
         default:
@@ -1232,29 +1232,40 @@ namespace tair {
       char group_name[64];
       char status[8];
       sscanf(params[0].c_str(), "%[^=]=%s", group_name, status);
-
+      log_info("set group status: %s = %s", group_name, status);
       return util::file_util::change_conf(group_file_name, group_name, TAIR_GROUP_STATUS, status);
     }
 
-    int server_conf_thread::do_reset_group_packet(response_op_cmd* resp, const vector<string>& params)
+    int server_conf_thread::do_reset_ds_packet(response_op_cmd* resp, const vector<string>& params)
     {
       int ret = TAIR_RETURN_SUCCESS;
-      //params vector<group_name>
-      vector<string>::const_iterator vit = params.begin();
-      group_info_rw_locker.wrlock();
-      for ( ; vit != params.end(); ++vit)
+      if (params.size() <= 0)
       {
-        group_info_map::iterator mit = group_info_map_data.find((*vit).c_str());
-        if (mit == group_info_map_data.end())
-        {
-          log_warn("reset group: %s is not exist.", (*vit).c_str());
-          ret = TAIR_RETURN_FAILED;
-          break;
-        }
-        mit->second->clear_down_server();
-        mit->second->inc_version();
-        mit->second->set_force_send_table();
+        log_error("reset ds cmd but no group parameter");
+        return TAIR_RETURN_FAILED;
       }
+
+      const char* cmd_group = params[0].c_str();
+      group_info_map::iterator mit = group_info_map_data.find(cmd_group);
+      if (mit == group_info_map_data.end())
+      {
+        log_error("rest ds cmd but invalid group name: %s", cmd_group);
+        return TAIR_RETURN_FAILED;
+      }
+
+      vector<uint64_t> ds_ids;
+      vector<string>::const_iterator it = params.begin();
+      ++it;
+      log_info("resetds group: %s, requeset resetds size: %d", cmd_group, params.size() - 1);
+      for (; it != params.end(); it++)
+      {
+        log_info("reset ds: %s", it->c_str());
+        ds_ids.push_back(tbsys::CNetUtil::strToAddr(it->c_str(), 0));
+      }
+      group_info_rw_locker.wrlock();
+      mit->second->clear_down_server(ds_ids);
+      mit->second->inc_version();
+      mit->second->set_force_send_table();
       group_info_rw_locker.unlock();
       return ret;
     }

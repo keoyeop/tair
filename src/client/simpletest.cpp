@@ -98,7 +98,7 @@ int main(int argc,char * argv[])
   log_error("%s", status[0].c_str());
   log_error("%s", status[1].c_str());
 
-  client_helper.reset_group(group);
+  client_helper.reset_server("group_1", NULL);
   return 0;
 	//do it .
 

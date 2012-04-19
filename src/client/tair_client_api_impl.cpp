@@ -1174,13 +1174,18 @@ FAIL:
     return ret;
   }
 
-  int tair_client_impl::reset_group(vector<string> &groups) {
-    if (groups.empty()) {
+  int tair_client_impl::reset_server(const char* group, vector<string>* dss) {
+    if (group == NULL) {
       return TAIR_RETURN_FAILED;
     }
     request_op_cmd *req = new request_op_cmd();
-    req->cmd = TAIR_SERVER_CMD_RESET_GROUP;
-    req->params = groups;
+    req->cmd = TAIR_SERVER_CMD_RESET_DS;
+    req->params.push_back(group);
+    if (dss != NULL) {
+      for (vector<string>::iterator it = dss->begin(); it != dss->end(); ++it) {
+        req->params.push_back(*it);      
+      }
+    }
 
     response_op_cmd *resp = NULL;
     wait_object *cwo = this_wait_object_manager->create_wait_object();
@@ -1217,6 +1222,18 @@ FAIL:
     } while (false);
 
     return ret;
+  }
+
+  int tair_client_impl::flush_mmt(const char* group, const char* ds_addr)
+  {
+    std::vector<std::string> cmd_params;
+    return op_cmd(TAIR_SERVER_CMD_FLUSH_MEM, cmd_params, ds_addr);
+  }
+
+  int tair_client_impl::reset_db(const char* group, const char* ds_addr)
+  {
+    std::vector<std::string> cmd_params;
+    return op_cmd(TAIR_SERVER_CMD_RESET_DB, cmd_params, ds_addr);
   }
 
   int tair_client_impl::op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr)
@@ -1987,7 +2004,7 @@ FAIL:
 
   int tair_client_impl::send_request(uint64_t server_id,base_packet *packet,int waitId)
   {
-    assert(server_id != 0 && packet != 0 && waitId >= 0);
+    assert(server_id != 0 && packet != 0);
     if (connmgr->sendPacket(server_id, packet, NULL, (void*)((long)waitId)) == false) {
       TBSYS_LOG(ERROR, "Send RequestGetPacket to %s failure. %x, %d",
                 tbsys::CNetUtil::addrToString(server_id).c_str(), packet, waitId);
@@ -2000,7 +2017,7 @@ FAIL:
 #if 0
   int tair_client_impl::send_request(vector<uint64_t>& server,base_packet *packet,int waitId)
   {
-    assert(!server.empty() && packet != 0 && waitId >= 0);
+    assert(!server.empty() && packet != 0);
 
     int send_success = 0;
     for(uint32_t i=0;i<server.size();++i){

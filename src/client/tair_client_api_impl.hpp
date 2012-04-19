@@ -159,6 +159,7 @@ namespace tair {
 
       int op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr = NULL);
 
+      // cmd operated directly to configserver
       /**
        * @param group: group name
        * @param status: on/off
@@ -172,9 +173,14 @@ namespace tair {
       int get_group_status(vector<string> &group, vector<string> &status);
 
       /**
-       * @param groups: group names to reset
+       * @param group: group name of ds to be reset
+       * @param ds_addr: dataserver address to be reset, if NULL, mean reset all ds in group
        */
-      int reset_group(vector<string> &groups);
+      int reset_server(const char* group, vector<string>* dss);
+
+      // cmd operated directly to dataserver
+      int flush_mmt(const char* group, const char* ds_addr = NULL);
+      int reset_db(const char* group, const char* ds_addr = NULL);
 
     private:
       /**

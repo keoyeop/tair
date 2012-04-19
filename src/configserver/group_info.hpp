@@ -163,7 +163,7 @@ namespace tair {
       void get_stat_info(uint64_t server_id, node_stat_info &) const;
 
       int add_down_server(uint64_t server_id);
-      int clear_down_server();
+      int clear_down_server(const vector<uint64_t>& server_ids);
     private:
       group_info(const group_info &);
       group_info & operator =(const group_info &);

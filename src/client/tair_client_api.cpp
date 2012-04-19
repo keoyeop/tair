@@ -239,9 +239,17 @@ namespace tair {
   {
     return impl->set_group_status(group, status);
   }
-  int tair_client_api::reset_group(vector<string> &groups)
+  int tair_client_api::reset_server(const char* group, std::vector<std::string>* dss)
   {
-    return impl->reset_group(groups);
+    return impl->reset_server(group, dss);
+  }
+  int tair_client_api::flush_mmt(const char* group, const char* ds_addr)
+  {
+    return impl->flush_mmt(group, ds_addr);
+  }
+  int tair_client_api::reset_db(const char* group, const char* ds_addr)
+  {
+    return impl->reset_db(group, ds_addr);
   }
   void tair_client_api::get_server_with_key(const data_entry& key,std::vector<std::string>& servers) const
   {
