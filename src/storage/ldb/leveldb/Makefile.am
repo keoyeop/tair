@@ -3,10 +3,12 @@ PORTCFLAGS= -fno-builtin-memcmp \
 	    -DSNAPPY -I$./snappy \
 	    ${LEVELDB_PORT_CFLAGS}
 
-AM_CPPFLAGS=-I. -I./include ${PORTCFLAGS}
+AM_CPPFLAGS=-fPIC -I. -I./include ${PORTCFLAGS}
 AM_LDFLAGS=-lpthread ${GCOV_LIB}
 
-noinst_LIBRARIES=libleveldb.a libsnappy.a
+lib_LTLIBRARIES=libsnappy.la
+
+noinst_LIBRARIES=libleveldb.a
 
 libleveldb_a_SOURCES= \
 	./db/builder.cc ./db/c.cc ./db/db_impl.cc ./db/db_iter.cc ./db/filename.cc ./db/dbformat.cc \
@@ -30,6 +32,6 @@ libleveldb_a_SOURCES= \
 	./include/leveldb/table.h ./include/leveldb/table_builder.h ./include/leveldb/write_batch.h \
 	./include/leveldb/status.h ./include/leveldb/comparator.h
 
-libsnappy_a_SOURCES= ./snappy/snappy-internal.h ./snappy/snappy-c.h ./snappy/snappy-c.cc ./snappy/snappy-sinksource.cc\
+libsnappy_la_SOURCES= ./snappy/snappy-internal.h ./snappy/snappy-c.h ./snappy/snappy-c.cc ./snappy/snappy-sinksource.cc\
 	             ./snappy/snappy-sinksource.h ./snappy/snappy-stubs-internal.h ./snappy/snappy-stubs-internal.cc\
 		     ./snappy/snappy-stubs-public.h.in ./snappy/snappy.cc ./snappy/snappy.h ./snappy/config.h.in

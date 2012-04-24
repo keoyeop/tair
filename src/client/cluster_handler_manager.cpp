@@ -20,9 +20,10 @@ namespace tair
 {
   using namespace tair::common;
   //////////////////////////// cluster_handler ////////////////////////////
-  cluster_handler::cluster_handler() : index_(-1)
+  cluster_handler::cluster_handler(bool can_mock) : index_(-1)
   {
     client_ = new tair_client_impl();
+    client_->set_can_mock(can_mock);
   }
 
   cluster_handler::~cluster_handler()
@@ -127,6 +128,18 @@ namespace tair
     log_debug("pick: %s => %d => %d => %s", key.get_data(), bucket, index,
               index >= 0 ? (*handlers_)[index]->get_cluster_info().debug_string().c_str() : "none");
     return index >= 0 ? (*handlers_)[index] : NULL;
+  }
+
+  cluster_handler* handlers_node::pick_handler(const cluster_info& info)
+  {
+    // lock should hold `cause handler_map may be updated when mark_clear
+    cluster_handler* handler = NULL;
+    CLUSTER_HANDLER_MAP::iterator it = handler_map_->find(info);
+    if (it != handler_map_->end())
+    {
+      handler = it->second;
+    }
+    return handler;
   }
 
   cluster_handler* handlers_node::pick_handler(int32_t index, const tair::common::data_entry& key)
@@ -530,8 +543,7 @@ namespace tair
   {
     current_ = new handlers_node(new CLUSTER_HANDLER_MAP(), new CLUSTER_HANDLER_LIST(), new BUCKET_INDEX_MAP());
     current_->ref();
-    using_head_ = new handlers_node();
-    using_head_->ref();
+    using_tail_ = using_head_ = NULL;
   }
 
   bucket_shard_cluster_handler_manager::~bucket_shard_cluster_handler_manager()
@@ -542,8 +554,6 @@ namespace tair
 
     // force clear all node
     cleanup_using_node_list(true);
-    using_head_->unref();
-    delete using_head_;
   }
 
   bool bucket_shard_cluster_handler_manager::update(const CLUSTER_INFO_LIST& cluster_infos)
@@ -605,6 +615,12 @@ namespace tair
     return current_->pick_handler(key);
   }
 
+  cluster_handler* bucket_shard_cluster_handler_manager::pick_handler(const cluster_info& info)
+  {
+    tbsys::CThreadGuard guard(&lock_);
+    return current_->pick_handler(info);      
+  }
+
   cluster_handler* bucket_shard_cluster_handler_manager::pick_handler(int32_t index, const tair::common::data_entry& key)
   {
     return current_->pick_handler(index, key);
@@ -637,8 +653,16 @@ namespace tair
     {
       return;
     }
-    node->next_ = using_head_->next_;
-    using_head_->next_ = node;
+
+    if (using_tail_ == NULL)
+    {
+      using_tail_ = using_head_ = node;
+    }
+    else
+    {
+      using_tail_->next_ = node;
+      using_tail_ = node;
+    }
   }
 
   // lock hold
@@ -646,22 +670,28 @@ namespace tair
   {
     if (using_head_ != NULL)
     {
-      handlers_node* prev_node = using_head_;
       handlers_node* next_node = NULL;
-      handlers_node* node = using_head_->next_;
+      handlers_node* node = using_head_;
       while (node != NULL)
       {
         next_node = node->next_;
         if (force || node->get_ref() <= 0)
         {
-          prev_node->next_ = next_node;
           delete node;
+          node = next_node;
         }
         else
         {
-          prev_node = node;
+          // make sure nodes are cleared by time sequence,
+          // so re-used cluster_handler can be sure to be out of former reference.
+          break;
         }
-        node = next_node;
+      }
+
+      using_head_ = node;
+      if (NULL == using_head_)  // clear up all node
+      {
+        using_tail_ = NULL;
       }
     }
   }
@@ -700,6 +730,17 @@ namespace tair
   cluster_handler* bucket_shard_cluster_handler_manager_delegate::pick_handler(const data_entry& key)
   {
     handler_ = node_->pick_handler(key);
+    if (handler_ != NULL)
+    {
+      version_ = handler_->get_version();
+    }
+    return handler_;
+  }
+
+  cluster_handler* bucket_shard_cluster_handler_manager_delegate::pick_handler(const cluster_info& info)
+  {
+    tbsys::CThreadGuard guard(&(dynamic_cast<bucket_shard_cluster_handler_manager*>(manager_)->lock_));
+    handler_ = node_->pick_handler(info);
     if (handler_ != NULL)
     {
       version_ = handler_->get_version();

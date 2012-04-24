@@ -52,6 +52,7 @@ namespace tair {
       cmd_map["stat"] = &tair_client::do_cmd_stat;
       cmd_map["setstatus"] = &tair_client::do_cmd_setstatus;
       cmd_map["getstatus"] = &tair_client::do_cmd_getstatus;
+      cmd_map["gettmpdownsvr"] = &tair_client::do_cmd_gettmpdownsvr;
       cmd_map["resetserver"] = &tair_client::do_cmd_resetserver;
       cmd_map["flushmmt"] = &tair_client::do_cmd_flushmmt;
       cmd_map["resetdb"] = &tair_client::do_cmd_resetdb;
@@ -208,6 +209,7 @@ namespace tair {
    {
       bool done = true;
       client_helper.set_timeout(5000);
+      client_helper.set_can_mock(true);
       if (is_config_server) {
          done = client_helper.startup(server_addr, slave_server_addr, group_name);
       } else {
@@ -362,6 +364,15 @@ namespace tair {
                  "------------------------------------------------\n"
                  "SYNOPSIS   : getstatus group1 group2...\n"
                  "DESCRIPTION: get status of group(s)\n"
+                 "\tgroup[n]: groupnames of which to get status\n"
+            );
+      }
+
+      if (cmd == NULL || strcmp(cmd, "gettmpdownsvr") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
+                 "SYNOPSIS   : gettmpdownsvr group1 group2...\n"
+                 "DESCRIPTION: get tmp down servers of group(s)\n"
                  "\tgroup[n]: groupnames of which to get status\n"
             );
       }
@@ -780,7 +791,8 @@ namespace tair {
        print_help("setstatus");
        return ;
      }
-     int ret = client_helper.set_group_status(params[0], params[1]);
+     std::vector<std::string> cmd_params(params.begin(), params.end());
+     int ret = client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_SET_GROUP_STATUS, &cmd_params, NULL);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {
@@ -794,11 +806,28 @@ namespace tair {
        return ;
      }
      vector<string> status;
-     vector<string> groups(params.begin(), params.end());
-     int ret = client_helper.get_group_status(groups, status);
+     std::vector<std::string> cmd_params(params.begin(), params.end());
+     int ret = client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_GET_GROUP_STATUS, &cmd_params, &status);
      if (TAIR_RETURN_SUCCESS == ret) {
        for (size_t i = 0; i < status.size(); ++i) {
          fprintf(stderr, "\t%s\n", status[i].c_str());
+       }
+     } else {
+       fprintf(stderr, "failed with %d\n", ret);
+     }
+   }
+
+   void tair_client::do_cmd_gettmpdownsvr(VSTRING &params) {
+     if (params.empty()) {
+       print_help("gettmpdownsvr");
+       return ;
+     }
+     vector<string> down_servers;
+     std::vector<std::string> cmd_params(params.begin(), params.end());
+     int ret = client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_GET_TMP_DOWN_SERVER, &cmd_params, &down_servers);
+     if (TAIR_RETURN_SUCCESS == ret) {
+       for (size_t i = 0; i < down_servers.size(); ++i) {
+         fprintf(stderr, "\t%s\n", down_servers[i].c_str());
        }
      } else {
        fprintf(stderr, "failed with %d\n", ret);
@@ -810,10 +839,8 @@ namespace tair {
        print_help("resetserver");
        return ;
      }
-     VSTRING::iterator it = params.begin();
-     ++it;
-     vector<string> dss(it, params.end());
-     int ret = client_helper.reset_server(params[0], &dss);
+     std::vector<std::string> cmd_params(params.begin(), params.end());
+     int ret = client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_RESET_DS, &cmd_params, NULL);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {
@@ -832,7 +859,7 @@ namespace tair {
        fprintf(stderr, "connect group %s fail\n", params[0]);
        return;
      }
-     int ret = cmd_client->flush_mmt(params[0], params.size() > 1 ? params[1] : NULL);
+     int ret = cmd_client->op_cmd_to_ds(TAIR_SERVER_CMD_FLUSH_MMT, params[0], NULL, NULL, params.size() > 1 ? params[1] : NULL);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {
@@ -851,7 +878,7 @@ namespace tair {
        fprintf(stderr, "connect group %s fail\n", params[0]);
        return;
      }
-     int ret = cmd_client->reset_db(params[0], params.size() > 1 ? params[1] : NULL);
+     int ret = cmd_client->op_cmd_to_ds(TAIR_SERVER_CMD_RESET_DB, params[0], NULL, NULL, params.size() > 1 ? params[1] : NULL);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {

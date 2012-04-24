@@ -1164,9 +1164,14 @@ namespace tair {
       const char *group_file_name = TBSYS_CONFIG.getString(CONFSERVER_SECTION, TAIR_GROUP_FILE, NULL);
       ServerCmdType cmd = req->cmd;
       switch (cmd) {
+        case TAIR_SERVER_CMD_GET_TMP_DOWN_SERVER:
+        {
+          rc = get_group_config_value(resp, req->params, group_file_name, TAIR_TMP_DOWN_SERVER, "");
+          break;
+        }
         case TAIR_SERVER_CMD_GET_GROUP_STATUS:
         {
-          rc = get_group_status(resp, req->params, group_file_name);
+          rc = get_group_config_value(resp, req->params, group_file_name, TAIR_GROUP_STATUS, "off");
           break;
         }
         case TAIR_SERVER_CMD_SET_GROUP_STATUS:
@@ -1194,10 +1199,15 @@ namespace tair {
       }
     }
 
-    int server_conf_thread::get_group_status(response_op_cmd *resp,
-        const vector<string> &params, const char *group_file_name) {
+    int server_conf_thread::get_group_config_value(response_op_cmd *resp,
+                                                   const vector<string> &params, const char *group_file_name,
+                                                   const char *config_key, const char* default_value) {
       if (group_file_name == NULL) {
         log_error("group_file_name is NULL");
+        return TAIR_RETURN_FAILED;
+      }
+      if (config_key == NULL) {
+        log_error("get config value but key is NULL");
         return TAIR_RETURN_FAILED;
       }
       tbsys::CConfig config;
@@ -1207,11 +1217,12 @@ namespace tair {
       }
 
       for (size_t i = 0; i < params.size(); ++i) {
-        const char *status = config.getString(params[i].c_str(), TAIR_GROUP_STATUS, NULL);
-        if (status == NULL || *status == '\0')
-          status = "off";
+        const char *config_value = config.getString(params[i].c_str(), config_key, default_value);
+        if (config_value == NULL) {
+          config_value = "none";
+        }
         char buf[128];
-        snprintf(buf, sizeof(buf), "%s=%s", params[i].c_str(), status);
+        snprintf(buf, sizeof(buf), "%s: %s=%s", params[i].c_str(), config_key, config_value);
         resp->infos.push_back(string(buf));
       }
 
@@ -1224,16 +1235,13 @@ namespace tair {
         log_error("group_file_name is NULL");
         return TAIR_RETURN_FAILED;
       }
-      if (params.empty()) {
-        log_error("no parameters specified");
+      if (params.size() != 2) {
+        log_error("set group status but have no group/status");
         return TAIR_RETURN_FAILED;
       }
 
-      char group_name[64];
-      char status[8];
-      sscanf(params[0].c_str(), "%[^=]=%s", group_name, status);
-      log_info("set group status: %s = %s", group_name, status);
-      return util::file_util::change_conf(group_file_name, group_name, TAIR_GROUP_STATUS, status);
+      log_info("set group status: %s = %s", params[0].c_str(), params[1].c_str());
+      return util::file_util::change_conf(group_file_name, params[0].c_str(), TAIR_GROUP_STATUS, params[1].c_str());
     }
 
     int server_conf_thread::do_reset_ds_packet(response_op_cmd* resp, const vector<string>& params)

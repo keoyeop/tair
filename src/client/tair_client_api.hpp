@@ -21,7 +21,7 @@
 #include "define.hpp"
 namespace tair {
 
-  class tair_client_impl;
+  class i_tair_client_impl;
   using namespace std;
   using namespace tair::common;
 
@@ -94,8 +94,6 @@ namespace tair {
           const tair_client_kv_map& kvs,
           int& fail_request,
           bool compress = true);
-
-      int op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr = NULL);
 
       /**
        * @brief get data from tair cluster
@@ -200,6 +198,7 @@ namespace tair {
           int *ret_count,
           int init_value = 0);
 
+#if 0
       /**
        *
        * items :  just support four types: int32_t int64_t double string
@@ -286,6 +285,14 @@ namespace tair {
        * @return  if ret > 0,ret is item's count,else failed.
        */
       int get_items_count(int area,const data_entry& key);
+#endif
+
+      /**
+       * @brief set log level
+       *
+       * @param level
+       */
+      void set_log_level(const char* level);
 
       /**
        * @brief set timout of each method
@@ -308,11 +315,18 @@ namespace tair {
        */
       uint32_t get_copy_count() const;
 
+      // following cmd is useful for multi_cluster_client
       /**
        * @param group: group names of which you wanna know the status
-       * @param status: group statuses, in the format of 'group_1=on'
+       * @param status: group statuses, in the format of 'group_1: group_status=on'
        */
       int get_group_status(vector<string> &group, vector<string> &status);
+
+      /**
+       * @param group: group names of which you wanna know the tmp down server
+       * @param down_servers: return tmp down server, in the format of 'group_1: tmp_down_server=xx'
+       */
+      int get_tmp_down_server(vector<string> &group, vector<string> &down_servers);
 
       /**
        * @param group: group name
@@ -343,7 +357,7 @@ namespace tair {
 
     private:
 
-      tair_client_impl *impl;
+      i_tair_client_impl *impl;
 
   };
 }

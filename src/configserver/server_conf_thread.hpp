@@ -114,9 +114,9 @@ namespace tair {
       void read_group_file_to_packet(response_get_server_table * resp);
       void send_group_file_packet();
 
-      int get_group_status(response_op_cmd *resp,
-          const vector<string> &params, const char *group_file_name);
-
+      int get_group_config_value(response_op_cmd *resp,
+                                 const vector<string> &params, const char *group_file_name,
+                                 const char *config_key, const char* default_value);
       int set_group_status(response_op_cmd *resp,
           const vector<string> &params, const char *group_file_name);
 

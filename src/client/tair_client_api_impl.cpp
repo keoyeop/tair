@@ -52,11 +52,11 @@ namespace tair {
    *  tair_client_impl
    *-----------------------------------------------------------------------------*/
 
-  tair_client_impl::tair_client_impl():inited(false),is_stop(false),packet_factory(0),streamer(0),\
-                                       transport(0),connmgr(0),timeout(2000),\
-                                                                              config_version(0),new_config_version(0),\
-                                                                                                                       send_fail_count(0),this_wait_object_manager(0),bucket_count(0),\
-                                                                                                                                                                                       copy_count(0)
+  tair_client_impl::tair_client_impl():inited(false),is_stop(false),packet_factory(0),streamer(0),
+                                       transport(0),connmgr(0),timeout(2000),
+                                       config_version(0),new_config_version(0),
+                                       send_fail_count(0),this_wait_object_manager(0),bucket_count(0),copy_count(0),
+                                       can_mock(false)
   {
   }
 
@@ -1138,69 +1138,22 @@ FAIL:
 
   }
 
-  int tair_client_impl::set_group_status(const char *group, const char *status) {
-    if (group == NULL || status == NULL) {
-      return TAIR_RETURN_FAILED;
-    }
-
-    char group_status[64];
-    snprintf(group_status, sizeof(group_status), "%s=%s", group, status);
-    request_op_cmd *req = new request_op_cmd();
-    req->cmd = TAIR_SERVER_CMD_SET_GROUP_STATUS;
-    req->params.push_back(group_status);
-
-    response_op_cmd *resp = NULL;
-    wait_object *cwo = this_wait_object_manager->create_wait_object();
-    int ret = do_op_cmd(req, resp, cwo);
-    this_wait_object_manager->destroy_wait_object(cwo);
-    return ret;
-  }
-
-  int tair_client_impl::get_group_status(vector<string> &group, vector<string> &status) {
-    if (group.empty()) {
-      return TAIR_RETURN_FAILED;
-    }
-    request_op_cmd *req = new request_op_cmd();
-    req->cmd = TAIR_SERVER_CMD_GET_GROUP_STATUS;
-    req->params = group;
-
-    response_op_cmd *resp = NULL;
-    wait_object *cwo = this_wait_object_manager->create_wait_object();
-    int ret = do_op_cmd(req, resp, cwo);
-    if (resp != NULL) {
-      resp->infos.swap(status);
-    }
-    this_wait_object_manager->destroy_wait_object(cwo);
-    return ret;
-  }
-
-  int tair_client_impl::reset_server(const char* group, vector<string>* dss) {
-    if (group == NULL) {
-      return TAIR_RETURN_FAILED;
-    }
-    request_op_cmd *req = new request_op_cmd();
-    req->cmd = TAIR_SERVER_CMD_RESET_DS;
-    req->params.push_back(group);
-    if (dss != NULL) {
-      for (vector<string>::iterator it = dss->begin(); it != dss->end(); ++it) {
-        req->params.push_back(*it);      
-      }
-    }
-
-    response_op_cmd *resp = NULL;
-    wait_object *cwo = this_wait_object_manager->create_wait_object();
-    int ret = do_op_cmd(req, resp, cwo);
-    this_wait_object_manager->destroy_wait_object(cwo);
-    return ret;
-  }
-
-  int tair_client_impl::do_op_cmd(request_op_cmd *req, response_op_cmd *&resp, wait_object *cwo) {
-    assert(req != NULL);
-
+  int tair_client_impl::op_cmd_to_cs(ServerCmdType cmd, std::vector<std::string>* params,
+                                     std::vector<std::string>* ret_values)
+  {
     if (config_server_list.empty() || config_server_list[0] == 0L) {
       log_error("no configserver available");
       return TAIR_RETURN_FAILED;
     }
+
+    request_op_cmd *req = new request_op_cmd();
+    req->cmd = cmd;
+    if (params != NULL) {
+      req->params = *params;
+    }
+
+    response_op_cmd *resp = NULL;
+    wait_object *cwo = this_wait_object_manager->create_wait_object();
     uint64_t master = config_server_list[0];
 
     int ret = TAIR_RETURN_SEND_FAILED;
@@ -1219,33 +1172,35 @@ FAIL:
         break;
       }
       ret = resp->code;
+      if (ret_values != NULL) {
+        *ret_values = resp->infos;      
+      }
     } while (false);
 
+    this_wait_object_manager->destroy_wait_object(cwo);
     return ret;
   }
 
-  int tair_client_impl::flush_mmt(const char* group, const char* ds_addr)
+  int tair_client_impl::op_cmd_to_ds(ServerCmdType cmd, const char* group, std::vector<std::string>* params,
+                                     std::vector<std::string>* ret_values, const char* dest_server_addr)
   {
-    std::vector<std::string> cmd_params;
-    return op_cmd(TAIR_SERVER_CMD_FLUSH_MEM, cmd_params, ds_addr);
-  }
-
-  int tair_client_impl::reset_db(const char* group, const char* ds_addr)
-  {
-    std::vector<std::string> cmd_params;
-    return op_cmd(TAIR_SERVER_CMD_RESET_DB, cmd_params, ds_addr);
-  }
-
-  int tair_client_impl::op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr)
-  {
+    UNUSED(group);
+    UNUSED(ret_values);
     std::map<uint64_t, request_op_cmd*> request_map;
     std::map<uint64_t, request_op_cmd*>::iterator it;
 
     if (dest_server_addr != NULL) {       // specify server_id
-      request_op_cmd *packet = new request_op_cmd();
-      packet->cmd = cmd;
-      packet->params = params;
-      request_map[tbsys::CNetUtil::strToAddr(dest_server_addr, 0)] = packet;
+      uint64_t dest_server_id = tbsys::CNetUtil::strToAddr(dest_server_addr, 0);
+      if (dest_server_id == 0) {
+        log_error("invalid dest_server_addr: %s", dest_server_addr);
+      } else {
+        request_op_cmd *packet = new request_op_cmd();
+        packet->cmd = cmd;
+        if (params != NULL) {
+          packet->params = *params;
+        }
+        request_map[dest_server_id] = packet;
+      }
     } else {                    // send request to all server
       for (uint32_t i=0; i<my_server_list.size(); i++) {
         uint64_t server_id = my_server_list[i];
@@ -1256,7 +1211,9 @@ FAIL:
         if (it == request_map.end()) {
           request_op_cmd *packet = new request_op_cmd();
           packet->cmd = cmd;
-          packet->params = params;
+          if (params != NULL) {
+            packet->params = *params;
+          }
           request_map[server_id] = packet;
         }
       }
@@ -1469,49 +1426,6 @@ FAIL:
   {
     assert(timeout >= 0);
     timeout = this_timeout;
-  }
-
-  /*-----------------------------------------------------------------------------
-   *  tair_client_impl::ErrMsg
-   *-----------------------------------------------------------------------------*/
-
-
-  const std::map<int,string> tair_client_impl::m_errmsg = tair_client_impl::init_errmsg();
-
-  std::map<int,string> tair_client_impl::init_errmsg()
-  {
-    std::map<int,string> temp;
-    temp[TAIR_RETURN_SUCCESS]                 = "success";
-    temp[TAIR_RETURN_FAILED]          = "general failed";
-    temp[TAIR_RETURN_DATA_NOT_EXIST]  = "data not exists";
-    temp[TAIR_RETURN_VERSION_ERROR]           = "version error";
-    temp[TAIR_RETURN_TYPE_NOT_MATCH]  = "data type not match";
-    temp[TAIR_RETURN_ITEM_EMPTY]              = "item is empty";
-    temp[TAIR_RETURN_SERIALIZE_ERROR] = "serialize failed";
-    temp[TAIR_RETURN_OUT_OF_RANGE]            = "item's index out of range";
-    temp[TAIR_RETURN_ITEMSIZE_ERROR]  = "key or vlaue too large";
-    temp[TAIR_RETURN_SEND_FAILED]             = "send packet error";
-    temp[TAIR_RETURN_TIMEOUT]         = "timeout";
-    temp[TAIR_RETURN_SERVER_CAN_NOT_WORK]   = "server can not work";
-    temp[TAIR_RETURN_WRITE_NOT_ON_MASTER]   = "write not on master";
-    temp[TAIR_RETURN_DUPLICATE_BUSY]          = "duplicate busy";
-    temp[TAIR_RETURN_MIGRATE_BUSY]    = "migrate busy";
-    temp[TAIR_RETURN_PARTIAL_SUCCESS] = "partial success";
-    temp[TAIR_RETURN_DATA_EXPIRED]            = "expired";
-    temp[TAIR_RETURN_PLUGIN_ERROR]            = "plugin error";
-    temp[TAIR_RETURN_PROXYED]                 = "porxied";
-    temp[TAIR_RETURN_INVALID_ARGUMENT]        = "invalid argument";
-    temp[TAIR_RETURN_CANNOT_OVERRIDE] = "cann't override old value.please check and remove it first.";
-    temp[TAIR_RETURN_DEC_BOUNDS] = "can't dec to negative when allow_count_negative=0";
-    temp[TAIR_RETURN_DEC_ZERO] = "can't dec zero number when allow_count_negative=0";
-    temp[TAIR_RETURN_DEC_NOTFOUND] = "dec but not found when allow_count_negative=0";
-    return temp;
-  }
-
-  const char *tair_client_impl::get_error_msg(int ret)
-  {
-    std::map<int,string>::const_iterator it = tair_client_impl::m_errmsg.find(ret);
-    return it != tair_client_impl::m_errmsg.end() ? it->second.c_str() : "unknow";
   }
 
   void tair_client_impl::get_server_with_key(const data_entry& key,std::vector<std::string>& servers)
@@ -1800,8 +1714,10 @@ FAIL:
           uint32_t server_list_count = 0;
           uint64_t* server_list = rggp->get_server_list(bucket_count, copy_count);
           if (rggp->server_list_count <= 0 || server_list == NULL) {
-            log_warn("server table is empty");
-            ret = TAIR_RETURN_FAILED;
+            if (!can_mock) {
+              log_warn("server table is empty");
+              ret = TAIR_RETURN_FAILED;
+            }
           } else {
             server_list_count = (uint32_t)(rggp->server_list_count);
             assert(server_list_count == bucket_count * copy_count);
@@ -1907,13 +1823,18 @@ FAIL:
       goto OUT;
     }
     server_list = rggp->get_server_list(bucket_count,copy_count);
-    if(rggp->server_list_count <= 0 || server_list == 0){
+    if(!can_mock && (rggp->server_list_count <= 0 || server_list == 0)){
       TBSYS_LOG(WARN, "server table is empty");
       goto OUT;
     }
 
     server_list_count = (uint32_t)(rggp->server_list_count);
-    assert(server_list_count == bucket_count * copy_count);
+    if (!can_mock && (server_list_count != bucket_count * copy_count))
+    {
+      TBSYS_LOG(ERROR, "server table is wrong, server_list_count: %u, bucket_count: %u, copy_count: %u",
+                server_list_count, bucket_count, copy_count);
+      goto OUT;
+    }
 
     for (uint32_t i=0; server_list != 0 && i< server_list_count; ++i) {
       TBSYS_LOG(DEBUG, "server table: [%d] => [%s]", i, tbsys::CNetUtil::addrToString(server_list[i]).c_str());

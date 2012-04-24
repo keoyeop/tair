@@ -18,7 +18,8 @@
 namespace tair
 {
   cluster_info_updater::cluster_info_updater() :
-    inited_(false), interval_ms_(DEFAULT_CLUSTER_UPDATE_INTERVAL_MS), last_update_time_(0), manager_(NULL)
+    inited_(false), interval_ms_(DEFAULT_CLUSTER_UPDATE_INTERVAL_MS), last_update_time_(0),
+    master_handler_(true), manager_(NULL) // master cluster handler can be a mock
   {
   }
 

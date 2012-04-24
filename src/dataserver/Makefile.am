@@ -6,7 +6,7 @@ if WITH_LDB
 LDB_CPPFLAGS= -DWITH_LDB -I${top_srcdir}/src/storage/ldb
 LDB_LDFLAGS= $(top_builddir)/src/storage/ldb/libldb.a \
              $(top_builddir)/src/storage/ldb/leveldb/libleveldb.a \
-             $(top_builddir)/src/storage/ldb/leveldb/libsnappy.a
+             $(top_builddir)/src/storage/ldb/leveldb/.libs/libsnappy.a
 endif
 
 AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
@@ -52,7 +52,8 @@ tair_server_SOURCES=duplicate_manager.cpp item_manager.cpp request_processor.cpp
 		    base_migrate.hpp	\
 		    base_tair_manager.hpp	\
 		    duplicate_base.hpp	\
-        dup_sync_manager.cpp \
+	            dup_sync_manager.hpp \
+	            dup_sync_manager.cpp \
 		    duplicate_manager.hpp	\
 		    heartbeat_thread.hpp	\
 		    item_manager.hpp	\

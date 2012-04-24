@@ -67,6 +67,7 @@ rm  -f /etc/ld.so.conf.d/tair-%{VERSION}.conf
 %{_prefix}/include
 %{_prefix}/lib/libtairclientapi.*
 %{_prefix}/lib/libtairclientapi_c.*
+%{_prefix}/lib/libsnappy.*
 
 %changelog
 

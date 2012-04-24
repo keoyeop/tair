@@ -30,7 +30,7 @@ base_src=data_dumpper.cpp	\
          file_op.hpp \
          file_op.cpp \
          directory_op.hpp \
-         directory_op.cpp
+         directory_op.cpp BlockQueueEx.hpp blockqueue.hpp scoped_wrlock.hpp syncproc.hpp
 
 noinst_LIBRARIES=libtair_common.a
 

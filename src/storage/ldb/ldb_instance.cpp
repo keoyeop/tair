@@ -571,7 +571,7 @@ namespace tair
         log_warn("op cmd %d, param size: %d", cmd, params.size());
 
         switch (cmd) {
-        case TAIR_SERVER_CMD_FLUSH_MEM:
+        case TAIR_SERVER_CMD_FLUSH_MMT:
         {
           leveldb::Status status = db_->ForceCompactMemTable();
           if (!status.ok())

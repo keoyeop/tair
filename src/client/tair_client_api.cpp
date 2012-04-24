@@ -13,27 +13,44 @@
  *
  */
 #include "tair_client_api.hpp"
+#include "i_tair_client_impl.hpp"
 #include "tair_client_api_impl.hpp"
-#include <iterator>
+#include "tair_multi_cluster_client_impl.hpp"
+
 namespace tair {
+
+  static i_tair_client_impl* new_tair_client(const char *master_addr,const char *slave_addr,const char *group_name);
+  static TairClusterType get_cluster_type_by_config(tbsys::STR_STR_MAP& config_map);
 
   /*-----------------------------------------------------------------------------
    *  tair_client_api
    *-----------------------------------------------------------------------------*/
 
-  tair_client_api::tair_client_api()
+  tair_client_api::tair_client_api() : impl(NULL)
   {
-    impl = new tair_client_impl();
   }
 
   tair_client_api::~tair_client_api()
   {
-    delete impl;
+    if (impl != NULL)
+    {
+      delete impl;
+    }
   }
 
   bool tair_client_api::startup(const char *master_addr,const char *slave_addr,const char *group_name)
   {
-    return impl->startup(master_addr,slave_addr,group_name);
+    bool ret = false;
+    impl = new_tair_client(master_addr, slave_addr, group_name);
+    if (NULL == impl)
+    {
+      log_error("init tair client fail.");
+    }
+    else
+    {
+      ret = impl->startup(master_addr,slave_addr,group_name);
+    }
+    return ret;
   }
 
   void tair_client_api::close()
@@ -57,11 +74,6 @@ namespace tair {
       bool compress)
   {
     return impl->mput(area, kvs, fail_request, compress);
-  }
-
-  int tair_client_api::op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr)
-  {
-    return impl->op_cmd(cmd, params, dest_server_addr);
   }
 
   int tair_client_api::get(int area,
@@ -118,6 +130,7 @@ namespace tair {
       int init_value/* = 0*/,
       int expire /*= 0*/)
   {
+
     if(area < 0 || count < 0 || expire < 0){
       return TAIR_RETURN_INVALID_ARGUMENT;
     }
@@ -150,6 +163,7 @@ namespace tair {
   //}
 
 
+#if 0
 #undef ADD_ITEMS
 #undef GET_ITEMS_FUNC
 
@@ -213,6 +227,13 @@ namespace tair {
     return impl->get_items_count(area,key);
   }
 
+#endif
+
+  void tair_client_api::set_log_level(const char* level)
+  {
+    TBSYS_LOGGER.setLogLevel(level);
+  }
+
   void tair_client_api::set_timeout(int timeout)
   {
     impl->set_timeout(timeout);
@@ -231,28 +252,127 @@ namespace tair {
   {
     return impl->get_copy_count();
   }
-  int tair_client_api::get_group_status(vector<string> &group, vector<string> &status)
-  {
-    return impl->get_group_status(group, status);
-  }
-  int tair_client_api::set_group_status(const char *group, const char *status)
-  {
-    return impl->set_group_status(group, status);
-  }
-  int tair_client_api::reset_server(const char* group, std::vector<std::string>* dss)
-  {
-    return impl->reset_server(group, dss);
-  }
-  int tair_client_api::flush_mmt(const char* group, const char* ds_addr)
-  {
-    return impl->flush_mmt(group, ds_addr);
-  }
-  int tair_client_api::reset_db(const char* group, const char* ds_addr)
-  {
-    return impl->reset_db(group, ds_addr);
-  }
   void tair_client_api::get_server_with_key(const data_entry& key,std::vector<std::string>& servers) const
   {
     return impl->get_server_with_key(key,servers);
+  }
+
+  int tair_client_api::get_group_status(vector<string> &group, vector<string> &status)
+  {
+    return impl->op_cmd_to_cs(TAIR_SERVER_CMD_GET_GROUP_STATUS, &group, &status);
+  }
+  int tair_client_api::get_tmp_down_server(vector<string> &group, vector<string> &down_servers)
+  {
+    return impl->op_cmd_to_cs(TAIR_SERVER_CMD_GET_TMP_DOWN_SERVER, &group, &down_servers);
+  }
+  int tair_client_api::set_group_status(const char *group, const char *status)
+  {
+    int ret = TAIR_RETURN_FAILED;
+    if (group != NULL && status != NULL)
+    {
+      std::vector<std::string> params;
+      params.push_back(group);
+      params.push_back(status);
+      ret = impl->op_cmd_to_cs(TAIR_SERVER_CMD_SET_GROUP_STATUS, &params, NULL);
+    }
+    return ret;
+  }
+  int tair_client_api::reset_server(const char* group, std::vector<std::string>* dss)
+  {
+    int ret = TAIR_RETURN_FAILED;
+    if (group != NULL)
+    {
+      std::vector<std::string> params;
+      params.push_back(group);
+      if (dss != NULL)
+      {
+        for (vector<string>::iterator it = dss->begin(); it != dss->end(); ++it)
+        {
+          params.push_back(*it);
+        }
+      }
+      ret = impl->op_cmd_to_cs(TAIR_SERVER_CMD_RESET_DS, &params, NULL);
+    }
+    return ret;
+  }
+  int tair_client_api::flush_mmt(const char* group, const char* ds_addr)
+  {
+    int ret = TAIR_RETURN_FAILED;
+    if (group != NULL)
+    {
+      ret = impl->op_cmd_to_ds(TAIR_SERVER_CMD_FLUSH_MMT, group, NULL, NULL, ds_addr);
+    }
+    return ret;
+  }
+  int tair_client_api::reset_db(const char* group, const char* ds_addr)
+  {
+    int ret = TAIR_RETURN_FAILED;
+    if (group != NULL)
+    {
+      ret = impl->op_cmd_to_ds(TAIR_SERVER_CMD_RESET_DB, group, NULL, NULL, ds_addr);
+    }
+    return ret;
+  }
+
+  i_tair_client_impl* new_tair_client(const char *master_addr,
+                                      const char *slave_addr,
+                                      const char *group_name)
+  {
+    i_tair_client_impl* ret_client_impl = NULL;
+
+    tair_client_impl client;
+    client.set_can_mock(true);
+    if (!client.startup(master_addr, slave_addr, group_name))
+    {
+      log_error("startup to get cluster type fail.");
+      return NULL;
+    }
+    tbsys::STR_STR_MAP config_map;
+    uint32_t version = 0;
+    int ret = client.retrieve_server_config(false, config_map, version);
+    if (ret != TAIR_RETURN_SUCCESS)
+    {
+      log_error("retrieve_server_config fail, ret: %d", ret);
+      return NULL;
+    }
+
+    TairClusterType type = get_cluster_type_by_config(config_map);
+    switch (type)
+    {
+    case TAIR_CLUSTER_TYPE_SINGLE_CLUSTER:
+    {
+      log_warn("Tair cluster is SINGLE CLUSTER TYPE, init tair_client_impl");
+      ret_client_impl = new tair_client_impl();
+      break;
+    }
+    case TAIR_CLUSTER_TYPE_MULTI_CLUSTER:
+    {
+      log_warn("Tair cluster is MULTI CLUSTER TYPE, init tair_multi_cluster_client_impl");
+      ret_client_impl = new tair_multi_cluster_client_impl();
+      break;
+    }
+    default :
+    {
+      log_error("unsupported cluster type, can NOT init tair client. type: %d", type);
+      break;
+    }
+    }
+    return ret_client_impl;
+  }
+
+  TairClusterType get_cluster_type_by_config(tbsys::STR_STR_MAP& config_map)
+  {
+    // we consider cluster type by TAIR_MULTI_GROUPS now.
+    // Just consider SINGLE_CLUSTER and MULTI_CLUSTER now.
+    static const char* cluster_type_config = TAIR_MULTI_GROUPS;
+
+    if (config_map.find(cluster_type_config) != config_map.end())
+    {
+      return TAIR_CLUSTER_TYPE_MULTI_CLUSTER;
+    }
+    else
+    {
+      return TAIR_CLUSTER_TYPE_SINGLE_CLUSTER;
+    }
   }
 } /* tair */

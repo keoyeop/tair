@@ -18,7 +18,7 @@
 
 #include "cluster_info_updater.hpp"
 #include "cluster_handler_manager.hpp"
-#include "tair_multi_cluster_client_api.hpp"
+#include "tair_multi_cluster_client_impl.hpp"
 
 namespace tair
 {
@@ -57,19 +57,19 @@ namespace tair
 
   using namespace tair::common;
 
-  tair_multi_cluster_client_api::tair_multi_cluster_client_api()
+  tair_multi_cluster_client_impl::tair_multi_cluster_client_impl()
   {
     updater_ = new cluster_info_updater();
     handler_mgr_ = new bucket_shard_cluster_handler_manager(updater_);
   }
 
-  tair_multi_cluster_client_api::~tair_multi_cluster_client_api()
+  tair_multi_cluster_client_impl::~tair_multi_cluster_client_impl()
   {
     delete updater_;
     delete handler_mgr_;
   }
 
-  bool tair_multi_cluster_client_api::startup(const char* master_addr, const char* slave_addr, const char* group_name)
+  bool tair_multi_cluster_client_impl::startup(const char* master_addr, const char* slave_addr, const char* group_name)
   {
     if (NULL == master_addr || group_name == NULL)
     {
@@ -96,15 +96,14 @@ namespace tair
     return true;
   }
 
-  int tair_multi_cluster_client_api::get(int area, const data_entry& key, data_entry*& data)
+  int tair_multi_cluster_client_impl::get(int area, const data_entry& key, data_entry*& data)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
     ONE_CLUSTER_HANDLER_OP(ret, key, get(area, key, data));
     return ret;
   }
 
-#if 1
-  int tair_multi_cluster_client_api::put(int area, const data_entry& key, const data_entry& data,
+  int tair_multi_cluster_client_impl::put(int area, const data_entry& key, const data_entry& data,
                                          int expire, int version, bool fill_cache)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
@@ -112,14 +111,14 @@ namespace tair
     return ret;
   }
 
-  int tair_multi_cluster_client_api::remove(int area, const data_entry& key)
+  int tair_multi_cluster_client_impl::remove(int area, const data_entry& key)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
     ALL_CLUSTER_HANDLER_OP(ret, key, remove(area, key));
     return ret;
   }
 
-  int tair_multi_cluster_client_api::incr(int area, const data_entry& key, int count, int* ret_count,
+  int tair_multi_cluster_client_impl::incr(int area, const data_entry& key, int count, int* ret_count,
                                           int init_value, int expire)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
@@ -127,7 +126,7 @@ namespace tair
     return ret;
   }
 
-  int tair_multi_cluster_client_api::decr(int area, const data_entry& key, int count, int* ret_count,
+  int tair_multi_cluster_client_impl::decr(int area, const data_entry& key, int count, int* ret_count,
                                           int init_value, int expire)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
@@ -135,29 +134,68 @@ namespace tair
     return ret;
   }
 
-  int tair_multi_cluster_client_api::add_count(int area, const data_entry& key, int count, int* ret_count, int init_value)
+  int tair_multi_cluster_client_impl::add_count(int area, const data_entry& key, int count,
+                                                int* ret_count, int init_value, int expire_time)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    ALL_CLUSTER_HANDLER_OP(ret, key, add_count(area, key, count, ret_count, init_value));
+    ALL_CLUSTER_HANDLER_OP(ret, key, add_count(area, key, count, ret_count, init_value, expire_time));
     return ret;
   }
-#endif
-  void tair_multi_cluster_client_api::set_timeout(int32_t timeout_ms)
+
+  void tair_multi_cluster_client_impl::set_timeout(int32_t timeout_ms)
   {
     handler_mgr_->set_timeout(timeout_ms);
   }
 
-  void tair_multi_cluster_client_api::set_update_interval(int32_t interval_ms)
+  void tair_multi_cluster_client_impl::set_update_interval(int32_t interval_ms)
   {
     updater_->set_interval(interval_ms);
   }
 
-  void tair_multi_cluster_client_api::set_log_level(const char* level)
+  uint32_t tair_multi_cluster_client_impl::get_bucket_count() const
   {
-    TBSYS_LOGGER.setLogLevel(level);
+    return updater_->get_master_cluster_handler()->get_client()->get_bucket_count();
   }
 
-  void tair_multi_cluster_client_api::close()
+  uint32_t tair_multi_cluster_client_impl::get_copy_count() const
+  {
+    return updater_->get_master_cluster_handler()->get_client()->get_copy_count();
+  }
+
+  int tair_multi_cluster_client_impl::op_cmd_to_cs(ServerCmdType cmd, std::vector<std::string>* params,
+                                                   std::vector<std::string>* ret_values)
+  {
+    return updater_->get_master_cluster_handler()->get_client()->op_cmd_to_cs(cmd, params, ret_values);
+  }
+
+  int tair_multi_cluster_client_impl::op_cmd_to_ds(ServerCmdType cmd, const char* group, std::vector<std::string>* params,
+                                                   std::vector<std::string>* ret_values, const char* dest_server_addr)
+  {
+    int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
+    const cluster_info& info = updater_->get_master_cluster_handler()->get_cluster_info();
+    cluster_info cmd_info(info.master_cs_addr_, info.slave_cs_addr_, group);
+    // try servicing cluster first
+    ONE_CLUSTER_HANDLER_OP(ret, cmd_info, op_cmd_to_ds(cmd, group, params, ret_values, dest_server_addr));
+    // this cluster(group) is not in service.
+    // handle this op manually
+    if (TAIR_RETURN_SERVER_CAN_NOT_WORK == ret)
+    {
+      cluster_handler handler;
+      handler.init(cmd_info);
+      if (!handler.start())
+      {
+        log_error("op cmd to group startup fail");
+        ret = TAIR_RETURN_FAILED;
+      }
+      else
+      {
+        ret = handler.get_client()->op_cmd_to_ds(cmd, group, params, ret_values, dest_server_addr);
+      }
+    }
+    return ret;
+  }
+
+  void tair_multi_cluster_client_impl::close()
   {
     updater_->stop();
     handler_mgr_->close();

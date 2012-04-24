@@ -87,18 +87,23 @@ int main(int argc,char * argv[])
   group.push_back("group_1");
   group.push_back("group_2");
 
-  client_helper.get_group_status(group, status);
+  client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_GET_GROUP_STATUS, &group, &status);
   log_error("%s", status[0].c_str());
   log_error("%s", status[1].c_str());
 
-  int rc = client_helper.set_group_status("group_1", "on");
+  vector<string> param;
+  param.push_back("group_1");
+  param.push_back("on");
+  int rc = client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_SET_GROUP_STATUS, &param, NULL);
   log_error("code: %d", rc);
 
-  client_helper.get_group_status(group, status);
+  client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_GET_GROUP_STATUS, &group, &status);
   log_error("%s", status[0].c_str());
   log_error("%s", status[1].c_str());
 
-  client_helper.reset_server("group_1", NULL);
+  param.clear();
+  param.push_back("group_1");
+  client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_RESET_DS, &param, NULL);
   return 0;
 	//do it .
 

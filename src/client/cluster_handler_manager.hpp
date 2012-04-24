@@ -79,7 +79,7 @@ namespace tair
   class cluster_handler
   {
   public:
-    cluster_handler();
+    cluster_handler(bool can_mock = false);
     ~cluster_handler();
 
     void init(const char* master_cs_addr, const char* slave_cs_addr, const char* group_name);
@@ -142,7 +142,7 @@ namespace tair
     }
 
   private:
-    // use tair_client_impl to shadow modification from public tair_client_api user
+    // use one tair client implementation tair_client_impl 
     tair_client_impl* client_;
     // cluster information
     cluster_info info_;
@@ -171,6 +171,8 @@ namespace tair
     virtual int32_t get_handler_count() = 0;
     // pick handler based on key
     virtual cluster_handler* pick_handler(const tair::common::data_entry& key) = 0;
+    // pick handler based on cluster info
+    virtual cluster_handler* pick_handler(const cluster_info& info) = 0;
     // pick handler based on index and key
     virtual cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key) = 0;
     // close all cluster handler
@@ -201,6 +203,7 @@ namespace tair
     virtual ~cluster_handler_manager_delegate() {};
 
     virtual cluster_handler* pick_handler(const tair::common::data_entry& key) = 0;
+    virtual cluster_handler* pick_handler(const cluster_info& info) = 0;
     virtual cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key) = 0;
 
     inline cluster_handler_manager* get_delegate()
@@ -231,6 +234,7 @@ namespace tair
 
     void update(const CLUSTER_INFO_LIST& cluster_infos, const handlers_node& diff_handlers_node);
     cluster_handler* pick_handler(const tair::common::data_entry& key);
+    cluster_handler* pick_handler(const cluster_info& info);
     cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key);
     // we reuse cluster handler, so cluster handler should be marked whether it should be cleared later.
     void mark_clear(const handlers_node& diff_handlers_node);
@@ -305,6 +309,7 @@ namespace tair
   class bucket_shard_cluster_handler_manager : public cluster_handler_manager
   {
   public:
+    friend class bucket_shard_cluster_handler_manager_delegate;
     bucket_shard_cluster_handler_manager(cluster_info_updater* updater);
     virtual ~bucket_shard_cluster_handler_manager();
 
@@ -317,6 +322,7 @@ namespace tair
     bool update();
     int32_t get_handler_count();
     cluster_handler* pick_handler(const tair::common::data_entry& key);
+    cluster_handler* pick_handler(const cluster_info& info);
     cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key);
     void close();
     std::string debug_string();
@@ -335,7 +341,11 @@ namespace tair
     handlers_node* current_;
     // avoid wild handler crash when concurrent using and updating(delete, etc),
     // handlers_node has reference count to be self-responsible to destruction.
+    // We insert new using node to list tail and clean up from list head, and
+    // make sure to clean up nodes by time sequence, so re-used cluster_handler
+    // can be sure to be out of former reference.
     handlers_node* using_head_;
+    handlers_node* using_tail_;
   };
 
   class bucket_shard_cluster_handler_manager_delegate : public cluster_handler_manager_delegate
@@ -347,6 +357,7 @@ namespace tair
     virtual ~bucket_shard_cluster_handler_manager_delegate();
 
     virtual cluster_handler* pick_handler(const tair::common::data_entry& key);
+    virtual cluster_handler* pick_handler(const cluster_info& info);
     virtual cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key);
 
   private:

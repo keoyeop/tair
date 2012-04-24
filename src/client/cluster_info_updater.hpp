@@ -43,6 +43,10 @@ namespace tair
     // force do real update
     int force_update();
 
+    cluster_handler* get_master_cluster_handler()
+    {
+      return &master_handler_;
+    }
     inline void set_interval(int32_t interval_ms)
     {
       if (interval_ms > 0)

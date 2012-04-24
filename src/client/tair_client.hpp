@@ -69,6 +69,7 @@ namespace tair {
       void  do_cmd_dump_area(VSTRING &param);
       void do_cmd_setstatus(VSTRING &params);
       void do_cmd_getstatus(VSTRING &params);
+      void do_cmd_gettmpdownsvr(VSTRING &params);
       void do_cmd_resetserver(VSTRING &params);
       void do_cmd_flushmmt(VSTRING &params);
       void do_cmd_resetdb(VSTRING &params);

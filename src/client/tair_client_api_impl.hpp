@@ -39,6 +39,8 @@
 #include "remove_packet.hpp"
 #include "op_cmd_packet.hpp"
 
+#include "i_tair_client_impl.hpp"
+
 namespace tair {
 
 
@@ -53,7 +55,7 @@ namespace tair {
   typedef map<uint64_t , request_remove *> request_remove_map;
   typedef map<uint64_t, map<uint32_t, request_mput*> > request_put_map;
 
-  class tair_client_impl : public tbsys::Runnable, public tbnet::IPacketHandler {
+  class tair_client_impl : public i_tair_client_impl, tbsys::Runnable, public tbnet::IPacketHandler {
     public:
       tair_client_impl();
 
@@ -140,9 +142,6 @@ namespace tair {
       template<typename Type>
         int find_elements_type(Type element);
 
-      static const std::map<int,string> m_errmsg;
-      static std::map<int,string> init_errmsg();
-      const char *get_error_msg(int ret);
       void get_server_with_key(const data_entry& key,std::vector<std::string>& servers);
 
       //@override IPacketHandler
@@ -157,37 +156,14 @@ namespace tair {
       //    int getStatInfo(int type, int area, vector<ResponseStatPacket *> &list);
       int dump_area(std::set<dump_meta_info>& info);
 
-      int op_cmd(ServerCmdType cmd, std::vector<std::string>& params, const char* dest_server_addr = NULL);
-
       // cmd operated directly to configserver
-      /**
-       * @param group: group name
-       * @param status: on/off
-       */
-      int set_group_status(const char *group, const char *status);
-
-      /**
-       * @param group: group names of which you wanna know the status
-       * @param status: group statuses, in the format of 'group_1=on'
-       */
-      int get_group_status(vector<string> &group, vector<string> &status);
-
-      /**
-       * @param group: group name of ds to be reset
-       * @param ds_addr: dataserver address to be reset, if NULL, mean reset all ds in group
-       */
-      int reset_server(const char* group, vector<string>* dss);
-
+      int op_cmd_to_cs(ServerCmdType cmd, std::vector<std::string>* params, std::vector<std::string>* ret_values);
       // cmd operated directly to dataserver
-      int flush_mmt(const char* group, const char* ds_addr = NULL);
-      int reset_db(const char* group, const char* ds_addr = NULL);
+      int op_cmd_to_ds(ServerCmdType cmd, const char* group,
+                       std::vector<std::string>* params, std::vector<std::string>* ret_values,
+                       const char* dest_server_addr = NULL);
+    void set_can_mock(bool can_mock) { this->can_mock = can_mock; }
 
-    private:
-      /**
-       * @param req: request packet
-       * @param resp: response packet you would get, if successful
-       */
-      int do_op_cmd(request_op_cmd *req, response_op_cmd *&resp, wait_object *cwo);
     public:
 
       void force_change_dataserver_status(uint64_t server_id, int cmd);
@@ -286,6 +262,8 @@ namespace tair {
       wait_object_manager *this_wait_object_manager;
       uint32_t bucket_count;
       uint32_t copy_count;
+      // can this client can be just a mock(no server address list eg.)
+      bool can_mock;
   };
 
   template< typename IT >
