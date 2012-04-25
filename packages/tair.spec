@@ -10,6 +10,11 @@ Vendor: TaoBao
 Prefix:%{_prefix}
 Source:%{NAME}-%{VERSION}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-root
+BuildRequires: t-csrd-tbnet-devel >= 1.0.4
+BuildRequires: google-perftools >= 1.7
+BuildRequires: boost-devel >= 1.30.0
+BuildRequires: automake >= 1.7.0
+BuildRequires: libtool >= 1.5.0
 Requires: t-csrd-tbnet-devel >= 1.0.4
 Requires: google-perftools >= 1.7
 Requires: boost-devel >= 1.30.0
@@ -31,7 +36,7 @@ files for developing applications that use the %name package.
 %setup
 
 %build
-export TBLIB_ROOT=/opt/csr/common
+#export TBLIB_ROOT=/opt/csr/common
 chmod u+x bootstrap.sh
 ./bootstrap.sh
 ./configure --prefix=%{_prefix} --with-release=yes --with-kdb=yes --with-ldb=yes --with-boost=%BOOST_DIR
