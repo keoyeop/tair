@@ -28,11 +28,11 @@ AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB} ${TCMALLOC_LDFLAGS}
 
 LDADD=$(top_builddir)/src/storage/mdb/libmdb.a \
       $(top_builddir)/src/storage/fdb/libfdb.a \
-      $(KDB_LDFLAGS) \
-      $(LDB_LDFLAGS) \
       $(top_builddir)/src/plugin/libtair_plugins.a \
       $(top_builddir)/src/packets/libtair_packets.a \
       $(top_builddir)/src/storage/libdump.a \
+      $(KDB_LDFLAGS) \
+      $(LDB_LDFLAGS) \
       $(top_builddir)/src/common/libtair_common.a \
       $(TBLIB_ROOT)/lib/libtbnet.a \
       $(TBLIB_ROOT)/lib/libtbsys.a \

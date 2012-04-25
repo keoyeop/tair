@@ -33,7 +33,6 @@ tairclient_SOURCES=tair_client.cpp
 tairclient_LDADD=libtairclientapi.la ${LDADD}
 tairclient_LDFLAGS= -static
 
-libtairclientapi_la_LDFLAGS=
 libtairclientapi_la_SOURCES=${api_source_list}
 libtairclientapi_c_la_SOURCES=tair_client_capi.cpp
 libtairclientapi_c_la_LIBADD=libtairclientapi.la
