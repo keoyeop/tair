@@ -11,11 +11,13 @@ Prefix:%{_prefix}
 Source:%{NAME}-%{VERSION}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-root
 BuildRequires: t-csrd-tbnet-devel >= 1.0.4
+BuildRequires: libunwind >= 0.99
 BuildRequires: google-perftools >= 1.7
 BuildRequires: boost-devel >= 1.30
 BuildRequires: automake >= 1.7.0
 BuildRequires: libtool >= 1.5.0
 Requires: t-csrd-tbnet-devel >= 1.0.4
+Requires: libunwind >= 0.99
 Requires: google-perftools >= 1.7
 Requires: boost-devel >= 1.30
 Requires: automake >= 1.7.0
