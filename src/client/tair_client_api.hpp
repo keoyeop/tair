@@ -69,6 +69,23 @@ namespace tair {
        * @param data     data
        * @param expire   expire time,realtive time
        * @param version  version,if you don't care the version,set it to 0
+       *
+       * @return 0 -- success, otherwise fail,you can use get_error_msg(ret) to get more information.
+       */
+      int put(int area,
+          const data_entry &key,
+          const data_entry &data,
+          int expire,
+          int version);
+
+      /**
+       * @brief put data to tair
+       *
+       * @param area     namespace
+       * @param key      key
+       * @param data     data
+       * @param expire   expire time,realtive time
+       * @param version  version,if you don't care the version,set it to 0
        * @param fill_cache whether fill cache when put(only meaningful when server support embedded cache).
        *
        * @return 0 -- success, otherwise fail,you can use get_error_msg(ret) to get more information.
@@ -78,7 +95,7 @@ namespace tair {
           const data_entry &data,
           int expire,
           int version,
-          bool fill_cache = true);
+          bool fill_cache);
 
       /**
        ** @brief batch put data to tair

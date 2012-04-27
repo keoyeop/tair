@@ -62,6 +62,15 @@ namespace tair {
       const data_entry &key,
       const data_entry &data,
       int expire,
+      int version)
+  {
+    return impl->put(area,key,data,expire,version, true);
+  }
+
+  int tair_client_api::put(int area,
+      const data_entry &key,
+      const data_entry &data,
+      int expire,
       int version,
       bool fill_cache)
   {

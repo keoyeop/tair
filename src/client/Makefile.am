@@ -11,8 +11,7 @@ AM_CPPFLAGS= -fPIC -I${top_srcdir}/src \
 	    ${BOOST_CPPFLAGS}
 
 LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
-      $(TBLIB_ROOT)/lib/libtbsys.a \
-      $(top_srcdir)/src/storage/ldb/leveldb/.libs/libsnappy.a
+      $(TBLIB_ROOT)/lib/libtbsys.a
 
 multi_cluster_impl_source=tair_multi_cluster_client_impl.hpp tair_multi_cluster_client_impl.cpp \
 			  cluster_handler_manager.hpp cluster_handler_manager.cpp \
@@ -34,6 +33,7 @@ tairclient_LDADD=libtairclientapi.la ${LDADD}
 tairclient_LDFLAGS= -static
 
 libtairclientapi_la_SOURCES=${api_source_list}
+libtairclientapi_la_LIBADD=$(top_srcdir)/src/storage/ldb/leveldb/libsnappy.la
 libtairclientapi_c_la_SOURCES=tair_client_capi.cpp
 libtairclientapi_c_la_LIBADD=libtairclientapi.la
 
