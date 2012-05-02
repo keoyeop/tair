@@ -222,7 +222,7 @@ namespace tair
         gc_.stop();
         bg_task_.stop();
 
-        log_debug("stop ldb %s", db_path_);
+        log_warn("stop ldb %s", db_path_);
         if (db_ != NULL)
         {
           delete db_;

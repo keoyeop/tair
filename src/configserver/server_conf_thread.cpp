@@ -1161,9 +1161,13 @@ namespace tair {
     void server_conf_thread::do_op_cmd(request_op_cmd *req) {
       int rc = TAIR_RETURN_SUCCESS;
       response_op_cmd *resp = new response_op_cmd();
-      const char *group_file_name = TBSYS_CONFIG.getString(CONFSERVER_SECTION, TAIR_GROUP_FILE, NULL);
-      ServerCmdType cmd = req->cmd;
-      switch (cmd) {
+      // only master can op cmd
+      if(master_config_server_id != util::local_server_ip::ip) {
+        rc = TAIR_RETURN_FAILED;
+      } else {
+        const char *group_file_name = TBSYS_CONFIG.getString(CONFSERVER_SECTION, TAIR_GROUP_FILE, NULL);
+        ServerCmdType cmd = req->cmd;
+        switch (cmd) {
         case TAIR_SERVER_CMD_GET_TMP_DOWN_SERVER:
         {
           rc = get_group_config_value(resp, req->params, group_file_name, TAIR_TMP_DOWN_SERVER, "");
@@ -1190,8 +1194,8 @@ namespace tair {
           rc = TAIR_RETURN_FAILED;
           break;
         }
+        }
       }
-
       resp->code = rc;
       resp->setChannelId(req->getChannelId());
       if (req->get_connection()->postPacket(resp) == false) {

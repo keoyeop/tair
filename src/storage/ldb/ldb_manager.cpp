@@ -342,6 +342,8 @@ namespace tair
       {
         int ret = TAIR_RETURN_FAILED;
 
+        tbsys::CThreadGuard guard(&lock_);
+
         switch (cmd)
         {
           // do something special
