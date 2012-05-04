@@ -29,8 +29,26 @@ namespace tair
   {
     namespace ldb
     {
-
       class LdbInstance;
+      static const int32_t DESTROY_LDB_MANGER_INTERVAL_S = 30; // 30s
+      class UsingLdbManager
+      {
+      public:
+        UsingLdbManager();
+        ~UsingLdbManager();
+
+        bool can_destroy();
+        void destroy();
+
+      public:
+        LdbInstance** ldb_instance_;
+        int32_t db_count_;
+        mdb_manager* cache_;
+        std::string cache_file_path_;
+        UsingLdbManager* next_;
+        uint32_t time_;
+      };
+
       // manager hold buckets. single or multi leveldb instance based on config for test
       // it works, maybe make it common manager level.
       class LdbManager : public tair::storage::storage_manager
@@ -57,6 +75,7 @@ namespace tair
         void set_area_quota(std::map<int, uint64_t>& quota_map);
 
         int op_cmd(ServerCmdType cmd, std::vector<std::string>& params);
+        int do_reset_db();
 
         void get_stats(tair_stat* stat);
         void set_bucket_count(uint32_t bucket_count);
@@ -77,6 +96,8 @@ namespace tair
         CacheStat cache_stat_;
         LdbInstance* scan_ldb_;
         tbsys::CThreadMutex lock_;
+        UsingLdbManager* using_head_;
+        UsingLdbManager* using_tail_;
       };
     }
   }

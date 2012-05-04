@@ -109,6 +109,19 @@ namespace tair
         return (static_cast<uint64_t>(decode_fixed32(buf + 4)) << 32) | decode_fixed32(buf);
       }
 
+      std::string get_back_path(const char* path)
+      {
+        if (path == NULL)
+        {
+          return std::string("");
+        }
+
+        char back_path[PATH_MAX + 16];
+        char* pos = back_path;
+        pos += snprintf(back_path, PATH_MAX, "%s.bak.", path);
+        tbsys::CTimeUtil::timeToStr(time(NULL), pos);
+        return std::string(back_path);
+      }
     }
   }
 }

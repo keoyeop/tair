@@ -581,22 +581,19 @@ namespace tair
           }
           break;
         }
-        case TAIR_SERVER_CMD_RESET_DB:
+        case TAIR_SERVER_CMD_RESET_DB: // just rename here
         {
-          stop();
           // delete directory may cost too much time. we just rename here.
           // if (!DirectoryOp::delete_directory_recursively(db_path_))
           // {
           //   log_error("delete db path fail: %s", db_path_);
           //   ret = TAIR_RETURN_FAILED;
           // }
-          char back_db_path[PATH_MAX + 16];
-          char* pos = back_db_path;
-          pos += snprintf(back_db_path, PATH_MAX, "%s.bak.", db_path_);
-          tbsys::CTimeUtil::timeToStr(time(NULL), pos);
-          if (::rename(db_path_, back_db_path) != 0)
+          // just rename to back db path
+          std::string back_db_path = get_back_path(db_path_);
+          if (::rename(db_path_, back_db_path.c_str()) != 0)
           {
-            log_error("rename db %s to back db %s fail. error: %s", db_path_, back_db_path, strerror(errno));
+            log_error("rename db %s to back db %s fail. error: %s", db_path_, back_db_path.c_str(), strerror(errno));
             ret = TAIR_RETURN_FAILED;
           }
           break;
