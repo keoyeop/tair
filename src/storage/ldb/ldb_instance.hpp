@@ -92,7 +92,7 @@ namespace tair
       private:
         // index of this instance
         int32_t index_;
-        char db_path_[PATH_MAX];
+        char db_path_[TAIR_MAX_PATH_LEN];
         // because version care strategy, we must "get" when "put", it's expensive to get an unexist item,
         // so this flag control whether we really must do it.
         // (statistics data may not be exact, as it is always.)

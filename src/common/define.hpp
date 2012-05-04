@@ -51,6 +51,7 @@
 
 #define TAIR_SLEEP(stop, interval) ({int count=interval*5; while(count-->0 && !stop) usleep(200000);})
 
+#define TAIR_MAX_PATH_LEN            256
 #define TAIR_MAX_KEY_SIZE            1024
 #define TAIR_MAX_DATA_SIZE           1000000
 #define TAIR_MAX_AREA_COUNT          1024

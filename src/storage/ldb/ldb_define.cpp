@@ -15,6 +15,7 @@
  */
 
 #include "common/log.hpp"
+#include "common/define.hpp"
 #include "ldb_define.hpp"
 
 namespace tair
@@ -116,9 +117,9 @@ namespace tair
           return std::string("");
         }
 
-        char back_path[PATH_MAX + 16];
+        char back_path[TAIR_MAX_PATH_LEN + 16];
         char* pos = back_path;
-        pos += snprintf(back_path, PATH_MAX, "%s.bak.", path);
+        pos += snprintf(back_path, TAIR_MAX_PATH_LEN, "%s.bak.", path);
         tbsys::CTimeUtil::timeToStr(time(NULL), pos);
         return std::string(back_path);
       }
