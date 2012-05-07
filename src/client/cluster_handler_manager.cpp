@@ -243,7 +243,7 @@ namespace tair
         // be tolerable to one cluster's down
         if (!handler->start(timeout_ms_))
         {
-          log_error("start cluster handler fail. info: %s", ret, info_it->debug_string().c_str());
+          log_error("start cluster handler fail. info: %s", info_it->debug_string().c_str());
           delete handler;
           continue;
         }
