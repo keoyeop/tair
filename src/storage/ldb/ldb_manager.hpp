@@ -90,7 +90,7 @@ namespace tair
         MapBucketIndexer();
         virtual ~MapBucketIndexer();
 
-        virtual int sharding_bucket(int32_t total, const std::vector<int>& buckets,
+        virtual int sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
                                     std::vector<int32_t>* sharding_buckets, bool close = false);
         virtual int32_t bucket_to_index(int32_t bucket_number, bool& recheck);
 

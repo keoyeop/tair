@@ -24,18 +24,18 @@ rpms: dist-gzip packages/tair.spec
 	mkdir -p $(TMP_DIR)/RPMS
 	mkdir -p $(TMP_DIR)/SOURCES
 	mkdir -p $(TMP_DIR)/SRPMS
-	cp tair-${VERSION}.tar.gz $(TMP_DIR)/SOURCES
+	cp ${PACKAGE}-${VERSION}.tar.gz $(TMP_DIR)/SOURCES
 	echo $(PREFIX)
 	echo $(BOOST_DIR)
 	cd $(TMP_DIR)/BUILD; \
-	tar xfz $(TMP_DIR)/SOURCES/tair-${VERSION}.tar.gz \
-		tair-$(VERSION)/packages/tair.spec
+	tar xfz $(TMP_DIR)/SOURCES/${PACKAGE}-${VERSION}.tar.gz \
+		${PACKAGE}-$(VERSION)/packages/tair.spec
 	rpmbuild --define "_topdir $(TMP_DIR)" \
 		 --define "NAME $(PACKAGE)" \
 		 --define "VERSION $(VERSION)" \
 		 --define "BOOST_DIR $(BOOST_DIR)" \
 		 --define "_prefix $(PREFIX)" \
-		-ba $(TMP_DIR)/BUILD/tair-$(VERSION)/packages/tair.spec
+		-ba $(TMP_DIR)/BUILD/${PACKAGE}-$(VERSION)/packages/tair.spec
 	find $(TMP_DIR)/RPMS/ -name "*.rpm" -exec mv '{}' . \;
 	rm -rf $(TMP_DIR)
 
