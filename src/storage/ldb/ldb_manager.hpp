@@ -99,6 +99,8 @@ namespace tair
                                   std::vector<int32_t>* sharding_buckets);
         int do_sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
                                std::vector<int32_t>* sharding_buckets);
+
+        int update_bucket_index(int32_t total, BUCKET_INDEX_MAP* new_bucket_map);
         int save_bucket_index(int32_t total, BUCKET_INDEX_MAP& bucket_index_map);
         int load_bucket_index();
 

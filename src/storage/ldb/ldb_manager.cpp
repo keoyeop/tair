@@ -218,10 +218,8 @@ namespace tair
               new_bucket_map->erase(map_it);
             }
           }
-          BUCKET_INDEX_MAP* old_bucket_map = bucket_map_;
-          bucket_map_ = new_bucket_map;
-          ::usleep(500);
-          delete old_bucket_map;
+
+          ret = update_bucket_index(total, new_bucket_map);
         }
 
         return ret;
@@ -331,10 +329,16 @@ namespace tair
           }
         }
 
+        delete reshard_buckets;
+        return update_bucket_index(total, new_bucket_map);
+      }
+
+      int MapBucketIndexer::update_bucket_index(int32_t total, BUCKET_INDEX_MAP* new_bucket_map)
+      {
         int ret = save_bucket_index(total, *new_bucket_map);
         if (ret != TAIR_RETURN_SUCCESS)
         {
-          log_error("save bucket index map fail");
+          log_error("save bucket index map fail, ret: %d", ret);
           delete new_bucket_map;
         }
         else
@@ -348,8 +352,6 @@ namespace tair
             delete old_bucket_map;
           }
         }
-
-        delete reshard_buckets;
         return ret;
       }
 
