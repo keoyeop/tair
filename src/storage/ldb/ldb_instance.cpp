@@ -591,7 +591,12 @@ namespace tair
           // }
           // just rename to back db path
           std::string back_db_path = get_back_path(db_path_);
-          if (::rename(db_path_, back_db_path.c_str()) != 0)
+          if (::access(db_path_, F_OK) != 0)
+          {
+            // just consider it's ok. maybe ::access fail because other reason.
+            log_warn("resetdb but orignal db path is not exist: %s, ignore it.", db_path_);
+          }
+          else if (::rename(db_path_, back_db_path.c_str()) != 0)
           {
             log_error("rename db %s to back db %s fail. error: %s", db_path_, back_db_path.c_str(), strerror(errno));
             ret = TAIR_RETURN_FAILED;
@@ -912,6 +917,7 @@ namespace tair
         options_.paranoid_checks = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_PARANOID_CHECK, 0) > 0;
         options_.max_open_files = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_OPEN_FILES, 655350);
         options_.write_buffer_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_WRITE_BUFFER_SIZE, 4194304); // 4M
+        options_.max_mem_usage_for_memtable = atoll(TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_MAX_MEM_USAGE_FOR_MEMTABLE, "1073741824"));
         options_.block_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_SIZE, 4096); // 4K
         options_.block_restart_interval = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_RESTART_INTERVAL, 16); // 16
         options_.compression = static_cast<leveldb::CompressionType>(TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_COMPRESSION, leveldb::kSnappyCompression));

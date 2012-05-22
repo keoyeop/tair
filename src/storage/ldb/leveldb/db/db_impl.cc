@@ -117,6 +117,11 @@ namespace leveldb {
       log_(NULL),
       logger_(NULL),
       logger_cv_(&mutex_),
+      // @@ for multi-bucket update
+      imm_list_count_(0),
+      bu_head_(NULL),
+      bu_tail_(NULL),
+      // @@
       bg_compaction_scheduled_(false),
       manual_compaction_(NULL) {
     mem_->Ref();
@@ -478,13 +483,17 @@ namespace leveldb {
     Version* base = versions_->current();
     base->Ref();
     const uint64_t imm_start = env_->NowMicros();
-    int count = 0;
+    int last_count = imm_list_count_;
     Status s;
-    Log(options_.info_log, "memlist : %d", imm_list_.size());
+    Log(options_.info_log, "memlist : %d", imm_list_count_);
     for (BucketList::iterator it = imm_list_.begin(); it != imm_list_.end();) {
-      Log(options_.info_log, "compact %x", *it);
+      if (imm_ != NULL) {           // we compcat imm_ at highest priority
+        s = CompactMemTable(false); // only compact imm_
+        if (!s.ok()) {
+          break;
+        }
+      }
       s = WriteLevel0Table((*it)->mem_, &edit, base);
-      count++;
       if (!s.ok()) {
         break;
       }
@@ -495,8 +504,9 @@ namespace leveldb {
       delete (*it);
       // @@ lock hold
       it = imm_list_.erase(it);
+      imm_list_count_--;
     }
-    Log(options_.info_log, "com imm list,count: %d cost %ld", count, env_->NowMicros() - imm_start);
+    Log(options_.info_log, "com imm list,count: %d cost %ld", last_count - imm_list_count_, env_->NowMicros() - imm_start);
 
     base->Unref();
 
@@ -520,17 +530,19 @@ namespace leveldb {
     return s;
   }
 
-  Status DBImpl::CompactMemTable() {
+  Status DBImpl::CompactMemTable(bool compact_mlist) {
     mutex_.AssertHeld();
     Status s;
-    if (!imm_list_.empty()) {
+    if (compact_mlist && !imm_list_.empty()) {
       s = CompactMemTableList();
-    }
-    if (!s.ok() || NULL == imm_) {
-      return s;
+      if (!s.ok()) {
+        return s;
+      }
     }
 
-    assert(imm_ != NULL);
+    if (NULL == imm_) {
+      return s;
+    }
 
     // Save the contents of the memtable as a new Table
     VersionEdit edit;
@@ -571,8 +583,11 @@ namespace leveldb {
       delete it->second->log_;
       delete it->second->logfile_;
       imm_list_.push_front(it->second);
+      imm_list_count_++;
     }
+    bu_head_ = bu_tail_ = NULL;
     bucket_map_.clear();
+
     // force single memtable compact
     Status s = MakeRoomForWrite(true /* force compaction */);
     MaybeScheduleCompaction();
@@ -1608,7 +1623,7 @@ Status DBImpl::MakeRoomForWrite(bool force) {
       allow_delay = false;  // Do not delay a single write more than once
       mutex_.Lock();
     } else if (!force &&
-               (mem_->ApproximateMemoryUsage() <= options_.write_buffer_size)) {
+                (mem_->ApproximateMemoryUsage() <= options_.write_buffer_size)) {
       // There is room in current memtable
       break;
     } else if (imm_ != NULL) {
@@ -1649,22 +1664,59 @@ Status DBImpl::MakeRoomForWrite(bool force) {
 }
 
 Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_update) {
-  static int kMaxMemTableCount = 1023;
+  static int kMaxMemTableCount = options_.max_mem_usage_for_memtable / options_.write_buffer_size;
+  static int kRetryCount = 3;
+  static int kEvictMemTableCount = 5;
+
   mutex_.AssertHeld();
   assert(logger_ != NULL);
   if (bucket < 0) {
     return Status::InvalidArgument("bucket is invalid");
   }
+
   bool allow_delay = !force;
   Status s;
   BucketUpdate* bu = NULL;
   BucketMap::iterator bm_it = bucket_map_.find(bucket);
   if (bm_it != bucket_map_.end()) {
     bu = bm_it->second;
-  } else if (bucket_map_.size() > kMaxMemTableCount) {
-		  // too many memtable now.but do nothing
-	    Log(options_.info_log, "too many memtable now %d", bucket_map_.size());
-      return Status::Corruption("too many memtable");
+  } else {
+    // control max memtable count now.
+    int retry = 0;
+    while (retry++ < kRetryCount) {
+      if (bucket_map_.size() + imm_list_count_ < kMaxMemTableCount) {
+        break;
+      }
+
+      // too many memtable now. try evict some
+      int evict_count = 0;
+      BucketUpdate* evicted_bu = NULL;
+      while (evict_count++ < kEvictMemTableCount && bu_head_ != NULL) {
+        // bu_head_ ponit to oldest memtale
+        BucketMap::iterator it = bucket_map_.find(bu_head_->bucket_number_);
+        assert(it != bucket_map_.end());
+        bucket_map_.erase(it);
+        evicted_bu = it->second;
+        Log(options_.info_log, "evict mmt [%d %lu]",
+            bu_head_->bucket_number_, it->second->mem_->ApproximateMemoryUsage());
+        EvictBucketUpdate(evicted_bu);
+      }
+
+      if (evicted_bu != NULL) {
+        has_imm_.Release_Store(evicted_bu->mem_);
+        MaybeScheduleCompaction();
+      }
+
+      mutex_.Unlock();
+      env_->SleepForMicroseconds(10000);
+      mutex_.Lock();
+      Log(options_.info_log, "wait for less mmt. now %lu", bucket_map_.size() + imm_list_count_);
+    }
+
+    // can't get space for new memtable
+    if (retry > kRetryCount) {
+      return Status::Corruption("too many mmt");
+    }
   }
 
   while (true) {
@@ -1720,10 +1772,7 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
       logfile_number_ = new_log_number;
 
       if (bu != NULL) {
-        delete bu->log_;
-        delete bu->logfile_;
-        // add to imm list
-        imm_list_.push_front(bu);
+        EvictBucketUpdate(bu);
         // sentinel
         has_imm_.Release_Store(bu->mem_);
         MaybeScheduleCompaction();
@@ -1731,12 +1780,21 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
 
       Log(options_.info_log, "new log %d", new_log_number);
       bu = new BucketUpdate();
+      bu->bucket_number_ = bucket;
       bu->log_number_ = new_log_number;
       bu->logfile_ = lfile;
       bu->log_ = new log::Writer(lfile);
       bu->mem_ = new MemTable(internal_comparator_, env_);
       bu->mem_->Ref();
-
+      // link to bucket list tail
+      bu->next_ = NULL;
+      bu->prev_ = bu_tail_;
+      if (NULL == bu_head_) {
+        bu_head_ = bu_tail_ = bu;
+      } else {
+        bu_tail_->next_ = bu;
+        bu_tail_ = bu;
+      }
       // add to bucket map
       bucket_map_[bucket] = bu;
       force = false;   // Do not force another compaction if have room
@@ -1747,6 +1805,31 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
     *bucket_update = bu;
   }
   return s;
+}
+
+void DBImpl::EvictBucketUpdate(BucketUpdate* bu) {
+  mutex_.AssertHeld();
+  if (NULL == bu) {
+    return;
+  }
+
+  if (bu == bu_tail_) {
+    bu_tail_ = bu->prev_;
+  }
+  if (bu == bu_head_) {
+    bu_head_ = bu->next_;
+  }
+  if (bu->prev_ != NULL) {
+    bu->prev_->next_ = bu->next_;
+  }
+  if (bu->next_ != NULL) {
+    bu->next_->prev_ = bu->prev_;
+  }
+  delete bu->log_;
+  delete bu->logfile_;
+  // add to imm list
+  imm_list_.push_front(bu);
+  imm_list_count_++;
 }
 
 bool DBImpl::GetProperty(const Slice& property, std::string* value) {

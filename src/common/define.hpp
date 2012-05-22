@@ -146,6 +146,9 @@
 #define LDB_DATA_DIR                    "data_dir"
 #define LDB_DEFAULT_DATA_DIR            "data/ldb"
 #define LDB_DB_INSTANCE_COUNT           "ldb_db_instance_count"
+#define LDB_BUCKET_INDEX_TO_INSTANCE_STRATEGY "ldb_bucket_index_to_instance_strategy"
+#define LDB_BUCKET_INDEX_FILE_DIR       "ldb_bucket_index_file_dir"
+#define LDB_BUCKET_INDEX_CAN_UPDATE     "ldb_bucket_index_can_update"
 #define LDB_DB_VERSION_CARE             "ldb_db_version_care"
 #define LDB_CACHE_STAT_FILE_SIZE        "ldb_cache_stat_file_size"
 #define LDB_COMPACT_RANGE               "ldb_compact_range"
@@ -157,6 +160,7 @@
 #define LDB_PARANOID_CHECK              "ldb_paranoid_check"
 #define LDB_MAX_OPEN_FILES              "ldb_max_open_files"
 #define LDB_WRITE_BUFFER_SIZE           "ldb_write_buffer_size"
+#define LDB_MAX_MEM_USAGE_FOR_MEMTABLE  "ldb_max_mem_usage_for_memtable"
 #define LDB_TARGET_FILE_SIZE            "ldb_target_file_size"
 #define LDB_BLOCK_SIZE                  "ldb_block_size"
 #define LDB_BLOCK_RESTART_INTERVAL      "ldb_block_restart_interval"
@@ -299,5 +303,6 @@ typedef enum {
   TAIR_CLUSTER_TYPE_SINGLE_CLUSTER,
   TAIR_CLUSTER_TYPE_MULTI_CLUSTER,
 } TairClusterType;
+
 #endif
 /////////////

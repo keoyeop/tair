@@ -21,6 +21,8 @@ AC_DEFUN([TS_CHECK_TCMALLOC],
         [want_tcmalloc="no"]
   )
 
+        AM_CONDITIONAL([WITH_TCMALLOC], [test "x$want_tcmalloc" = "xyes"])
+
 	if test "x$want_tcmalloc" = "xyes"; then
 		if test "$ac_tcmalloc_path" != ""; then
 			ax_tclib="tcmalloc -L$ac_tcmalloc_path/lib"
@@ -31,7 +33,6 @@ AC_DEFUN([TS_CHECK_TCMALLOC],
        [AC_MSG_FAILURE([tcmalloc link failed (--without-tcmalloc to disable)])]
     )
 	fi
-
 
     AC_ARG_WITH([tcmalloc_minimal],
         AS_HELP_STRING([--with-tcmalloc_minimal=DIR],

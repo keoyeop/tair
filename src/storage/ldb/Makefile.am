@@ -4,6 +4,10 @@ AM_CPPFLAGS=-I${top_builddir}/src/storage/ldb/leveldb/include -I${top_builddir}/
 
 LDADD= ${top_srcdir}/src/common/libtair_common.a $(TBLIB_ROOT)/lib/libtbsys.a ${top_builddir}/src/storage/ldb/leveldb/libleveldb.a
 
+if WITH_TCMALLOC
+AM_CPPFLAGS += -DWITH_TCMALLOC
+endif
+
 AM_LDFLAGS=-lpthread -lrt ${GCOV_LIB}
 noinst_LIBRARIES=libldb.a
 

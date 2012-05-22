@@ -25,15 +25,19 @@ class VersionSet;
 
 struct LoggerId;
 
-typedef struct {
+struct BucketUpdate
+{
+  int bucket_number_;
   int log_number_;
   log::Writer* log_;
   WritableFile* logfile_;
   MemTable* mem_;
+  BucketUpdate* prev_;
+  BucketUpdate* next_;
   // TODO: fine-grained lock
   LoggerId* logger_;            // NULL, or the id of the current logging thread
   port::CondVar* logger_cv_;     // For threads waiting to log
-} BucketUpdate;
+};
 
 typedef std::map<int, BucketUpdate*> BucketMap;
 typedef std::list<BucketUpdate*> BucketList;
@@ -98,7 +102,7 @@ class DBImpl : public DB {
 
   // Compact the in-memory write buffer to disk.  Switches to a new
   // log-file/memtable and writes a new descriptor iff successful.
-  Status CompactMemTable();
+  Status CompactMemTable(bool compact_mlist = true);
   Status CompactMemTableList();
   Status RecoverLogFile(uint64_t log_number,
                         VersionEdit* edit,
@@ -113,6 +117,7 @@ class DBImpl : public DB {
 
   Status MakeRoomForWrite(bool force /* compact even if there is room? */);
   Status MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_update);
+  void EvictBucketUpdate(BucketUpdate* bu);
 
   struct CompactionState;
 
@@ -162,6 +167,10 @@ class DBImpl : public DB {
   // @@ for multi-bucket update
   BucketMap bucket_map_;
   BucketList imm_list_;
+  int32_t imm_list_count_;      // list.size() cost much
+  // list all bucket-memtable, new memtable is linked in the list tail.
+  BucketUpdate* bu_head_;
+  BucketUpdate* bu_tail_;
 
   // Set of table files to protect from deletion because they are
   // part of ongoing compactions.
