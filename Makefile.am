@@ -13,12 +13,12 @@ EXTRA_DIST=bootstrap.sh \
 	   scripts/Makefile.am scripts/Makefile.in scripts/mdbshm_reader.py scripts/set_shm.sh \
 	   scripts/tair.sh \
 	   libtool \
-	   packages/tair.spec 
+	   packages/t-csrd-tairFastDump.spec 
 
 TMP_DIR:=/tmp/tair-tmp.$(shell echo $$$$)
 PREFIX:=$(shell [ x$(PREFIX) = x ] && PREFIX=/opt/csr/tair-$(VERSION) && echo "$${PREFIX}")
 BOOST_DIR:=$(shell [ x$(BOOST_DIR) = x ] && BOOST_DIR=/usr && echo "$${BOOST_DIR}")
-rpms: dist-gzip packages/tair.spec
+rpms: dist-gzip packages/t-csrd-tairFastDump.spec
 	mkdir -p $(TMP_DIR)
 	mkdir -p $(TMP_DIR)/BUILD
 	mkdir -p $(TMP_DIR)/RPMS
@@ -29,13 +29,13 @@ rpms: dist-gzip packages/tair.spec
 	echo $(BOOST_DIR)
 	cd $(TMP_DIR)/BUILD; \
 	tar xfz $(TMP_DIR)/SOURCES/${PACKAGE}-${VERSION}.tar.gz \
-		${PACKAGE}-$(VERSION)/packages/tair.spec
+		${PACKAGE}-$(VERSION)/packages/t-csrd-tairFastDump.spec
 	rpmbuild --define "_topdir $(TMP_DIR)" \
 		 --define "NAME $(PACKAGE)" \
 		 --define "VERSION $(VERSION)" \
 		 --define "BOOST_DIR $(BOOST_DIR)" \
 		 --define "_prefix $(PREFIX)" \
-		-ba $(TMP_DIR)/BUILD/${PACKAGE}-$(VERSION)/packages/tair.spec
+		-ba $(TMP_DIR)/BUILD/${PACKAGE}-$(VERSION)/packages/t-csrd-tairFastDump.spec
 	find $(TMP_DIR)/RPMS/ -name "*.rpm" -exec mv '{}' . \;
 	rm -rf $(TMP_DIR)
 

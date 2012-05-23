@@ -1,1 +1,1 @@
-../packages/tair.spec
+link ../packages/t-csrd-tairFastDump.spec
