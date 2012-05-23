@@ -74,10 +74,25 @@ data_dir=data/kdb      # the directory of kdb's data
 data_dir=/data/ldb
 ## leveldb instance count, buckets will be well-distributed to instances
 ldb_db_instance_count=1
+## when ldb_db_instance_count > 1, bucket will be sharded to instance base on config strategy.
+## current supported:
+##  hash : just do integer hash to bucket number then module to instance, instance's balance may be
+##         not perfect in small buckets set. same bucket will be sharded to same instance
+##         all the time, so data will be reused even if buckets owned by server changed(maybe cluster has changed),
+##  map  : handle to get better balance among all instances. same bucket may be sharded to different instance based
+##         on different buckets set(TODO: data will be migrated among instances).
+ldb_bucket_index_to_instance_strategy=map
+## bucket index can be updated. this is useful if the cluster wouldn't change once started
+## even server down/up accidently.
+ldb_bucket_index_can_update=0
+## strategy map will save bucket index statistics into file, this is the file's directory
+ldb_bucket_index_file_dir=./data/bindex
+## memory usage for memtable sharded by bucket when batch-put(especially for FastDump)
+ldb_max_mem_usage_for_memtable=3221225472
 ## whether support version strategy.
 ## if yes, put will do get operation to update existed items's meta info(version .etc),
 ## get unexist item is expensive for leveldb. set 0 to disable if nobody even care version stuff.
-ldb_db_version_care=1
+ldb_db_version_care=0
 ## compact time range, 1-1 means do no compaction at all
 ldb_compact_range = 3-6
 ## backgroud task check compact interval
