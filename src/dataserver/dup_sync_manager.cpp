@@ -291,8 +291,12 @@ namespace tair{
     for(unsigned int  i=0;i < _copy_count; i++)
     {
       request_mput* tmp_packet = new request_mput();
-      // just reuse original request's data.
-      tmp_packet->swap(*(dynamic_cast<request_mput*>(request)));
+      // just reuse original request's data, if necessray
+      if (_copy_count < 2) {
+        tmp_packet->swap(*(dynamic_cast<request_mput*>(request)));
+      } else {
+        tmp_packet->clone(*(dynamic_cast<request_mput*>(request)), true);
+      }
       tmp_packet->server_flag = TAIR_SERVERFLAG_DUPLICATE;
       tmp_packet->packet_id = max_packet_id;
       //and send it to slave

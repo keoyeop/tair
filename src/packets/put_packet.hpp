@@ -143,12 +143,15 @@ namespace tair {
 
     void clone(request_mput &packet, bool need_alloc)
     {
+      if (this == &packet) {
+        return ;
+      }
+      clear();
       setPCode(TAIR_REQ_MPUT_PACKET);
       server_flag = packet.server_flag;
       area = packet.area;
       count = packet.count;
       len = packet.len;
-      clear();
       compressed = packet.compressed;
       packet_data_len = packet.packet_data_len;
 
