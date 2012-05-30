@@ -512,9 +512,10 @@ void PosixEnv::Schedule(void (*function)(void*), void* arg) {
   // If the queue is currently empty, the background thread may currently be
   // waiting.
   if (queue_.empty()) {
+    fprintf(stderr, "%lu in ld sig %d\n", gettid(), queue_.size());
     PthreadCall("signal", pthread_cond_signal(&bgsignal_));
   }
-
+  fprintf(stderr, "%lu out ld %d\n", gettid(), queue_.size());
   // Add to priority queue
   queue_.push_back(BGItem());
   queue_.back().function = function;
@@ -529,8 +530,10 @@ void PosixEnv::BGThread() {
     PthreadCall("lock", pthread_mutex_lock(&mu_));
     while (queue_.empty()) {
       PthreadCall("wait", pthread_cond_wait(&bgsignal_, &mu_));
+      fprintf(stderr, "%lu in awake %d\n", gettid(), queue_.size());
     }
 
+    fprintf(stderr, "%lu out awake %d\n", gettid(), queue_.size());
     void (*function)(void*) = queue_.front().function;
     void* arg = queue_.front().arg;
     queue_.pop_front();

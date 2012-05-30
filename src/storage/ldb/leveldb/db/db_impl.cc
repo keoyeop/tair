@@ -958,6 +958,7 @@ namespace leveldb {
       Log(options_.info_log, "need no com");
       // No work to be done
     } else {
+      Log(options_.info_log, "schedule");
       bg_compaction_scheduled_ = true;
       env_->Schedule(&DBImpl::BGWork, this);
     }
@@ -999,7 +1000,7 @@ namespace leveldb {
       Log(options_.info_log, "only com mem cost %lld", env_->NowMicros() - imm_start);
       return;
     }
-
+    Log(options_.info_log, "com else");
     Compaction* c;
     bool is_manual = (manual_compaction_ != NULL);
     InternalKey manual_end;
@@ -1673,137 +1674,100 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
   if (bucket < 0) {
     return Status::InvalidArgument("bucket is invalid");
   }
+  if (!bg_error_.ok()) {
+    // Yield previous error
+    return bg_error_;
+  }
 
-  bool allow_delay = !force;
   Status s;
   BucketUpdate* bu = NULL;
   BucketMap::iterator bm_it = bucket_map_.find(bucket);
   if (bm_it != bucket_map_.end()) {
     bu = bm_it->second;
+    // not force and current memtale has remaining space
+    if (!force && bu->mem_->ApproximateMemoryUsage() <= options_.write_buffer_size) {
+      *bucket_update = bu;
+      return s;
+    }
+  }
+
+  // this bucketupdate should be compacted
+  if (bu != NULL) {
+    EvictBucketUpdate(bu);
+    // sentinel
+    has_imm_.Release_Store(bu->mem_);
+    MaybeScheduleCompaction();
+  }
+
+  // control max memtable count now.
+  int retry = 0;
+  while (bucket_map_.size() + imm_list_count_ >= kMaxMemTableCount && retry++ < kRetryCount) {
+    // too many memtable now. try evict some
+    int evict_count = 0;
+    BucketUpdate* evicted_bu = NULL;
+    while (evict_count++ < kEvictMemTableCount && bu_head_ != NULL) {
+      // bu_head_ ponit to oldest memtale
+      BucketMap::iterator it = bucket_map_.find(bu_head_->bucket_number_);
+      assert(it != bucket_map_.end());
+      bucket_map_.erase(it);
+      evicted_bu = it->second;
+      Log(options_.info_log, "evict mmt [%d %lu]",
+          bu_head_->bucket_number_, evicted_bu->mem_->ApproximateMemoryUsage());
+      EvictBucketUpdate(evicted_bu);
+    }
+
+    if (evicted_bu != NULL) {
+      has_imm_.Release_Store(evicted_bu->mem_);
+    }
+
+    MaybeScheduleCompaction();
+
+    mutex_.Unlock();
+    env_->SleepForMicroseconds(10000);
+    mutex_.Lock();
+    Log(options_.info_log, "wait for less mmt. now %lu", bucket_map_.size() + imm_list_count_);
+  }
+
+  // can't get space for new memtable
+  if (retry > kRetryCount) {
+    return Status::Corruption("too many mmt");
+  }
+
+  // we can switch a new memtable now.
+  assert(versions_->PrevLogNumber() == 0);
+  Log(options_.info_log, "new mem %d", bucket);
+
+  uint64_t new_log_number = versions_->NewFileNumber();
+  WritableFile* lfile = NULL;
+
+  s = env_->NewWritableFile(BucketLogFileName(dbname_, new_log_number), &lfile);
+  if (!s.ok()) {
+    return s;
+  }
+
+  logfile_number_ = new_log_number;
+
+  Log(options_.info_log, "new log %d", new_log_number);
+  bu = new BucketUpdate();
+  bu->bucket_number_ = bucket;
+  bu->log_number_ = new_log_number;
+  bu->logfile_ = lfile;
+  bu->log_ = new log::Writer(lfile);
+  bu->mem_ = new MemTable(internal_comparator_, env_);
+  bu->mem_->Ref();
+  // link to bucket list tail
+  bu->next_ = NULL;
+  bu->prev_ = bu_tail_;
+  if (NULL == bu_head_) {
+    bu_head_ = bu_tail_ = bu;
   } else {
-    // control max memtable count now.
-    int retry = 0;
-    while (retry++ < kRetryCount) {
-      if (bucket_map_.size() + imm_list_count_ < kMaxMemTableCount) {
-        break;
-      }
-
-      // too many memtable now. try evict some
-      int evict_count = 0;
-      BucketUpdate* evicted_bu = NULL;
-      while (evict_count++ < kEvictMemTableCount && bu_head_ != NULL) {
-        // bu_head_ ponit to oldest memtale
-        BucketMap::iterator it = bucket_map_.find(bu_head_->bucket_number_);
-        assert(it != bucket_map_.end());
-        bucket_map_.erase(it);
-        evicted_bu = it->second;
-        Log(options_.info_log, "evict mmt [%d %lu]",
-            bu_head_->bucket_number_, it->second->mem_->ApproximateMemoryUsage());
-        EvictBucketUpdate(evicted_bu);
-      }
-
-      if (evicted_bu != NULL) {
-        has_imm_.Release_Store(evicted_bu->mem_);
-        MaybeScheduleCompaction();
-      }
-
-      mutex_.Unlock();
-      env_->SleepForMicroseconds(10000);
-      mutex_.Lock();
-      Log(options_.info_log, "wait for less mmt. now %lu", bucket_map_.size() + imm_list_count_);
-    }
-
-    // can't get space for new memtable
-    if (retry > kRetryCount) {
-      return Status::Corruption("too many mmt");
-    }
+    bu_tail_->next_ = bu;
+    bu_tail_ = bu;
   }
+  // add to bucket map
+  bucket_map_[bucket] = bu;
 
-  while (true) {
-    if (!bg_error_.ok()) {
-      // Yield previous error
-      s = bg_error_;
-      break;
-      // } else if (
-      //     allow_delay &&
-      //     versions_->NumLevelFiles(0) >= config::kL0_SlowdownWritesTrigger) {
-      //   // We are getting close to hitting a hard limit on the number of
-      //   // L0 files.  Rather than delaying a single write by several
-      //   // seconds when we hit the hard limit, start delaying each
-      //   // individual write by 1ms to reduce latency variance.  Also,
-      //   // this delay hands over some CPU to the compaction thread in
-      //   // case it is sharing the same core as the writer.
-      //   Log(options_.info_log, "wait slow");
-      //   mutex_.Unlock();
-      //   env_->SleepForMicroseconds(1000);
-      //   allow_delay = false;  // Do not delay a single write more than once
-      //   mutex_.Lock();
-    } else if (bu != NULL && !force &&
-               (bu->mem_->ApproximateMemoryUsage() <= options_.write_buffer_size)) {
-      // @@ we got it
-      // There is room in current memtable
-      break;
-      // } else if (imm_ != NULL) {
-      //   // @@ do nothing
-      //   // // We have filled up the current memtable, but the previous
-      //   // // one is still being compacted, so we wait.
-      //   // Log(options_.info_log, "wait imm ");
-      //   // MaybeScheduleCompaction();
-      //   // bg_cv_.Wait();
-      //   // Log(options_.info_log, "wait imm over");
-      // } else if (versions_->NumLevelFiles(0) >= config::kL0_StopWritesTrigger) { // @ not stop
-      //   // @@ do nothing
-      //   // // There are too many level-0 files.
-      //   // Log(options_.info_log, "waiting...\n");
-      //   // bg_cv_.Wait();
-    } else {
-      // @@ swith this full memtable
-      assert(versions_->PrevLogNumber() == 0);
-      Log(options_.info_log, "new mem %d", bucket);
-
-      uint64_t new_log_number = versions_->NewFileNumber();
-      WritableFile* lfile = NULL;
-
-      s = env_->NewWritableFile(BucketLogFileName(dbname_, new_log_number), &lfile);
-      if (!s.ok()) {
-        break;
-      }
-
-      logfile_number_ = new_log_number;
-
-      if (bu != NULL) {
-        EvictBucketUpdate(bu);
-        // sentinel
-        has_imm_.Release_Store(bu->mem_);
-        MaybeScheduleCompaction();
-      }
-
-      Log(options_.info_log, "new log %d", new_log_number);
-      bu = new BucketUpdate();
-      bu->bucket_number_ = bucket;
-      bu->log_number_ = new_log_number;
-      bu->logfile_ = lfile;
-      bu->log_ = new log::Writer(lfile);
-      bu->mem_ = new MemTable(internal_comparator_, env_);
-      bu->mem_->Ref();
-      // link to bucket list tail
-      bu->next_ = NULL;
-      bu->prev_ = bu_tail_;
-      if (NULL == bu_head_) {
-        bu_head_ = bu_tail_ = bu;
-      } else {
-        bu_tail_->next_ = bu;
-        bu_tail_ = bu;
-      }
-      // add to bucket map
-      bucket_map_[bucket] = bu;
-      force = false;   // Do not force another compaction if have room
-    }
-  }
-
-  if (s.ok()) {
-    *bucket_update = bu;
-  }
+  *bucket_update = bu;
   return s;
 }
 
