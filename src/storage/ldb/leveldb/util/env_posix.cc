@@ -23,6 +23,7 @@
 #include "leveldb/slice.h"
 #include "port/port.h"
 #include "util/logging.h"
+#include "util/posix_logger.h"
 
 namespace leveldb {
 
