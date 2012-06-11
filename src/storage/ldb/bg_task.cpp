@@ -251,6 +251,7 @@ namespace tair
         if (timer_ != 0)
         {
           stop_compact_task();
+          timer_->destroy();
           timer_ = 0;
         }
       }

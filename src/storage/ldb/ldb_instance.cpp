@@ -228,7 +228,8 @@ namespace tair
           delete db_;
           db_ = NULL;
         }
-        for (STAT_MANAGER_MAP_ITER it = stat_manager_->begin(); it != stat_manager_->end(); ++it)
+        STAT_MANAGER_MAP* tmp_stat_manager = stat_manager_;
+        for (STAT_MANAGER_MAP_ITER it = tmp_stat_manager->begin(); it != tmp_stat_manager->end(); ++it)
         {
           it->second->stop();
         }
@@ -282,7 +283,7 @@ namespace tair
         int rc = TAIR_RETURN_SUCCESS;
 
         // db version care
-        if (db_version_care_)
+        if (db_version_care_ && version_care)
         {
           rc = do_get(ldb_key, db_value, false, false); // not fill cache or update cache stat
 
@@ -535,7 +536,7 @@ namespace tair
         std::string db_value;
         tbsys::CThreadGuard mutex_guard(get_mutex(key));
 
-        if (db_version_care_)
+        if (db_version_care_ && version_care)
         {
           rc = do_get(ldb_key, db_value, false, false);
           if (TAIR_RETURN_SUCCESS == rc)
@@ -741,7 +742,8 @@ namespace tair
           if (stat != NULL)
           {
             // get all stat information
-            for (STAT_MANAGER_MAP_ITER it = stat_manager_->begin(); it != stat_manager_->end(); ++it)
+            STAT_MANAGER_MAP* tmp_stat_manager = stat_manager_;
+            for (STAT_MANAGER_MAP_ITER it = tmp_stat_manager->begin(); it != tmp_stat_manager->end(); ++it)
             {
               tair_pstat *pstat = it->second->get_stat();
               for (int i = 0; i < TAIR_MAX_AREA_COUNT; i++)
@@ -760,7 +762,8 @@ namespace tair
         int ret = TAIR_RETURN_SUCCESS;
         if (area >= 0)
         {
-          for (STAT_MANAGER_MAP_ITER it = stat_manager_->begin(); it != stat_manager_->end(); ++it)
+          STAT_MANAGER_MAP* tmp_stat_manager = stat_manager_;
+          for (STAT_MANAGER_MAP_ITER it = tmp_stat_manager->begin(); it != tmp_stat_manager->end(); ++it)
           {
             it->second->stat_reset(area); // clear stat value for this area.
           }
@@ -771,7 +774,8 @@ namespace tair
 
       bool LdbInstance::exist(int32_t bucket_number)
       {
-        return stat_manager_->find(bucket_number) != stat_manager_->end();
+        STAT_MANAGER_MAP* tmp_stat_manager = stat_manager_;
+        return tmp_stat_manager->find(bucket_number) != tmp_stat_manager->end();
       }
 
       int LdbInstance::do_put(LdbKey& ldb_key, LdbItem& ldb_item, bool fill_cache)
@@ -885,8 +889,9 @@ namespace tair
 
       void LdbInstance::stat_add(int32_t bucket_number, int32_t area, int32_t data_size, int32_t use_size, int32_t item_count)
       {
-        STAT_MANAGER_MAP_ITER stat_it = stat_manager_->find(bucket_number);
-        if (stat_it != stat_manager_->end())
+        STAT_MANAGER_MAP* tmp_stat_manager = stat_manager_;
+        STAT_MANAGER_MAP_ITER stat_it = tmp_stat_manager->find(bucket_number);
+        if (stat_it != tmp_stat_manager->end())
         {
           stat_it->second->stat_add(area, data_size, use_size, item_count);
         }
@@ -894,8 +899,9 @@ namespace tair
 
       void LdbInstance::stat_sub(int32_t bucket_number, int32_t area, int32_t data_size, int32_t use_size, int32_t item_count)
       {
-        STAT_MANAGER_MAP_ITER stat_it = stat_manager_->find(bucket_number);
-        if (stat_it != stat_manager_->end())
+        STAT_MANAGER_MAP* tmp_stat_manager = stat_manager_;
+        STAT_MANAGER_MAP_ITER stat_it = tmp_stat_manager->find(bucket_number);
+        if (stat_it != tmp_stat_manager->end())
         {
           stat_it->second->stat_sub(area, data_size, use_size, item_count);
         }
@@ -903,7 +909,8 @@ namespace tair
 
       void LdbInstance::get_buckets(std::vector<int32_t>& buckets)
       {
-        for (STAT_MANAGER_MAP_ITER it = stat_manager_->begin(); it != stat_manager_->end(); ++it)
+        STAT_MANAGER_MAP* tmp_stat_manager = stat_manager_;
+        for (STAT_MANAGER_MAP_ITER it = tmp_stat_manager->begin(); it != tmp_stat_manager->end(); ++it)
         {
           buckets.push_back(it->first);
         }

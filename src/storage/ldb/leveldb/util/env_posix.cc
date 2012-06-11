@@ -23,7 +23,6 @@
 #include "leveldb/slice.h"
 #include "port/port.h"
 #include "util/logging.h"
-#include "util/posix_logger.h"
 
 namespace leveldb {
 
@@ -284,6 +283,19 @@ class PosixEnv : public Env {
       fprintf(stderr, "Destroying Env::Default()\n");
       exit(1);
     }
+
+    PthreadCall("lock", pthread_mutex_lock(&mu_));
+    if (started_bgthread_) {
+      stop_.Release_Store(this);
+      PthreadCall("signal", pthread_cond_signal(&bgsignal_));
+    }
+    PthreadCall("unlock", pthread_mutex_unlock(&mu_));
+    // wait for bg thread exit
+    while (stop_.Acquire_Load() != NULL) {
+      SleepForMicroseconds(100);
+      // for accident signal ignore by bgthread
+      PthreadCall("signal", pthread_cond_signal(&bgsignal_));
+    }
   }
 
   virtual Status NewSequentialFile(const std::string& fname,
@@ -465,7 +477,7 @@ class PosixEnv : public Env {
     usleep(micros);
   }
 
- private:
+private:
   void PthreadCall(const char* label, int result) {
     if (result != 0) {
       fprintf(stderr, "pthread %s: %s\n", label, strerror(result));
@@ -490,16 +502,22 @@ class PosixEnv : public Env {
   struct BGItem { void* arg; void (*function)(void*); };
   typedef std::deque<BGItem> BGQueue;
   BGQueue queue_;
+  port::AtomicPointer stop_;
 };
 
 PosixEnv::PosixEnv() : page_size_(getpagesize()),
-                       started_bgthread_(false) {
+                       started_bgthread_(false), stop_(NULL){
   PthreadCall("mutex_init", pthread_mutex_init(&mu_, NULL));
   PthreadCall("cvar_init", pthread_cond_init(&bgsignal_, NULL));
 }
 
 void PosixEnv::Schedule(void (*function)(void*), void* arg) {
   PthreadCall("lock", pthread_mutex_lock(&mu_));
+
+  if (stop_.Acquire_Load() != NULL) {
+    PthreadCall("unlock", pthread_mutex_unlock(&mu_));
+    return;
+  }
 
   // Start background thread if necessary
   if (!started_bgthread_) {
@@ -512,10 +530,9 @@ void PosixEnv::Schedule(void (*function)(void*), void* arg) {
   // If the queue is currently empty, the background thread may currently be
   // waiting.
   if (queue_.empty()) {
-    fprintf(stderr, "%lu in ld sig %d\n", gettid(), queue_.size());
     PthreadCall("signal", pthread_cond_signal(&bgsignal_));
   }
-  fprintf(stderr, "%lu out ld %d\n", gettid(), queue_.size());
+
   // Add to priority queue
   queue_.push_back(BGItem());
   queue_.back().function = function;
@@ -528,12 +545,15 @@ void PosixEnv::BGThread() {
   while (true) {
     // Wait until there is an item that is ready to run
     PthreadCall("lock", pthread_mutex_lock(&mu_));
-    while (queue_.empty()) {
+    while (queue_.empty() && stop_.Acquire_Load() == NULL) {
       PthreadCall("wait", pthread_cond_wait(&bgsignal_, &mu_));
-      fprintf(stderr, "%lu in awake %d\n", gettid(), queue_.size());
     }
 
-    fprintf(stderr, "%lu out awake %d\n", gettid(), queue_.size());
+    if (stop_.Acquire_Load() != NULL) {
+      PthreadCall("unlock", pthread_mutex_unlock(&mu_));
+      stop_.Release_Store(NULL);
+      return;
+    }
     void (*function)(void*) = queue_.front().function;
     void* arg = queue_.front().arg;
     queue_.pop_front();

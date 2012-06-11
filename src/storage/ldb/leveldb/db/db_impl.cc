@@ -84,7 +84,6 @@ namespace leveldb {
       src.env->CreateDir(dbname);  // In case it does not exist
       src.env->RenameFile(InfoLogFileName(dbname), OldInfoLogFileName(dbname));
       Status s = src.env->NewLogger(InfoLogFileName(dbname), &result.info_log);
-
       if (!s.ok()) {
         // No place suitable for logging
         result.info_log = NULL;
@@ -958,7 +957,6 @@ namespace leveldb {
       Log(options_.info_log, "need no com");
       // No work to be done
     } else {
-      Log(options_.info_log, "schedule");
       bg_compaction_scheduled_ = true;
       env_->Schedule(&DBImpl::BGWork, this);
     }
@@ -1689,10 +1687,9 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
       *bucket_update = bu;
       return s;
     }
-  }
 
-  // this bucketupdate should be compacted
-  if (bu != NULL) {
+    // this bucketupdate should be compacted
+    bucket_map_.erase(bm_it);
     EvictBucketUpdate(bu);
     // sentinel
     has_imm_.Release_Store(bu->mem_);
@@ -1725,7 +1722,7 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
     mutex_.Unlock();
     env_->SleepForMicroseconds(10000);
     mutex_.Lock();
-    Log(options_.info_log, "wait for less mmt. now %lu", bucket_map_.size() + imm_list_count_);
+    Log(options_.info_log, "wait for less mmt. now %zd + %d", bucket_map_.size(), imm_list_count_);
   }
 
   // can't get space for new memtable
