@@ -142,6 +142,20 @@ namespace tair
     return ret;
   }
 
+  int tair_multi_cluster_client_impl::mget(int area, vector<data_entry *> &keys, tair_keyvalue_map& data)
+  {
+    int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
+    if (keys.empty() || keys[0] == NULL)
+    {
+      ret = TAIR_RETURN_INVALID_ARGUMENT;
+    }
+    else
+    {
+      ONE_CLUSTER_HANDLER_OP(ret, *keys[0], mget(area, keys, data));
+    }
+    return ret;
+  }
+
   void tair_multi_cluster_client_impl::set_timeout(int32_t timeout_ms)
   {
     handler_mgr_->set_timeout(timeout_ms);

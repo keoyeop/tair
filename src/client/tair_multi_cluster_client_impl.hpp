@@ -39,8 +39,7 @@ namespace tair
     int decr(int area, const data_entry& key, int count, int* ret_count, int init_value = 0, int expire = 0);
     int add_count(int area, const data_entry& key, int count, int* ret_count,
                   int init_value = 0, int expire_time = 0);
-    int mget(int area, vector<data_entry *> &keys, tair_keyvalue_map& data)
-    { return TAIR_RETURN_NOT_SUPPORTED; }
+    int mget(int area, vector<data_entry *> &keys, tair_keyvalue_map& data);
     int mput(int area, const tair_client_kv_map& kvs, int& fail_request, bool compress)
     { return TAIR_RETURN_NOT_SUPPORTED; }
     int mdelete(int area, vector<data_entry *> &keys)

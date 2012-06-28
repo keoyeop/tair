@@ -21,10 +21,12 @@ namespace tair {
 
     int file_util::change_conf(const char *group_file_name, const char *section_name, const char *key, const char *value) {
       if (group_file_name == NULL) {
-        return TAIR_RETURN_FAILED;
+        log_error("group_file_name is NULL");
+        return TAIR_RETURN_INVALID_ARGUMENT;
       }
       if (key == NULL) {
-        return TAIR_RETURN_FAILED;
+        log_error("key is NULL");
+        return TAIR_RETURN_INVALID_ARGUMENT;
       }
       if (value == NULL) {
         value = "";
@@ -60,6 +62,7 @@ namespace tair {
         break;
       }
       if (i == lines.size()) {
+        log_error("can not find section: %s", section);
         return TAIR_RETURN_FAILED; //~ no such section
       }
       ++i;
