@@ -1,5 +1,7 @@
 #!/bin/bash
 #for taobao abs
+# abs BuildRequire not work bug, hard-code here.
+sudo yum install libunwind.x86_64 google-perftools.x86_64 t-csrd-tbnet-devel.x86_64 -b current
 temppath=$1
 cd $temppath/packages
 release=`cat /etc/redhat-release|cut -d " " -f 7|cut -d "." -f 1`
