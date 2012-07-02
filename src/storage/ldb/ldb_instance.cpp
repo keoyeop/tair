@@ -396,7 +396,7 @@ namespace tair
           // merge area
           mkey.merge_area(area);
 
-          LdbKey ldb_key(mkey.get_data(), mkey.get_size(), bucket_number, 0);
+          LdbKey ldb_key(mkey.get_data(), mkey.get_size(), bucket_number, edate);
           LdbItem ldb_item;
           // db version care
           if (db_version_care_)

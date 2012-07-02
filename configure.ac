@@ -1,6 +1,6 @@
-AC_INIT(t-csrd-tairFastDump, 2.3.2.3, zongdai@taobao.com)
+AC_INIT(t-csrd-tairFastDump, 2.3.2.4, zongdai@taobao.com)
 
-AM_INIT_AUTOMAKE(t-csrd-tairFastDump, 2.3.2.3)
+AM_INIT_AUTOMAKE(t-csrd-tairFastDump, 2.3.2.4)
 AC_PROG_CXX
 AC_LANG([C++])
 AC_PROG_LIBTOOL
