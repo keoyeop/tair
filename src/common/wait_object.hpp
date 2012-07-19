@@ -65,14 +65,17 @@ namespace tair {
          }
          bool wait_done(int count, int timeout = 0)
           {
+            PROFILER_BEGIN("wait done");
             cond.lock();
             while (done_count<count) {
                if (cond.wait(timeout) == false) {
                   cond.unlock();
+                  PROFILER_END();
                   return false;
                }
             }
             cond.unlock();
+            PROFILER_END();
             return true;
          }
          bool insert_packet(base_packet* packet)
@@ -203,8 +206,10 @@ namespace tair {
                   if (packet->isRegularPacket()) delete packet;
                }
             } else {
-               if (packet != NULL && packet->isRegularPacket()) delete packet;
-               log_error("[%d] waitobj not found.", id);
+              if (packet != NULL && packet->isRegularPacket()) {
+               log_error("[%d] [%u] waitobj not found.", id, packet->getChannelId());
+              delete packet;
+              }
             }
          }
 
