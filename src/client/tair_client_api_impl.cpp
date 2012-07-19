@@ -116,8 +116,7 @@ namespace tair {
 
   bool tair_client_impl::initialize()
   {
-    PROFILER_SET_THRESHOLD(this->timeout);
-    PROFILER_SET_STATUS(1);
+
     this_wait_object_manager = new wait_object_manager();
     if(this_wait_object_manager == 0)
 
@@ -376,7 +375,6 @@ FAIL:
       return TAIR_RETURN_INVALID_ARGUMENT;
     }
 
-    PROFILER_START("get op");
     vector<uint64_t> server_list;
     if ( !get_server_id(key, server_list)) {
       TBSYS_LOG(DEBUG, "can not find serverId, return false");
@@ -391,42 +389,34 @@ FAIL:
     response_get *resp  = 0;
     int ret = TAIR_RETURN_SEND_FAILED;
     int send_success = 0;
-    uint64_t last_server_id = 0;
+
     for(vector<uint64_t>::iterator it=server_list.begin(); it != server_list.end(); ++it){
-      last_server_id = *it;
+
       request_get *packet = new request_get();
       packet->area = area;
 
       packet->add_key(key.get_data(), key.get_size());
       cwo = this_wait_object_manager->create_wait_object();
 
-      PROFILER_BEGIN("send pk");
       if( send_request(*it,packet,cwo->get_id()) < 0 ){
         this_wait_object_manager->destroy_wait_object(cwo);
 
         //need delete packet
         delete packet;
-        PROFILER_END();
         continue;
       }
 
-      PROFILER_END();
-      PROFILER_BEGIN("get rp");
       if( (ret = get_response(cwo,1,tpacket)) < 0 ){
         this_wait_object_manager->destroy_wait_object(cwo);
-        PROFILER_END();
         continue;
       }else{
         ++send_success;
-        PROFILER_END();
         break;
       }
     }
 
     if( send_success < 1 ){
       TBSYS_LOG(ERROR,"all requests are failed");
-      PROFILER_DUMP();
-      PROFILER_STOP();
       return ret;
     }
     if (tpacket == 0 || tpacket->getPCode() != TAIR_RESP_GET_PACKET){
@@ -448,8 +438,6 @@ FAIL:
     new_config_version = resp->config_version;
     this_wait_object_manager->destroy_wait_object(cwo);
 
-    PROFILER_DUMP();
-    PROFILER_STOP();
     return ret;
 FAIL:
     if(tpacket && tpacket->getPCode() == TAIR_RESP_RETURN_PACKET){
@@ -464,8 +452,6 @@ FAIL:
     this_wait_object_manager->destroy_wait_object(cwo);
 
 
-    PROFILER_DUMP();
-    PROFILER_STOP();
     TBSYS_LOG(INFO, "get failure: %s:%s",
         tbsys::CNetUtil::addrToString(server_list[0]).c_str(),
         get_error_msg(ret));
