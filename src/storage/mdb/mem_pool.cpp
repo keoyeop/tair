@@ -40,7 +40,9 @@ namespace tair {
 
   mem_pool::~mem_pool()
   {
-    munmap(impl->pool, impl->page_size * impl->total_pages);
+    if (impl->pool != NULL) {
+      munmap(impl->pool, static_cast<int64_t>(impl->page_size) * impl->total_pages);
+    }
   }
 
   char *mem_pool::alloc_page()

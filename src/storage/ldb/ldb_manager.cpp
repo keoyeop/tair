@@ -60,7 +60,7 @@ namespace tair
         if (cache_ != NULL)
         {
           delete cache_;
-          if (::unlink(cache_file_path_.c_str()) != 0)
+          if (::shm_unlink(cache_file_path_.c_str()) != 0)
           {
             log_error("unlink cache file fail: %s, error: %s", cache_file_path_.c_str(), strerror(errno));
           }
@@ -819,18 +819,19 @@ namespace tair
       int LdbManager::do_reset_db()
       {
         int ret = TAIR_RETURN_SUCCESS;
-        std::string back_cache_path;
+        std::string back_cache_path = "";
         if (cache_ != NULL)
         {
           // rotate using cache file
-          std::string cache_file_path = std::string("/dev/shm/") + mdb_param::mdb_path; // just hard code
+          static std::string sys_shm_path = std::string("/dev/shm/"); // just hard code
+          std::string cache_file_path = mdb_param::mdb_path;
           back_cache_path = get_back_path(cache_file_path.c_str());
-          if (::access(cache_file_path.c_str(), F_OK) != 0)
+          if (::access((sys_shm_path + cache_file_path).c_str(), F_OK) != 0)
           {
             // just consider it's ok. maybe ::access fail because other reason.
             log_warn("resetdb but orignal cache path is not exist: %s, ignore it.", cache_file_path.c_str());
           }
-          else if (::rename(cache_file_path.c_str(), back_cache_path.c_str()) != 0)
+          else if (::rename((sys_shm_path + cache_file_path).c_str(), (sys_shm_path + back_cache_path).c_str()) != 0)
           {
             log_error("resetdb cache %s to back cache %s fail. error: %s",
                       cache_file_path.c_str(), back_cache_path.c_str(), strerror(errno));

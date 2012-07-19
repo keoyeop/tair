@@ -64,6 +64,7 @@ class DBImpl : public DB {
   virtual void CompactRange(const Slice* begin, const Slice* end);
   virtual Status CompactRangeSelfLevel(uint64_t limit_filenumber, const Slice* begin, const Slice* end);
   virtual Status ForceCompactMemTable();
+  virtual void ResetDbName(const std::string& dbname) { dbname_ = dbname; }
 
   // Compact any files in the named level that overlap [begin,end]
   void TEST_CompactRange(int level, const Slice* begin, const Slice* end);
@@ -142,7 +143,7 @@ class DBImpl : public DB {
   const Options options_;  // options_.comparator == &internal_comparator_
   bool owns_info_log_;
   bool owns_cache_;
-  const std::string dbname_;
+  std::string dbname_;
 
   // table_cache_ provides its own synchronization
   TableCache* table_cache_;

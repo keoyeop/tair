@@ -141,6 +141,9 @@ class DB {
   // force Compact memtable
   virtual Status ForceCompactMemTable() = 0;
 
+  // reset db name
+  virtual void ResetDbName(const std::string& dbname) = 0;
+
  private:
   // No copying allowed
   DB(const DB&);

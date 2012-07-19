@@ -602,6 +602,8 @@ namespace tair
             log_error("rename db %s to back db %s fail. error: %s", db_path_, back_db_path.c_str(), strerror(errno));
             ret = TAIR_RETURN_FAILED;
           }
+
+          db_->ResetDbName(back_db_path);
           break;
         }
         default:
