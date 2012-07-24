@@ -10,6 +10,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <vector>
+
+#include "tbsys.h"
+
 #include "db/builder.h"
 #include "db/db_iter.h"
 #include "db/dbformat.h"
@@ -1430,7 +1433,9 @@ Status DBImpl::Get(const ReadOptions& options,
                    const Slice& key,
                    std::string* value) {
   Status s;
+  PROFILER_BEGIN("db mutex");
   MutexLock l(&mutex_);
+  PROFILER_END();
   SequenceNumber snapshot;
   if (options.snapshot != NULL) {
     snapshot = reinterpret_cast<const SnapshotImpl*>(options.snapshot)->number_;
@@ -1458,7 +1463,9 @@ Status DBImpl::Get(const ReadOptions& options,
     } else if (imm != NULL && imm->Get(lkey, value, &s)) {
       // Done
     } else {
+      PROFILER_BEGIN("db sst get");
       s = current->Get(options, lkey, value, &stats);
+      PROFILER_END();
       have_stat_update = true;
     }
     mutex_.Lock();

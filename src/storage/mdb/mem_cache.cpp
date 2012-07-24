@@ -410,7 +410,9 @@ namespace tair {
     if(partial_pages_no > 0) {
       TBSYS_LOG(DEBUG, "alloc from partial page:%u", get_partial_page_id());
       assert(get_partial_page_id() > 0);
+      PROFILER_BEGIN("partial page");
       info = PAGE_INFO(this_mem_pool->index_to_page(get_partial_page_id()));
+      PROFILER_END();
       assert(info != 0);
       assert(info->free_nr > 0);
       assert(info->free_head != 0);
@@ -435,12 +437,16 @@ namespace tair {
       //allocate a new page
       TBSYS_LOG(DEBUG, "allocate a new page");
       int index;
+      PROFILER_BEGIN("alloc page");
       page = this_mem_pool->alloc_page(index);
+      PROFILER_END();
       if(page == 0) {
         TBSYS_LOG(DEBUG, "allocate a new page falied");
         return 0;
       }
+      PROFILER_BEGIN("init page");
       init_page(page, index);
+      PROFILER_END();
       info = PAGE_INFO(page);
       assert(info != 0);
       item_id = info->free_head;
@@ -565,7 +571,9 @@ namespace tair {
       goto EVICT_SELF;
     }
   ALLOC_NEW:
+    PROFILER_BEGIN("alloc new");
     it = alloc_new_item(area);
+    PROFILER_END();
     if(it == 0 && !exceed) {
       goto EVICT_SELF;
     }
@@ -578,7 +586,9 @@ namespace tair {
     ++item_count[area];
     return it;
   EVICT_SELF:
+    PROFILER_BEGIN("evict self");
     it = evict_self(type);
+    PROFILER_END();
     if(it == 0 && !exceed) {
       goto EVICT_ANY;
     }
@@ -592,7 +602,9 @@ namespace tair {
     }
     return it;
   EVICT_ANY:
+    PROFILER_BEGIN("evict any");
     it = evict_any(type);
+    PROFILER_END();
     assert(it != 0);
 
     if(type == ALLOC_EVICT_ANY) {
@@ -699,7 +711,9 @@ namespace tair {
       dump_item(item);
     }
     CLEAR_FLAGS(item->item_id);
+    PROFILER_BEGIN("update item");
     update_item(item, ITEM_AREA(item));
+    PROFILER_END();
     return item;
   }
 
@@ -740,14 +754,18 @@ namespace tair {
       }
     }
     CLEAR_FLAGS(item->item_id);
+    PROFILER_BEGIN("update item");
     update_item(item, area);
+    PROFILER_END();
     return item;
   }
 
   void mem_cache::slab_manager::init_page(char *page, int index)
   {
 
+    PROFILER_BEGIN("memset");
     memset(page, 0, page_size);
+    PROFILER_END();
 
     page_info *info = PAGE_INFO(page);
     info->id = index;

@@ -583,8 +583,8 @@ namespace tair
     // length of debug_string() is over tblog's buffer.
     if (TBSYS_LOGGER._level >= TBSYS_LOG_LEVEL_DEBUG)
     {
-      ::fprintf(stdout, "current cluster handler manager status:\n%s", debug_string().c_str());
-      ::fflush(stdout);
+      ::fprintf(stderr, "current cluster handler manager status:\n%s", debug_string().c_str());
+      ::fflush(stderr);
     }
 
     // mark clear out-of-service cluster handler

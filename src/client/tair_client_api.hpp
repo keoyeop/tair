@@ -373,7 +373,7 @@ namespace tair {
       void get_server_with_key(const data_entry& key,std::vector<std::string>& servers) const;
 
     private:
-
+      int32_t timeout_ms_;
       i_tair_client_impl *impl;
 
   };

@@ -15,6 +15,7 @@
 #include "tair_client_api.hpp"
 #include "i_tair_client_impl.hpp"
 #include "tair_client_api_impl.hpp"
+#include "cluster_handler_manager.hpp"
 #include "tair_multi_cluster_client_impl.hpp"
 
 namespace tair {
@@ -28,7 +29,7 @@ namespace tair {
    *  tair_client_api
    *-----------------------------------------------------------------------------*/
 
-  tair_client_api::tair_client_api() : impl(NULL)
+  tair_client_api::tair_client_api() : timeout_ms_(DEFAULT_CLUSTER_HANDLER_TIMEOUT_MS), impl(NULL)
   {
   }
 
@@ -50,6 +51,7 @@ namespace tair {
     }
     else
     {
+      impl->set_timeout(timeout_ms_);
       ret = impl->startup(master_addr,slave_addr,group_name);
     }
     return ret;
@@ -244,6 +246,7 @@ namespace tair {
 
   void tair_client_api::set_timeout(int timeout)
   {
+    timeout_ms_ = timeout;
     if (impl != NULL)
     {
       impl->set_timeout(timeout);

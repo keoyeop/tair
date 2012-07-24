@@ -4,6 +4,8 @@
 
 #include "db/table_cache.h"
 
+#include "tbsys.h"
+
 #include "db/filename.h"
 #include "leveldb/env.h"
 #include "leveldb/table.h"
@@ -60,7 +62,9 @@ Iterator* TableCache::NewIterator(const ReadOptions& options,
     Table* table = NULL;
     Status s = env_->NewRandomAccessFile(fname, &file);
     if (s.ok()) {
+      PROFILER_BEGIN("open sst");
       s = Table::Open(*options_, file, file_size, &table);
+      PROFILER_END();
     }
 
     if (!s.ok()) {

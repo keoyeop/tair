@@ -278,15 +278,19 @@ namespace tair
 
         LdbKey ldb_key(key.get_data(), key.get_size(), bucket_number, edate);
         LdbItem ldb_item;
+        PROFILER_BEGIN("db lock");
         tbsys::CThreadGuard mutex_guard(get_mutex(key));
+        PROFILER_END();
         std::string db_value;
         int rc = TAIR_RETURN_SUCCESS;
 
         // db version care
         if (db_version_care_ && version_care)
         {
-          rc = do_get(ldb_key, db_value, false, false); // not fill cache or update cache stat
-
+          PROFILER_BEGIN("db get");
+          rc = do_get(ldb_key, db_value, true/* get from cache */,
+                      false/* not fill cache */, false/* not update cache stat */);
+          PROFILER_END();
           if (TAIR_RETURN_SUCCESS == rc)
           {
             ldb_item.assign(const_cast<char*>(db_value.data()), db_value.size());
@@ -332,7 +336,9 @@ namespace tair
 
           ldb_item.set(value.get_data(), value.get_size());
 
+          PROFILER_BEGIN("db put");
           rc = do_put(ldb_key, ldb_item, SHOULD_PUT_FILL_CACHE(key.data_meta.flag));
+          PROFILER_END();
 
           if (TAIR_RETURN_SUCCESS == rc)
           {
@@ -501,8 +507,20 @@ namespace tair
         LdbItem ldb_item;
         std::string db_value;
 
-        tbsys::CThreadGuard mutex_guard(get_mutex(key));
-        int rc = do_get(ldb_key, db_value, true);
+        // first get from cache, no need lock here
+        PROFILER_BEGIN("direct cache get");
+        int rc = do_cache_get(ldb_key, db_value, true/* update stat */);
+        PROFILER_END();
+        // cache miss, but not expired, cause cache expired, db expired too.
+        if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_EXPIRED)
+        {
+          PROFILER_BEGIN("db lock");
+          tbsys::CThreadGuard mutex_guard(get_mutex(key));
+          PROFILER_END();
+          PROFILER_BEGIN("db get");
+          rc = do_get(ldb_key, db_value, false/* not get from cache */, true/* fill cache */);
+          PROFILER_END();
+        }
 
         if (TAIR_RETURN_SUCCESS == rc)
         {
@@ -538,7 +556,8 @@ namespace tair
 
         if (db_version_care_ && version_care)
         {
-          rc = do_get(ldb_key, db_value, false, false);
+          rc = do_get(ldb_key, db_value, true/* get from cache */,
+                      false/* not fill cache */, false/* not update cache stat */);
           if (TAIR_RETURN_SUCCESS == rc)
           {
             ldb_item.assign(const_cast<char*>(db_value.data()), db_value.size());
@@ -783,8 +802,10 @@ namespace tair
       int LdbInstance::do_put(LdbKey& ldb_key, LdbItem& ldb_item, bool fill_cache)
       {
         int rc = TAIR_RETURN_SUCCESS;
+        PROFILER_BEGIN("db db put");
         leveldb::Status status = db_->Put(write_options_, leveldb::Slice(ldb_key.data(), ldb_key.size()),
                                           leveldb::Slice(ldb_item.data(), ldb_item.size()));
+        PROFILER_END();
         if (!status.ok())
         {
           log_error("update ldb item fail. %s", status.ToString().c_str());
@@ -796,8 +817,10 @@ namespace tair
           if (fill_cache)
           {
             log_debug("fill cache");
+            PROFILER_BEGIN("db cache put");
             rc = cache_->raw_put(ldb_key.key(), ldb_key.key_size(), ldb_item.data(), ldb_item.size(),
                                  ldb_item.meta().flag_, ldb_item.meta().edate_);
+            PROFILER_END();
             if (rc != TAIR_RETURN_SUCCESS) // what happend
             {
               log_error("::put. put cache fail, rc: %d", rc);
@@ -806,7 +829,9 @@ namespace tair
           else
           {
             log_debug("not fill cache");
+            PROFILER_BEGIN("db cache remove");
             rc = cache_->raw_remove(ldb_key.key(), ldb_key.key_size());
+            PROFILER_END();
             if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_NOT_EXIST) // what happened ?
             {
               log_error("::put. remove cache fail: %d", rc);
@@ -821,32 +846,44 @@ namespace tair
         return rc;
       }
 
-      int LdbInstance::do_get(LdbKey& ldb_key, std::string& value, bool fill_cache, bool update_stat)
+      int LdbInstance::do_cache_get(LdbKey& ldb_key, std::string& value, bool update_stat)
       {
         int rc = TAIR_RETURN_FAILED;
         if (cache_ != NULL)
         {
+          PROFILER_BEGIN("db cache get");
           rc = cache_->raw_get(ldb_key.key(), ldb_key.key_size(), value, update_stat);
+          PROFILER_END();
           if (TAIR_RETURN_SUCCESS == rc) // cache hit
           {
             log_debug("ldb cache hit");
           }
         }
+        return rc;
+      }
+
+      int LdbInstance::do_get(LdbKey& ldb_key, std::string& value, bool from_cache, bool fill_cache, bool update_stat)
+      {
+        int rc = from_cache ? do_cache_get(ldb_key, value, update_stat) : TAIR_RETURN_FAILED;
 
         // cache miss, but not expired, cause cache expired, db expired too.
         if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_EXPIRED)
         {
+          PROFILER_BEGIN("db db get");
           leveldb::Status status = db_->Get(read_options_, leveldb::Slice(ldb_key.data(), ldb_key.size()),
                                             &value);
+          PROFILER_END();
           if (status.ok())
           {
             rc = TAIR_RETURN_SUCCESS;
             if (fill_cache && cache_ != NULL)     // fill cache
             {
+              PROFILER_BEGIN("db cache put");
               LdbItem ldb_item;
               ldb_item.assign(const_cast<char*>(value.data()), value.size());
               int tmp_rc = cache_->raw_put(ldb_key.key(), ldb_key.key_size(), ldb_item.data(), ldb_item.size(),
                                            ldb_item.meta().flag_, ldb_item.meta().edate_);
+              PROFILER_END();
               if (tmp_rc != TAIR_RETURN_SUCCESS) // ignore return value.
               {
                 log_debug("::get. put cache fail, rc: %d", tmp_rc);

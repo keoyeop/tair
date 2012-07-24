@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include "tbsys.h"
+
 #include "table/format.h"
 
 #include "leveldb/env.h"
@@ -74,7 +76,9 @@ Status ReadBlock(RandomAccessFile* file,
   size_t n = static_cast<size_t>(handle.size());
   char* buf = new char[n + kBlockTrailerSize];
   Slice contents;
+  PROFILER_BEGIN("read blk data");
   Status s = file->Read(handle.offset(), n + kBlockTrailerSize, &contents, buf);
+  PROFILER_END();
   if (!s.ok()) {
     delete[] buf;
     return s;
@@ -112,15 +116,18 @@ Status ReadBlock(RandomAccessFile* file,
         delete[] buf;
         return Status::Corruption("corrupted compressed block contents");
       }
+      PROFILER_BEGIN("uncompress blk data");
       char* ubuf = new char[ulength];
       if (!port::Snappy_Uncompress(data, n, ubuf)) {
         delete[] buf;
         delete[] ubuf;
+        PROFILER_END();
         return Status::Corruption("corrupted compressed block contents");
       }
       delete[] buf;
       buf = ubuf;
       n = ulength;
+      PROFILER_END();
       break;
     }
     default:

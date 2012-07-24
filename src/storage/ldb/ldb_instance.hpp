@@ -80,7 +80,8 @@ namespace tair
         BgTask* bg_task() { return &bg_task_;}
 
       private:
-        int do_get(LdbKey& ldb_key, std::string& value, bool fill_cache, bool update_stat = true);
+        int do_cache_get(LdbKey& ldb_key, std::string& value, bool update_stat);
+        int do_get(LdbKey& ldb_key, std::string& value, bool from_cache, bool fill_cache, bool update_stat = true);
         int do_put(LdbKey& ldb_key, LdbItem& ldb_item, bool fill_cache);
         int do_remove(LdbKey& ldb_key);
 

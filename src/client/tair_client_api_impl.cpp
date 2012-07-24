@@ -366,7 +366,6 @@ FAIL:
 
   int tair_client_impl::get(int area, const data_entry &key, data_entry* &data )
   {
-
     if( !key_entry_check(key)){
       return TAIR_RETURN_ITEMSIZE_ERROR;
     }
@@ -1424,8 +1423,9 @@ FAIL:
 
   void tair_client_impl::set_timeout(int this_timeout)
   {
-    assert(timeout >= 0);
-    timeout = this_timeout;
+    if (timeout > 0) {
+      timeout = this_timeout;
+    }
   }
 
   void tair_client_impl::get_server_with_key(const data_entry& key,std::vector<std::string>& servers)

@@ -3,7 +3,7 @@ PORTCFLAGS= -fno-builtin-memcmp \
 	    -DSNAPPY -I$./snappy \
 	    ${LEVELDB_PORT_CFLAGS}
 
-AM_CPPFLAGS=-fPIC -I. -I./include ${PORTCFLAGS}
+AM_CPPFLAGS=-fPIC -I. -I./include -I$(TBLIB_ROOT)/include/tbsys -I${top_srcdir}/src ${PORTCFLAGS}
 AM_LDFLAGS=-lpthread ${GCOV_LIB}
 
 lib_LTLIBRARIES=libsnappy.la

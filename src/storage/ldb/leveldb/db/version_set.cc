@@ -6,6 +6,9 @@
 
 #include <algorithm>
 #include <stdio.h>
+
+#include "tbsys.h"
+
 #include "db/filename.h"
 #include "db/log_reader.h"
 #include "db/log_writer.h"
@@ -315,6 +318,7 @@ Status Version::Get(const ReadOptions& options,
     // Get the list of files to search in this level
     FileMetaData* const* files = &files_[level][0];
     if (level == 0) {
+      PROFILER_BEGIN("db l0");
       // Level-0 files may overlap each other.  Find all files that
       // overlap user_key and process them in order from newest to oldest.
       tmp.reserve(num_files);
@@ -325,12 +329,16 @@ Status Version::Get(const ReadOptions& options,
           tmp.push_back(f);
         }
       }
-      if (tmp.empty()) continue;
+      if (tmp.empty()) {
+        PROFILER_END();
+        continue;
+      }
 
       std::sort(tmp.begin(), tmp.end(), NewestFirst);
       files = &tmp[0];
       num_files = tmp.size();
     } else {
+      PROFILER_BEGIN("db lN");
       // Binary search to find earliest index whose largest key >= ikey.
       uint32_t index = FindFile(vset_->icmp_, files_[level], ikey);
       if (index >= num_files) {
@@ -348,7 +356,9 @@ Status Version::Get(const ReadOptions& options,
         }
       }
     }
+    PROFILER_END();
 
+    PROFILER_BEGIN("db sst get");
     for (uint32_t i = 0; i < num_files; ++i) {
       if (last_file_read != NULL && stats->seek_file == NULL) {
         // We have had more than one seek for this read.  Charge the 1st file.
@@ -369,14 +379,17 @@ Status Version::Get(const ReadOptions& options,
       if (!iter->status().ok()) {
         s = iter->status();
         delete iter;
+        PROFILER_END();
         return s;
       } else {
         delete iter;
         if (done) {
+          PROFILER_END();
           return s;
         }
       }
     }
+    PROFILER_END();
   }
 
   return Status::NotFound(Slice());  // Use an empty error message for speed

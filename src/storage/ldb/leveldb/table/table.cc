@@ -4,6 +4,8 @@
 
 #include "leveldb/table.h"
 
+#include "tbsys.h"
+
 #include "leveldb/cache.h"
 #include "leveldb/env.h"
 #include "table/block.h"
@@ -114,14 +116,18 @@ Iterator* Table::BlockReader(void* arg,
       if (cache_handle != NULL) {
         block = reinterpret_cast<Block*>(block_cache->Value(cache_handle));
       } else {
+        PROFILER_BEGIN("sst read block");
         s = ReadBlock(table->rep_->file, options, handle, &block);
+        PROFILER_END();
         if (s.ok() && options.fill_cache) {
           cache_handle = block_cache->Insert(
               key, block, block->size(), &DeleteCachedBlock);
         }
       }
     } else {
+      PROFILER_BEGIN("sst read block");
       s = ReadBlock(table->rep_->file, options, handle, &block);
+      PROFILER_END();
     }
   }
 
@@ -148,7 +154,9 @@ Iterator* Table::NewIterator(const ReadOptions& options) const {
 uint64_t Table::ApproximateOffsetOf(const Slice& key) const {
   Iterator* index_iter =
       rep_->index_block->NewIterator(rep_->options.comparator);
+  PROFILER_BEGIN("sst seek block");
   index_iter->Seek(key);
+  PROFILER_END();
   uint64_t result;
   if (index_iter->Valid()) {
     BlockHandle handle;

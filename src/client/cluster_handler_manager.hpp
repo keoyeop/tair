@@ -180,13 +180,7 @@ namespace tair
     // debug string
     virtual std::string debug_string() = 0;
     // set timeout
-    void set_timeout(int32_t timeout_ms)
-    {
-      if (timeout_ms > 0)
-      {
-        timeout_ms_ = timeout_ms;
-      }
-    }
+    virtual void set_timeout(int32_t timeout_ms) = 0;
 
   protected:
     int32_t timeout_ms_;
@@ -267,6 +261,13 @@ namespace tair
       if (timeout_ms > 0)
       {
         timeout_ms_ = timeout_ms;
+        if (handler_map_ != NULL)
+        {
+          for (CLUSTER_HANDLER_MAP::iterator it = handler_map_->begin(); it != handler_map_->end(); ++it)
+          {
+            it->second->get_client()->set_timeout(timeout_ms_);
+          }
+        }
       }
     }
 
@@ -326,6 +327,17 @@ namespace tair
     cluster_handler* pick_handler(int32_t index, const tair::common::data_entry& key);
     void close();
     std::string debug_string();
+    void set_timeout(int32_t timeout_ms)
+    {
+      if (timeout_ms > 0)
+      {
+        timeout_ms_ = timeout_ms;
+        if (current_ != NULL)
+        {
+          current_->set_timeout(timeout_ms_);
+        }
+      }
+    }
 
   private:
     void add_to_using_node_list(handlers_node* node);
