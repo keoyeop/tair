@@ -11,7 +11,7 @@
  *   user should implement its own commit logger writer/reader
  *   Now, logger can have only one writer and several readers.
  *
- * Version: $Id: remote_sync_manager.hpp 28 2012-07-30 10:18:09Z nayan@taobao.com $
+ * Version: $Id$
  *
  * Authors:
  *   nayan <nayan@taobao.com>

@@ -8,7 +8,7 @@
  * RecordLogger:
  *   Manage record logger(reader/writer).
  *
- * Version: $Id: record_logger.hpp 28 2012-07-30 10:18:09Z nayan@taobao.com $
+ * Version: $Id$
  *
  * Authors:
  *   nayan <nayan@taobao.com>

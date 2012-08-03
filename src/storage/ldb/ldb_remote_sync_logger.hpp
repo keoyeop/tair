@@ -7,7 +7,7 @@
  *
  * RecordLogger implementation of ldb
  *
- * Version: $Id: ldb_remote_sync_logger.hpp 28 2012-07-30 10:18:09Z nayan@taobao.com $
+ * Version: $Id$
  *
  * Authors:
  *   nayan <nayan@taobao.com>
