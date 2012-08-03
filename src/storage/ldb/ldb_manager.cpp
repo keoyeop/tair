@@ -28,7 +28,8 @@ namespace tair
       extern void get_bloom_stats(cache_stat* ldb_cache_stat);
 
       LdbManager::LdbManager() : use_bloomfilter_(false), cache_(NULL), scan_ldb_(NULL),
-                                 migrate_wait_us_(0), last_release_time_(0)
+                                 migrate_wait_us_(0), last_release_time_(0),
+                                 remote_sync_logger_(NULL)
       {
         std::string cache_stat_path;
         bool use_cache = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_USE_CACHE, 1) > 0;
@@ -89,6 +90,11 @@ namespace tair
         if (cache_ != NULL)
         {
           delete cache_;
+        }
+
+        if (remote_sync_logger_ != NULL)
+        {
+          delete remote_sync_logger_;
         }
       }
 
@@ -473,6 +479,16 @@ namespace tair
             cache_->set_bucket_count(bucket_count);
           }
         }
+      }
+
+      RecordLogger* LdbManager::get_remote_sync_logger()
+      {
+        // init-on-use
+        if (NULL == remote_sync_logger_)
+        {
+          remote_sync_logger_ = new LdbRemoteSyncLogger();
+        }
+        return remote_sync_logger_;
       }
 
       // integer hash function

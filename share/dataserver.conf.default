@@ -50,6 +50,9 @@ check_expired_hour_range=2-4
 check_slab_hour_range=5-7
 dup_sync=1
 
+do_remote_sync=0
+# remote_sync_conf=xx
+
 [fdb]
 # in MB
 index_mmap_size=30

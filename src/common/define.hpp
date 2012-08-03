@@ -125,6 +125,8 @@
 #define TAIR_DUMP_DIR                "data_dump_dir"
 #define TAIR_DEFAULT_DUMP_DIR        "dump"
 #define TAIR_TASK_QUEUE_SIZE         "task_queue_size"
+#define TAIR_DO_REMOTE_SYNC          "do_remote_sync"
+#define TAIR_REMOTE_SYNC_CONF        "remote_sync_conf"
 
 //MDB
 #define TAIR_SLAB_MEM_SIZE           "slab_mem_size"
@@ -398,6 +400,17 @@ typedef enum {
   TAIR_CLUSTER_TYPE_SINGLE_CLUSTER,
   TAIR_CLUSTER_TYPE_MULTI_CLUSTER,
 } TairClusterType;
+
+typedef enum {
+  TAIR_REMOTE_SYNC_TYPE_NONE = 0,
+  TAIR_REMOTE_SYNC_TYPE_DELETE,
+  // all types that need value when doing remote synchronizaton must be larger
+  // than TAIR_REMOTE_SYNC_TYPE_WITH_VALUE_START.
+  TAIR_REMOTE_SYNC_TYPE_WITH_VALUE_START,
+  TAIR_REMOTE_SYNC_TYPE_PUT,
+  // all types MUST be less than TAIR_REMOTE_SYNC_TYPE_MAX
+  TAIR_REMOTE_SYNC_TYPE_MAX,
+} TairRemoteSyncType;
 
 #endif
 /////////////

@@ -26,6 +26,7 @@
 #include "common/data_entry.hpp"
 #include "common/stat_info.hpp"
 #include "ldb_cache_stat.hpp"
+#include "ldb_remote_sync_logger.hpp"
 
 namespace tair
 {
@@ -69,6 +70,7 @@ namespace tair
 
         void get_stats(tair_stat* stat);
         void set_bucket_count(uint32_t bucket_count);
+        RecordLogger* get_remote_sync_logger();
 
       private:
         static int hash(int bucket_number);
@@ -85,6 +87,8 @@ namespace tair
         tbsys::CThreadMutex lock_;
         uint32_t migrate_wait_us_;
         uint32_t last_release_time_;
+        // remote sync
+        LdbRemoteSyncLogger* remote_sync_logger_;
       };
     }
   }

@@ -34,7 +34,7 @@ base_src=data_dumpper.cpp	\
 	 syncproc.hpp \
 	 scoped_wrlock.hpp \
          file_list_factory.hpp \
-	 counter_wrapper.hpp tair_atomic.hpp
+	 counter_wrapper.hpp tair_atomic.hpp record_logger.hpp record_logger_util.hpp record_logger_util.cpp
 
 noinst_LIBRARIES=libtair_common.a
 

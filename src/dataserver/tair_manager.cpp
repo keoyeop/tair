@@ -15,11 +15,12 @@
  *
  */
 #ifdef WITH_KDB
-#include "kdb_manager.h"
+#include "storage/kdb/kdb_manager.h"
 #endif
 #ifdef WITH_LDB
-#include "ldb_manager.hpp"
+#include "storage/ldb/ldb_manager.hpp"
 #endif
+
 #include "tair_manager.hpp"
 #include "migrate_manager.hpp"
 #include "define.hpp"
@@ -28,6 +29,8 @@
 #include "item_manager.hpp"
 #include "duplicate_manager.hpp"
 #include "dup_sync_manager.hpp"
+#include "remote_sync_manager.hpp"
+
 
   namespace tair {
     tair_manager::tair_manager() : migrate_done_set(0)
@@ -41,11 +44,18 @@
       migrate_mgr = NULL;
       migrate_log = NULL;
       dump_mgr = NULL;
+      do_remote_sync = false;
+      remote_sync_mgr = NULL;
     }
 
     tair_manager::~tair_manager()
     {
       tbsys::CThreadGuard update_table_guard(&update_server_table_mutex);
+      if (remote_sync_mgr != NULL) {
+        delete remote_sync_mgr;
+        remote_sync_mgr = NULL;
+      }
+
       if (migrate_mgr != NULL) {
         delete migrate_mgr;
         migrate_mgr = NULL;
@@ -108,6 +118,19 @@
       if (storage_mgr == NULL) {
         log_error("init storage engine failed, storage engine name: %s", se_name);
         return false;
+      }
+
+      do_remote_sync = TBSYS_CONFIG.getInt(TAIRSERVER_SECTION, TAIR_DO_REMOTE_SYNC, 0) > 0;
+      // remote synchronization init
+      if (do_remote_sync) {
+        remote_sync_mgr = new RemoteSyncManager(this);
+        int ret = remote_sync_mgr->init();
+        if (ret != TAIR_RETURN_SUCCESS) {
+          log_error("init remote sync manager fail: %d", ret);
+          delete remote_sync_mgr;
+          remote_sync_mgr = NULL;
+          return false;
+        }
       }
 
       // init the storage manager for stat helper
