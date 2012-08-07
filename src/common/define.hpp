@@ -89,6 +89,7 @@
 #define PREFIX_KEY_OFFSET 	        (22)
 #define PREFIX_KEY_MASK 		        (0x3FFFFF)
 #define MAGIC_ITEM_META_LDB_PREFIX  (0x0101)
+#define FLAG_NEW_META               (0x10)
 //hasnext flag for getrange
 #define FLAG_HASNEXT                (0x01)
 #define FLAG_HASNEXT_MASK           (0xFFFE)

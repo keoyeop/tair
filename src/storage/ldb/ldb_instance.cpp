@@ -330,7 +330,7 @@ namespace tair
         if (rc == TAIR_RETURN_SUCCESS)
         {
           ldb_item.meta().base_.meta_version_ = META_VER_PREFIX;
-          ldb_item.meta().base_.flag_ = value.data_meta.flag;
+          ldb_item.meta().base_.flag_ = value.data_meta.flag | FLAG_NEW_META;
           ldb_item.meta().base_.cdate_ = cdate;
           ldb_item.meta().base_.mdate_ = mdate;
           ldb_item.meta().base_.edate_ = edate;
