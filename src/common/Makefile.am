@@ -27,8 +27,7 @@ base_src=data_dumpper.cpp	\
 	 stat_info.hpp	\
 	 util.hpp	\
 	 wait_object.hpp	 \
-         file_op.hpp \
-         file_op.cpp \
+         file_op.hpp file_op.cpp \
 	 BlockQueueEx.hpp \
 	 blockqueue.hpp \
 	 syncproc.hpp \

@@ -157,7 +157,7 @@ namespace tair
       {
         UNUSED(sequence);
         // check expired time here. see ShouldDrop()
-        uint32_t expired_time = decode_fixed32(key);
+        uint32_t expired_time = tair::util::coding_util::decode_fixed32(key);
         return expired_time > 0 && expired_time < (now > 0 ? now : time(NULL));
       }
 

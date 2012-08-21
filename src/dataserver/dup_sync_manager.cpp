@@ -173,9 +173,9 @@ namespace tair{
   }
 
   dup_sync_sender_manager::dup_sync_sender_manager( tbnet::Transport *transport,
-      tair_packet_streamer *streamer, table_manager* table_mgr)
+      tair_packet_streamer *streamer, tair_manager* tair_mgr)
   {
-    this->table_mgr = table_mgr;
+    this->tair_mgr = tair_mgr;
     conn_mgr = new tbnet::ConnectionManager(transport, streamer, this);
     conn_mgr->setDefaultQueueTimeout(0 , MISECONDS_BEFOR_SEND_RETRY/2000);
     max_queue_size = 0;

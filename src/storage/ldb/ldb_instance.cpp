@@ -348,7 +348,7 @@ namespace tair
           log_debug ("meta_version:%u ,prefix_size %u, total_size:%u, valuesize:%u",ldb_item.meta().base_.meta_version_, key.get_prefix_size(), ldb_item.size(), value.get_size());
 
           PROFILER_BEGIN("db put");
-          rc = do_put(ldb_key, ldb_item, SHOULD_PUT_FILL_CACHE(key.data_meta.flag));
+          rc = do_put(ldb_key, ldb_item, SHOULD_PUT_FILL_CACHE(key.data_meta.flag), is_synced(key));
           PROFILER_END();
 
           if (TAIR_RETURN_SUCCESS == rc)
@@ -372,12 +372,17 @@ namespace tair
         return rc;
       }
 
-      inline void LdbInstance::add_prefix(LdbKey& ldb_key, int prefix_size)
+      bool LdbInstance::is_synced(const data_entry& key)
+      {
+        return (TAIR_SERVERFLAG_CLIENT != key.server_flag && TAIR_SERVERFLAG_PROXY != key.server_flag);
+      }
+
+      void LdbInstance::add_prefix(LdbKey& ldb_key, int prefix_size)
       {
         ldb_key.incr_key(prefix_size);
       }
 
-      inline void LdbInstance::fill_meta(data_entry *data, LdbKey& key, LdbItem& item)
+      void LdbInstance::fill_meta(data_entry *data, LdbKey& key, LdbItem& item)
       {
           data->data_meta.flag = item.flag();
           data->data_meta.mdate = item.mdate();
@@ -394,7 +399,7 @@ namespace tair
         int total_size = 0;
         bool end_break = false;
 
-        leveldb::Iterator *iter;
+       leveldb::Iterator *iter;
         int rc = TAIR_RETURN_SUCCESS;
         int count = 0;
         LdbKey ldb_key;
@@ -563,7 +568,16 @@ namespace tair
 
         if (rc == TAIR_RETURN_SUCCESS)
         {
-          rc = do_remove(ldb_key);
+          if (tair::common::entry_tailer::need_entry_tailer(key))
+          {
+            tair::common::entry_tailer tailer(key);
+            rc = do_remove(ldb_key, is_synced(key), &tailer);
+          }
+          else
+          {
+            rc = do_remove(ldb_key, is_synced(key));
+          }
+
           if (TAIR_RETURN_SUCCESS == rc)
           {
             stat_sub(bucket_number, key.area, ldb_key.key_size() + ldb_item.value_size(), ldb_key.size() + ldb_item.size(), 1);
@@ -900,12 +914,12 @@ namespace tair
         return tmp_stat_manager->find(bucket_number) != tmp_stat_manager->end();
       }
 
-      int LdbInstance::do_put(LdbKey& ldb_key, LdbItem& ldb_item, bool fill_cache)
+      int LdbInstance::do_put(LdbKey& ldb_key, LdbItem& ldb_item, bool fill_cache, bool synced)
       {
         int rc = TAIR_RETURN_SUCCESS;
         PROFILER_BEGIN("db db put");
         leveldb::Status status = db_->Put(write_options_, leveldb::Slice(ldb_key.data(), ldb_key.size()),
-                                          leveldb::Slice(ldb_item.data(), ldb_item.size()));
+                                          leveldb::Slice(ldb_item.data(), ldb_item.size()), synced);
         PROFILER_END();
         if (!status.ok())
         {
@@ -1001,11 +1015,21 @@ namespace tair
         return rc;
       }
 
-      int LdbInstance::do_remove(LdbKey& ldb_key)
+      int LdbInstance::do_remove(LdbKey& ldb_key, bool synced, tair::common::entry_tailer* tailer)
       {
         // first remvoe db, then cache
         int rc = TAIR_RETURN_SUCCESS;
-        leveldb::Status status = db_->Delete(write_options_, leveldb::Slice(ldb_key.data(), ldb_key.size()));
+        leveldb::Status status;
+        if (NULL == tailer)
+        {
+          status = db_->Delete(write_options_, leveldb::Slice(ldb_key.data(), ldb_key.size()), synced);
+        }
+        else
+        {
+          status = db_->Delete(write_options_, leveldb::Slice(ldb_key.data(), ldb_key.size()),
+                               leveldb::Slice(tailer->data(), tailer->size()), synced);
+        }
+
         if (!status.ok())
         {
           log_error("remove ldb item fail: %s", status.ToString().c_str()); // ignore return status

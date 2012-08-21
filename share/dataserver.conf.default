@@ -51,7 +51,18 @@ check_slab_hour_range=5-7
 dup_sync=1
 
 do_remote_sync=0
-# remote_sync_conf=xx
+# much resemble json format
+# one local cluster config and one or multi remote cluster config.
+# {local:[master_cs_addr,slave_cs_addr,group_name,timeout_ms],remote:[...],remote:[...]}
+remote_sync_conf={local:[10.0.0.1:5198,10.0.0.2:5198,group_local,2000],remote:[10.0.1.1:5198,10.0.1.2:5198,group_remote,2000]}
+# rsync data directory(retry_log/fail_log..)
+rsync_data_dir=./data/remote
+# max log file size to record failed rsync data, rotate to a new file when over the limit
+rsync_fail_log_size=30000000
+# whether do retry when rsync failed at first time
+rsync_do_retry=0
+# when doing retry,  size limit of retry log's memory use
+rsync_retry_log_mem_size=100000000
 
 [fdb]
 # in MB

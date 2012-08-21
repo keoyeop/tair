@@ -41,6 +41,7 @@ namespace tair
       // it works, maybe make it common manager level.
       class LdbManager : public tair::storage::storage_manager
       {
+        friend class LdbRemoteSyncLogger;
       public:
         LdbManager();
         ~LdbManager();

@@ -35,6 +35,7 @@ namespace tair
     {
       class LdbInstance
       {
+        friend class LdbRemoteSyncLogReader;
       public:
         LdbInstance();
         explicit LdbInstance(int32_t index, bool db_version_care, storage_manager* cache);
@@ -82,10 +83,11 @@ namespace tair
       private:
         int do_cache_get(LdbKey& ldb_key, std::string& value, bool update_stat);
         int do_get(LdbKey& ldb_key, std::string& value, bool from_cache, bool fill_cache, bool update_stat = true);
-        int do_put(LdbKey& ldb_key, LdbItem& ldb_item, bool fill_cache);
-        int do_remove(LdbKey& ldb_key);
+        int do_put(LdbKey& ldb_key, LdbItem& ldb_item, bool fill_cache, bool synced);
+        int do_remove(LdbKey& ldb_key, bool synced, tair::common::entry_tailer* tailer = NULL);
+        bool is_synced(const common::data_entry& key);
         void add_prefix(LdbKey& ldb_key, int prefix_size);
-        inline void fill_meta(tair::common::data_entry *data, LdbKey& key, LdbItem& item);
+        void fill_meta(tair::common::data_entry *data, LdbKey& key, LdbItem& item);
 
         bool init_db();
         void stop();

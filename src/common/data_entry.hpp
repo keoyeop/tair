@@ -486,6 +486,58 @@ namespace tair
          return *a == *b;
        }
      };
+ 
+      // we don't reserve dummy meta when record entry in some condition(remote synchronization, eg.),
+      // while need some base info to operate it, here is entry tailer.
+      // only prefix_size matters now.
+      class entry_tailer
+      {
+      public:
+        entry_tailer() : prefix_size_(0) {}
+        entry_tailer(const common::data_entry& entry)
+        {
+          set(entry);
+        }
+        entry_tailer(const char* data, int32_t size)
+        {
+          set(data, size);
+        }
+        ~entry_tailer()
+        {
+        }
+
+        inline void set(const common::data_entry& entry)
+        {
+          prefix_size_ = entry.get_prefix_size();
+        }
+        inline void set(const char* data, int32_t size)
+        {
+          prefix_size_ = *(reinterpret_cast<int32_t*>(const_cast<char*>(data)));
+        }
+        inline char* data()
+        {
+          // just ignore endian
+          return reinterpret_cast<char*>(&prefix_size_);
+        }
+        inline int32_t size()
+        {
+          return sizeof(prefix_size_);
+        }
+
+        inline void consume_tailer(common::data_entry& entry)
+        {
+          entry.set_prefix_size(prefix_size_);
+        }
+
+        static bool need_entry_tailer(const common::data_entry& entry)
+        {
+          return entry.get_prefix_size() > 0;
+        }
+
+      private:
+        int32_t prefix_size_;
+      };
+
      //! Be Cautious about the return value of set::insert & hash_map::insert,
      //! which return pair<iterator, bool> type.
      //! When inserting one existing data_entry to a set or hash_map below,

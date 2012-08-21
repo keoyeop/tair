@@ -65,16 +65,18 @@ AM_CONDITIONAL([WITH_KDB],[test x$with_kdb = xyes])
 
 AC_ARG_WITH([ldb],
 		AS_HELP_STRING([--with-ldb],
-			[with ldb (default is NO)]), [
-		if test "$withval" = "yes"; then
-		with_ldb=yes
+			[with ldb (default is YES)]), [
+		if test "$withval" = "no"; then
+		with_ldb=no
+		fi
+		],
+		[
+                with_ldb=yes 
  		# configure leveldb && snappy
                 m4_include([src/storage/ldb/leveldb/ax_port_leveldb.m4])
 		AC_CONFIG_HEADERS([src/storage/ldb/leveldb/snappy/config.h])
 		AC_CONFIG_FILES([src/storage/ldb/leveldb/snappy/snappy-stubs-public.h])
-		fi
-		],
-		[ with_ldb=no ]
+		]
 	   )
 AM_CONDITIONAL([WITH_LDB],[test x$with_ldb = xyes])
 AX_BOOST([1.30.0],,exit 1)
@@ -97,17 +99,17 @@ AC_CONFIG_FILES([\
 		 src/storage/mdb/Makefile \
 		 src/storage/kdb/Makefile \
 		 src/storage/kdb/kyotocabinet/Makefile \
-     src/storage/ldb/Makefile \
-     src/storage/ldb/leveldb/Makefile \
+		 src/storage/ldb/Makefile \
+		 src/storage/ldb/leveldb/Makefile \
 		 src/packets/Makefile \
 		 src/statserver/storage/Makefile \
-     src/statserver/Makefile \
-     src/statserver/include/Makefile \
+		 src/statserver/Makefile \
+		 src/statserver/include/Makefile \
 		 src/configserver/Makefile \
 		 src/dataserver/Makefile \
 		 src/client/Makefile \
 		 src/invalserver/Makefile \
-     src/tools/Makefile \
+		 src/tools/Makefile \
 		 test/Makefile \
 		 test/interface_test/Makefile \
 		 test/unit_test/Makefile \

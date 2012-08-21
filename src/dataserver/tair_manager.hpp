@@ -133,9 +133,11 @@ namespace tair {
 
       plugin::plugins_manager plugins_manager;
       tair::storage::storage_manager *get_storage_manager() { return storage_mgr; }
+      RemoteSyncManager* get_remote_sync_manager() { return remote_sync_mgr; }
 
       bool is_localmode();
-      uint32_t get_bucket_number(data_entry &key);
+      uint32_t get_bucket_number(const data_entry &key);
+      bool is_master_node(int32_t& bucket_num, const data_entry& key);
 
    private:
       tair::storage::storage_manager *get_storage_manager(data_entry &key);
@@ -145,6 +147,7 @@ namespace tair {
       void init_migrate_log();
       int get_mutex_index(data_entry &key);
       int do_duplicate(int area, data_entry& key, data_entry& value,int bucket_number,base_packet *request,int heart_vesion);
+      int do_remote_sync(TairRemoteSyncType type, common::data_entry* key, common::data_entry* value, int rc, int op_flag);
 
    private:
       int status;
@@ -161,7 +164,6 @@ namespace tair {
       boost::dynamic_bitset<> migrate_done_set;
       update_log *migrate_log;
       tair::storage::dump_manager *dump_mgr;
-      bool do_remote_sync;
       RemoteSyncManager *remote_sync_mgr;
    };
 }

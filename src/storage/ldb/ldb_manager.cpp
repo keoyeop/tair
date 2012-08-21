@@ -486,7 +486,7 @@ namespace tair
         // init-on-use
         if (NULL == remote_sync_logger_)
         {
-          remote_sync_logger_ = new LdbRemoteSyncLogger();
+          remote_sync_logger_ = new LdbRemoteSyncLogger(this);
         }
         return remote_sync_logger_;
       }

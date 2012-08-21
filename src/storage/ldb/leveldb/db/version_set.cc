@@ -933,6 +933,7 @@ Status VersionSet::Recover() {
   std::string dscname = dbname_ + "/" + current;
   SequentialFile* file;
   s = env_->NewSequentialFile(dscname, &file);
+
   if (!s.ok()) {
     return s;
   }

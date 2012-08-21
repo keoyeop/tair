@@ -127,6 +127,8 @@ DBImpl::DBImpl(const Options& options, const std::string& dbname)
       owns_info_log_(options_.info_log != options.info_log),
       owns_cache_(options_.block_cache != options.block_cache),
       dbname_(dbname),
+      dblog_dir_(dbname + "/logs/"),
+      reserve_log_(options.reserve_log),
       db_lock_(NULL),
       shutting_down_(NULL),
       bg_cv_(&mutex_),
@@ -168,7 +170,10 @@ DBImpl::~DBImpl() {
   if (imm_ != NULL) imm_->Unref();
   delete tmp_batch_;
   delete log_;
-  delete logfile_;
+  //delete logfile_;
+  if (logfile_ != NULL) {
+    logfile_->Unref();
+  }
   delete table_cache_;
 
   if (owns_info_log_) {
@@ -234,6 +239,9 @@ void DBImpl::DeleteObsoleteFiles() {
   std::vector<std::string> filenames;
   PROFILER_BEGIN("del addchild+");
   env_->GetChildren(dbname_, &filenames); // Ignoring errors on purpose
+  if (!reserve_log_) {
+    env_->GetChildren(dblog_dir_, &filenames);
+  }
   PROFILER_END();
   PROFILER_BEGIN("del file+");
   uint64_t number;
@@ -243,8 +251,9 @@ void DBImpl::DeleteObsoleteFiles() {
       bool keep = true;
       switch (type) {
         case kLogFile:
-          keep = ((number >= versions_->LogNumber()) ||
-                  (number == versions_->PrevLogNumber()));
+          keep = reserve_log_ ||
+            ((number >= versions_->LogNumber()) ||
+             (number == versions_->PrevLogNumber()));
           break;
         case kDescriptorFile:
           // Keep my manifest file, and any newer incarnations'
@@ -287,6 +296,7 @@ Status DBImpl::Recover(VersionEdit* edit) {
   // committed only when the descriptor is created, and this directory
   // may already exist from a previous failed creation attempt.
   env_->CreateDir(dbname_);
+  env_->CreateDir(dblog_dir_);
   assert(db_lock_ == NULL);
   Status s = env_->LockFile(LockFileName(dbname_), &db_lock_);
   if (!s.ok()) {
@@ -325,6 +335,10 @@ Status DBImpl::Recover(VersionEdit* edit) {
     const uint64_t prev_log = versions_->PrevLogNumber();
     std::vector<std::string> filenames;
     s = env_->GetChildren(dbname_, &filenames);
+    if (!s.ok()) {
+      return s;
+    }
+    s = env_->GetChildren(dblog_dir_, &filenames);
     if (!s.ok()) {
       return s;
     }
@@ -379,7 +393,14 @@ Status DBImpl::RecoverLogFile(uint64_t log_number,
   mutex_.AssertHeld();
 
   // Open the log file
-  std::string fname = LogFileName(dbname_, log_number);
+  // Note: binlog will be in directory dbname_/logs/ now,
+  //       we also try to find it in directory dbname_/ to
+  //       be compatible to recovering from old version db.
+  std::string fname = LogFileName(dblog_dir_, log_number);
+  if (!env_->FileExists(fname)) {
+    Log(options_.info_log, "try to find log file in db dir, recover from old version db.");
+    fname = LogFileName(dbname_, log_number);
+  }
   SequentialFile* file;
   Status status = env_->NewSequentialFile(fname, &file);
   if (!status.ok()) {
@@ -1463,12 +1484,16 @@ void DBImpl::ReleaseSnapshot(const Snapshot* s) {
 }
 
 // Convenience methods
-Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val) {
-  return DB::Put(o, key, val);
+Status DBImpl::Put(const WriteOptions& o, const Slice& key, const Slice& val, bool synced) {
+  return DB::Put(o, key, val, synced);
 }
 
-Status DBImpl::Delete(const WriteOptions& options, const Slice& key) {
-  return DB::Delete(options, key);
+Status DBImpl::Delete(const WriteOptions& options, const Slice& key, bool synced) {
+  return DB::Delete(options, key, synced);
+}
+
+Status DBImpl::Delete(const WriteOptions& options, const Slice& key, const Slice& tailer, bool synced) {
+  return DB::Delete(options, key, tailer, synced);
 }
 
 Status DBImpl::Write(const WriteOptions& options, WriteBatch* my_batch) {
@@ -1643,13 +1668,16 @@ Status DBImpl::MakeRoomForWrite(bool force) {
       assert(versions_->PrevLogNumber() == 0);
       Log(options_.info_log, "new mem");
       uint64_t new_log_number = versions_->NewFileNumber();
-      WritableFile* lfile = NULL;
-      s = env_->NewWritableFile(LogFileName(dbname_, new_log_number), &lfile);
+      ReadableAndWritableFile* lfile = NULL;
+      s = env_->NewReadableAndWritableFile(LogFileName(dblog_dir_, new_log_number), &lfile);
       if (!s.ok()) {
         break;
       }
       delete log_;
-      delete logfile_;
+      //delete logfile_;
+      logfile_->Unref();
+      lfile->Ref();
+
       logfile_ = lfile;
       logfile_number_ = new_log_number;
       log_ = new log::Writer(lfile);
@@ -1662,6 +1690,19 @@ Status DBImpl::MakeRoomForWrite(bool force) {
     }
   }
   return s;
+}
+
+uint64_t DBImpl::LastSequence() {
+  return versions_->LastSequence();    
+}
+
+ReadableAndWritableFile* DBImpl::LogFile(uint64_t limit_logfile_number) {
+  MutexLock l(&mutex_);
+  if (logfile_ != NULL && logfile_number_ <= limit_logfile_number) {
+    logfile_->Ref();
+    return logfile_;
+  }
+  return NULL;
 }
 
 bool DBImpl::GetProperty(const Slice& property, std::string* value,
@@ -1783,15 +1824,21 @@ void DBImpl::GetApproximateSizes(
 
 // Default implementations of convenience methods that subclasses of DB
 // can call if they wish
-Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value) {
+Status DB::Put(const WriteOptions& opt, const Slice& key, const Slice& value, bool synced) {
   WriteBatch batch;
-  batch.Put(key, value);
+  batch.Put(key, value, synced);
   return Write(opt, &batch);
 }
 
-Status DB::Delete(const WriteOptions& opt, const Slice& key) {
+Status DB::Delete(const WriteOptions& opt, const Slice& key, bool synced) {
   WriteBatch batch;
-  batch.Delete(key);
+  batch.Delete(key, synced);
+  return Write(opt, &batch);
+}
+
+Status DB::Delete(const WriteOptions& opt, const Slice& key, const Slice& tailer, bool synced) {
+  WriteBatch batch;
+  batch.Delete(key, tailer, synced);
   return Write(opt, &batch);
 }
 
@@ -1807,13 +1854,14 @@ Status DB::Open(const Options& options, const std::string& dbname,
   Status s = impl->Recover(&edit); // Handles create_if_missing, error_if_exists
   if (s.ok()) {
     uint64_t new_log_number = impl->versions_->NewFileNumber();
-    WritableFile* lfile;
-    s = options.env->NewWritableFile(LogFileName(dbname, new_log_number),
-                                     &lfile);
+    ReadableAndWritableFile* lfile;
+    s = options.env->NewReadableAndWritableFile(LogFileName(impl->dblog_dir_, new_log_number),
+                                                &lfile);
     if (s.ok()) {
       edit.SetLogNumber(new_log_number);
       impl->logfile_ = lfile;
       impl->logfile_number_ = new_log_number;
+      lfile->Ref();
       impl->log_ = new log::Writer(lfile);
       impl->mutex_.Unlock();
       s = impl->versions_->LogAndApply(&edit, &impl->mutex_);

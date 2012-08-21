@@ -63,8 +63,9 @@
 
 #define TAIR_SLEEP(stop, interval) ({int count=interval*5; while(count-->0 && !stop) usleep(200000);})
 
+#define TAIR_AREA_ENCODE_SIZE        2
 #define TAIR_MAX_KEY_SIZE            1024
-#define TAIR_MAX_KEY_SIZE_WITH_AREA  1026
+#define TAIR_MAX_KEY_SIZE_WITH_AREA  (TAIR_MAX_KEY_SIZE+TAIR_AREA_ENCODE_SIZE)
 #define TAIR_MAX_DATA_SIZE           1000000
 #define TAIR_MAX_AREA_COUNT          1024
 #define TAIR_MAX_DUP_MAP_SIZE        102400
@@ -127,6 +128,10 @@
 #define TAIR_TASK_QUEUE_SIZE         "task_queue_size"
 #define TAIR_DO_REMOTE_SYNC          "do_remote_sync"
 #define TAIR_REMOTE_SYNC_CONF        "remote_sync_conf"
+#define TAIR_RSYNC_DATA_DIR          "rsync_data_dir"
+#define TAIR_RSYNC_DO_RETRY          "rsync_do_retry"
+#define TAIR_RSYNC_RETRY_LOG_MEM_SIZE "rsync_retry_log_mem_size"
+#define TAIR_RSYNC_FAIL_LOG_SIZE     "rsync_fail_log_size"
 
 //MDB
 #define TAIR_SLAB_MEM_SIZE           "slab_mem_size"
@@ -362,6 +367,7 @@ enum {
    TAIR_SERVERFLAG_DUPLICATE,
    TAIR_SERVERFLAG_MIGRATE,
    TAIR_SERVERFLAG_PROXY,
+   TAIR_SERVERFLAG_RSYNC,
 };
 
 namespace {
