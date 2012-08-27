@@ -403,8 +403,7 @@ namespace tair {
       request->key_end.server_flag = request->server_flag;
 
       if (tair_mgr->should_proxy(request->key_start, target_server_id)) {
-         base_packet *proxy_packet = new request_get_range(*(request_get_range*)request);
-         rc = do_proxy(target_server_id, proxy_packet, request) ? TAIR_RETURN_PROXYED : TAIR_RETURN_FAILED;
+         rc = TAIR_RETURN_SHOULD_PROXY;
          return rc;
       }
 

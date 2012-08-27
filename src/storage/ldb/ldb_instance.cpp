@@ -415,8 +415,12 @@ namespace tair
         LdbKey ldbkey(key_start.get_data(), key_start.get_size(), bucket_number);
         LdbKey ldbendkey(key_end.get_data(), key_end.get_size(), bucket_number);
 
-        // if key_end's skey is "",  add_prefix to key_end for scan all prefix. 4 means 2B area & 2B '00 04' flag
-        if (key_end.get_size()- key_end.get_prefix_size() == 4)
+        // if key_end's skey is "",  add_prefix to key_end for scan all prefix. 
+        //   4 means 2B area & 2B '00 04' flag in java. 
+        //   2 means 2B area in c++. 
+        if ((key_end.get_size()- key_end.get_prefix_size() == 2)  
+          || (key_end.get_size()- key_end.get_prefix_size() == 4 && 
+          key_end.get_data()[key_end.get_prefix_size()+2] == 0x00 &&  key_end.get_data()[key_end.get_prefix_size()+3] == 0x04) )
         {
           add_prefix(ldbendkey, key_end.get_prefix_size()); 
         }
