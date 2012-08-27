@@ -28,12 +28,16 @@ namespace tair
     //////////////////////////////////
     // RingBufferRecordLogger
     //////////////////////////////////
-    const int32_t RingBufferRecordLogger::TAIR_LOGGER_SKIP_TYPE = TAIR_REMOTE_SYNC_TYPE_MAX + 16;
-    const int32_t RingBufferRecordLogger::HEADER_SIZE = sizeof(int64_t)*2;
+    // outer type should not overlap this type
+    const int32_t RingBufferRecordLogger::LOGGER_SKIP_TYPE = 0xFF;
+    // r_offset/w_offset
+    const int32_t RingBufferRecordLogger::HEADER_SIZE = sizeof(int64_t)*3;
+    // total_size + type
+    const int32_t RingBufferRecordLogger::RECORD_HEADER_SIZE = sizeof(int32_t) + 1;
 
     RingBufferRecordLogger::RingBufferRecordLogger(const char* file_path, int64_t mem_size)
       : file_path_(file_path != NULL ? file_path : ""), fd_(-1), mem_size_(mem_size),
-        base_(NULL), w_offset_(NULL), r_offset_(NULL)
+        base_(NULL), w_offset_(NULL), r_offset_(NULL), reverse_(NULL)
     {
       // one writer
       writer_count_ = 1;
@@ -53,6 +57,7 @@ namespace tair
       {
         ::fdatasync(fd_);
         ::close(fd_);
+        fd_ = -1;
       }
     }
 
@@ -64,7 +69,7 @@ namespace tair
       {
         log_error("empty logger file path");
       }
-      else if (mem_size_ <= 0)
+      else if (mem_size_ <= RECORD_HEADER_SIZE)
       {
         log_error("invalid max mem length: %"PRI64_PREFIX"d", mem_size_);
       }
@@ -74,12 +79,13 @@ namespace tair
       }
       else
       {
-        fd_ = ::open(file_path_.c_str(), O_CREAT | O_RDWR | O_TRUNC, 0644);
+        bool not_exist = ::access(file_path_.c_str(), F_OK) != 0;
+        fd_ = ::open(file_path_.c_str(), O_CREAT | O_RDWR, 0644);
         if (fd_ < 0)
         {
-          log_error("open file %s faile: %s", file_path_.c_str(), strerror(errno));
+          log_error("open file %s fail: %s", file_path_.c_str(), strerror(errno));
         }
-        else if (::ftruncate(fd_, HEADER_SIZE + mem_size_) < 0)
+        else if (not_exist && ::ftruncate(fd_, HEADER_SIZE + mem_size_) < 0)
         {
           log_error("truncate file %s fail: %s", file_path_.c_str(), strerror(errno));
         }
@@ -93,18 +99,25 @@ namespace tair
           // TODO: dirty data may exist when not msynced.
           w_offset_ = reinterpret_cast<int64_t*>(base_);
           r_offset_ = reinterpret_cast<int64_t*>(base_ + sizeof(int64_t));
-          if (*w_offset_ >= mem_size_ || *r_offset_ >= mem_size_)
+          reverse_ = base_ + sizeof(int64_t) * 2;
+          // w_offset == r_offset, reverse is free,
+          // there maybe be an asshole if crashed between updating reverse and offsets(w_offset == r_offset).
+          // merge reverse to offset..?
+          if (*w_offset_ > mem_size_ || *r_offset_ > mem_size_ ||
+              (*w_offset_ > *r_offset_ && *reverse_ != 0) ||
+              (*w_offset_ < *r_offset_ && *reverse_ == 0))
           {
-            log_warn("invalid w_offset: %"PRI64_PREFIX"d, r_offset: %"PRI64_PREFIX"d",
-                     *w_offset_, *r_offset_);
+            log_warn("invalid w_offset: %"PRI64_PREFIX"d, r_offset: %"PRI64_PREFIX"d, reverse: %d",
+                     *w_offset_, *r_offset_, *reverse_);
             *w_offset_ = 0;
             *r_offset_ = 0;
+            *reverse_ = 0;
           }
           // skip index
           base_ += HEADER_SIZE;
 
-          log_warn("init ring buffer record logger success, base_: %lx, w_offset: %"PRI64_PREFIX"d, r_offset: %"PRI64_PREFIX"d",
-                   base_, *w_offset_, *r_offset_);
+          log_warn("init ring buffer record logger success, base_: %lx, w_offset: %"PRI64_PREFIX"d, r_offset: %"PRI64_PREFIX"d, reverse: %d",
+                   base_, *w_offset_, *r_offset_, *reverse_);
         }
       }
 
@@ -121,12 +134,12 @@ namespace tair
                                            data_entry* key, data_entry* value)
     {
       UNUSED(index);
-      tbsys::CThreadGuard guard(&mutex_);
       log_debug("@@ ab %ld %ld", *w_offset_, *r_offset_);
       int ret = TAIR_RETURN_SUCCESS;
       char* buf = NULL;
       int total_size = RecordLogger::common_encode_record(buf, type, key, value);
 
+      tbsys::CThreadGuard guard(&mutex_);
       char* mem_pos = calc_mem_pos(total_size);
       if (mem_pos == NULL)
       {
@@ -137,17 +150,6 @@ namespace tair
       {
         log_debug("@@ %lx pos: %lx %d %ld %ld", base_, mem_pos, total_size, *w_offset_, *r_offset_);
         memcpy(mem_pos, buf, total_size);
-        // fill tailer
-        if (mem_pos == base_ && mem_size_ - *w_offset_ < total_size)
-        {
-          char skip[sizeof(int32_t) * 2];
-
-          // total size
-          tair::util::coding_util::encode_fixed32(skip, sizeof(int32_t)*2 + mem_size_ - *w_offset_);
-          tair::util::coding_util::encode_fixed32(skip + sizeof(int32_t), TAIR_LOGGER_SKIP_TYPE);
-          memcpy(base_ + *w_offset_, skip, sizeof(skip));
-        }
-
         *w_offset_ = mem_pos - base_ + total_size;
       }
 
@@ -160,8 +162,8 @@ namespace tair
     }
 
     int RingBufferRecordLogger::get_record(int32_t index, int32_t& type, int32_t& bucket_num,
-                                        data_entry*& key, data_entry*& value,
-                                        bool& force_reget)
+                                           data_entry*& key, data_entry*& value,
+                                           bool& force_reget)
     {
       UNUSED(index);
       bucket_num = -1;
@@ -170,34 +172,25 @@ namespace tair
       tbsys::CThreadGuard guard(&mutex_);
       log_debug("@@ gb %ld %ld", *w_offset_, *r_offset_);
       int ret = TAIR_RETURN_SUCCESS;
-      int32_t size = 0;
-      char* pos = base_ + *r_offset_;
-      bool found = false;
+      int64_t w_off = *w_offset_, r_off = *r_offset_;
+      char* pos = base_ + r_off;
 
-      // r_offset_/w_offset should be aligned to one record boundry
-      while (!found && *r_offset_ != *w_offset_)
+      // when (not reverse and r_offset == w_offset), no record left
+      while (!(*reverse_ == 0 && r_off == w_off))
       {
-        // check skip first
-        size = tair::util::coding_util::decode_fixed32(pos);
-        type = tair::util::coding_util::decode_fixed32(pos + sizeof(int32_t));
-        if (type == TAIR_LOGGER_SKIP_TYPE)
+        // skip tailer
+        if (mem_size_ - r_off <= RECORD_HEADER_SIZE || is_skip_tailer(pos))
         {
-          log_debug("@@ skip %lx %d", pos, size);
-          // skip trailer
-          pos += size;
-          if (pos >= base_ + mem_size_)
-          {
-            pos = base_;
-          }
-        }
-        else
-        {
-          log_debug("@@ found %lx", pos);
-          pos += common_decode_record(pos, type, key, value);
-          found = true;
+          r_off = 0;
+          pos = base_;
+          *reverse_ = 0;
+          continue;
         }
 
+        pos += RecordLogger::common_decode_record(pos, type, key, value);
+        log_debug("@@ found %lx", pos);
         *r_offset_ = pos - base_;
+        break;
       }
 
       log_debug("@@ ge %ld %ld %d %lx", *w_offset_, *r_offset_, type, key);
@@ -207,25 +200,55 @@ namespace tair
     char* RingBufferRecordLogger::calc_mem_pos(int32_t size)
     {
       char* pos = NULL;
-      if (*w_offset_ >= *r_offset_)
+      int64_t w_off = *w_offset_, r_off = *r_offset_;
+
+      if (mem_size_ - w_off <= RECORD_HEADER_SIZE)
       {
-        if (mem_size_ - *w_offset_ >= size)
+        w_off = 0;
+        *reverse_ = 1;
+      }
+
+      // when (reverse and w_offset == r_offset), no space left
+      if (!(*reverse_ != 0 && w_off == r_off))
+      {
+        if (w_off >= r_off)
         {
-          pos = base_ + *w_offset_;
+          if (mem_size_ - w_off >= size)
+          {
+            pos = base_ + w_off;
+          }
+          else if (r_off >= size)
+          {
+            // fill skip tailer
+            fill_skip_tailer(base_ + w_off, mem_size_ - w_off);
+            // rollover
+            pos = base_;
+            *reverse_ = 1;
+          }
         }
-        else if (*r_offset_ >= size)
+        else if (r_off - w_off >= size)
         {
-          pos = base_;  
+          pos = base_ + w_off;
         }
       }
-      else
-      {
-        if (*r_offset_ - *w_offset_ > size)
-        {
-          pos = base_ + *w_offset_;
-        }
-      }
+
       return pos;
+    }
+
+    void RingBufferRecordLogger::fill_skip_tailer(char* pos, int32_t size)
+    {
+      char skip[sizeof(int32_t) + 1];
+      // total size
+      tair::util::coding_util::encode_fixed32(skip, size);
+      // SKIP_TYPE
+      skip[sizeof(int32_t)] = static_cast<char>(LOGGER_SKIP_TYPE);
+      memcpy(pos, skip, sizeof(skip));
+      log_debug("@@ fill tailer, %lx, %d", pos, size);
+    }
+
+    bool RingBufferRecordLogger::is_skip_tailer(const char* pos)
+    {
+      return (pos[sizeof(int32_t)/*total size*/] == static_cast<char>(LOGGER_SKIP_TYPE));
     }
 
     int RingBufferRecordLogger::cleanup()
@@ -264,6 +287,8 @@ namespace tair
       : file_path_(file_path != NULL ? file_path : ""), file_(NULL), max_file_size_(max_file_size),
         auto_rotate_(auto_rotate), w_offset_(0), r_offset_(0)
     {
+      writer_count_ = 1;
+      reader_count_ = 1;
     }
 
     SequentialFileRecordLogger::~SequentialFileRecordLogger()
@@ -312,10 +337,11 @@ namespace tair
                                                data_entry* key, data_entry* value)
     {
       UNUSED(index);
-      tbsys::CThreadGuard guard(&mutex_);
       int ret = TAIR_RETURN_SUCCESS;
       char* buf = NULL;
-      int32_t total_size = common_encode_record(buf, type, key, value);
+      int32_t total_size = RecordLogger::common_encode_record(buf, type, key, value);
+
+      tbsys::CThreadGuard guard(&mutex_);
       ret = reserve_file_size(w_offset_ + total_size);
 
       if (ret == TAIR_RETURN_SUCCESS)
@@ -346,11 +372,12 @@ namespace tair
       int ret = TAIR_RETURN_SUCCESS;
       bucket_num = -1;
       key = value = NULL;
+      tbsys::CThreadGuard guard(&mutex_);
       ret = reserve_one_record();
 
       if (ret == TAIR_RETURN_SUCCESS && last_data_.size() > 0)
       {
-        int32_t size = common_decode_record(last_data_.data(), type, key, value);
+        int32_t size = RecordLogger::common_decode_record(last_data_.data(), type, key, value);
         r_offset_ += size;
         last_data_.erase(size);
       }
@@ -360,7 +387,7 @@ namespace tair
     int SequentialFileRecordLogger::reserve_file_size(int64_t size)
     {
       int ret = TAIR_RETURN_SUCCESS;
-      if (size > max_file_size_)
+      if (size >= max_file_size_)
       {
         if (auto_rotate_)
         {

@@ -279,10 +279,11 @@ FAIL_1:
     packet->area = area;
     packet->key = key;
     // set fill cache flag
-    packet->key.data_meta.flag = fill_cache ? TAIR_CLIENT_PUT_PUT_CACHE_FLAG : TAIR_CLIENT_PUT_SKIP_CACHE_FLAG;
+    packet->key.data_meta.flag |= fill_cache ? TAIR_CLIENT_PUT_PUT_CACHE_FLAG : TAIR_CLIENT_PUT_SKIP_CACHE_FLAG;
     packet->data = data;
     packet->expired = expired;
     packet->version = version;
+    packet->server_flag = key.server_flag;
     int ret = TAIR_RETURN_SEND_FAILED;
     base_packet *tpacket = 0;
     response_return *resp = 0;
@@ -728,7 +729,7 @@ FAIL:
     request_remove *packet = new request_remove();
     packet->area = area;
     packet->add_key(key.get_data(), key.get_size(), key.get_prefix_size());
-
+    packet->server_flag = key.server_flag;
     base_packet *tpacket = 0;
     response_return *resp  = 0;
 
@@ -2518,7 +2519,7 @@ OUT:
     {
       if (connmgr->sendPacket(server_id, packet, NULL, (void*)((long)waitId)) == false)
       {
-        TBSYS_LOG(ERROR, "Send RequestGetPacket to %s failure.",
+        TBSYS_LOG(ERROR, "Send to %s failure.",
             tbsys::CNetUtil::addrToString(server_id).c_str());
         send_fail_count ++;
         ret = TAIR_RETURN_SEND_FAILED;
@@ -2665,7 +2666,6 @@ OUT:
       default:
         break;
     }
-    delete tpacket;
     return 0;
   }
 

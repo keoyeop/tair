@@ -119,7 +119,7 @@
         return false;
       }
 
-      bool do_rsync = TBSYS_CONFIG.getInt(TAIRSERVER_SECTION, TAIR_DO_REMOTE_SYNC, 0) > 0;
+      bool do_rsync = TBSYS_CONFIG.getInt(TAIRSERVER_SECTION, TAIR_DO_RSYNC, 0) > 0;
       // remote synchronization init
       if (do_rsync) {
         remote_sync_mgr = new RemoteSyncManager(this);
@@ -1053,7 +1053,38 @@
       if (status != STATUS_CAN_WORK) {
          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
       }
-      return storage_mgr->op_cmd(cmd, params);
+      if (cmd <= TAIR_SERVER_CMD_MIN_TYPE || cmd >= TAIR_SERVER_CMD_MAX_TYPE) {
+        log_error("unknown cmd type: %d", cmd);
+        return TAIR_RETURN_NOT_SUPPORTED;
+      }
+
+      int ret = TAIR_RETURN_SUCCESS;
+      switch (cmd) {
+      case TAIR_SERVER_CMD_PAUSE_RSYNC:
+        if (remote_sync_mgr != NULL) {
+          ret = remote_sync_mgr->pause(true);
+        }
+        break;
+      case TAIR_SERVER_CMD_RESUME_RSYNC:
+        if (remote_sync_mgr != NULL) {
+          ret = remote_sync_mgr->pause(false);
+        }
+        break;
+      case TAIR_SERVER_CMD_SET_CONFIG:
+        ret = params.size() >= 2 ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED;
+        if (ret == TAIR_RETURN_SUCCESS && params[0] == TAIR_RSYNC_MTIME_CARE && remote_sync_mgr != NULL) {
+          remote_sync_mgr->set_mtime_care(atoi(params[1].c_str()) > 0);
+        }
+        break;
+      default:
+        break;
+      }
+
+      // op cmd to storage manager
+      if (ret == TAIR_RETURN_SUCCESS) {
+        ret = storage_mgr->op_cmd(cmd, params);
+      }
+      return ret;
    }
 
 #ifndef NOT_FIXED_ITEM_FUNC
@@ -1304,7 +1335,7 @@
       // so asynchronous duplicator will do remote sync logic self.
       // Here, only check remote sync operation flag and
       // NO asynchronous duplication(asynchronous duplication success will return TAIR_DUP_WAIT_RSP).
-      if (remote_sync_mgr != NULL && (op_flag & TAIR_OPERATION_REMOTE) && TAIR_RETURN_SUCCESS == rc) {
+      if (remote_sync_mgr != NULL && (op_flag & TAIR_OPERATION_RSYNC) && TAIR_RETURN_SUCCESS == rc) {
         ret = remote_sync_mgr->add_record(type, key, value);
         // local cluster can ignore remote sync failure.
         if (ret != TAIR_RETURN_SUCCESS) {
@@ -1580,7 +1611,9 @@
           server_flag == TAIR_SERVERFLAG_PROXY) {
         flag |= TAIR_OPERATION_VERSION;
         flag |= TAIR_OPERATION_DUPLICATE;
-        flag |= TAIR_OPERATION_REMOTE;
+        flag |= TAIR_OPERATION_RSYNC;
+      } else if (server_flag == TAIR_SERVERFLAG_RSYNC) { // rsynced data need no version care or rsync again
+        flag |= TAIR_OPERATION_DUPLICATE;
       }
 
       return flag;

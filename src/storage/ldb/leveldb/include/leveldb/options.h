@@ -142,6 +142,9 @@ struct Options {
   // whether reserve binlog after dumping memtable(maybe for remote synchronization etc.)
   bool reserve_log;
 
+  // whether load backup versions when startup
+  bool load_backup_version;
+
   // sort of config that is used in db but not get by passed option ..
 
   // Level-0 compaction is started when we hit this many files.

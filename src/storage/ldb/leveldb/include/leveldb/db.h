@@ -125,6 +125,9 @@ class DB {
   virtual bool GetProperty(const Slice& property, std::string* value,
                            void (*key_printer)(const Slice&, std::string&) = NULL) = 0;
 
+  // operate some command to db
+  virtual Status OpCmd(int cmd) = 0;
+
   // For each i in [0,n-1], store in "sizes[i]", the approximate
   // file system space used by keys in "[range[i].start .. range[i].limit)".
   //

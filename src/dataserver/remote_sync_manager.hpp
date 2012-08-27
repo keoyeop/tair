@@ -73,12 +73,17 @@ namespace tair
         group_name_ = conf[2];
         timeout_ms_ = atoi(conf[3].c_str());
 
-        char buf[128];
-        int size = snprintf(buf, sizeof(buf), "%"PRI64_PREFIX"d;%"PRI64_PREFIX"d;%s",
-                            tbsys::CNetUtil::strToAddr(master_cs_addr_.c_str(), TAIR_CONFIG_SERVER_DEFAULT_PORT),
-                            tbsys::CNetUtil::strToAddr(slave_cs_addr_.c_str(), TAIR_CONFIG_SERVER_DEFAULT_PORT),
-                            group_name_.c_str());
-        info_.assign(buf, size);
+        char buf[sizeof(uint64_t)*2];
+        tair::util::coding_util::
+          encode_fixed64(buf,
+                         tbsys::CNetUtil::strToAddr(master_cs_addr_.c_str(), TAIR_CONFIG_SERVER_DEFAULT_PORT));
+        tair::util::coding_util::
+          encode_fixed64(buf+sizeof(uint64_t),
+                         tbsys::CNetUtil::strToAddr(slave_cs_addr_.c_str(), TAIR_CONFIG_SERVER_DEFAULT_PORT));
+        info_.clear();
+        info_.reserve(sizeof(buf) + group_name_.size());
+        info_.append(buf, sizeof(buf));
+        info_.append(group_name_);
       }
       else
       {
@@ -101,7 +106,7 @@ namespace tair
     {
       return client_;
     }
-    inline std::string info()
+    inline std::string& info()
     {
       return info_;
     }
@@ -127,48 +132,62 @@ namespace tair
     typedef struct FailRecord
     {
       FailRecord(common::data_entry* key, std::string cluster_info, int code)
-        : key_(key), cluster_info_(cluster_info), code_(code) {}
-      FailRecord(const char* data, int32_t size)
+        : key_(key), cluster_info_(cluster_info), code_(code), scratch_(NULL), scratch_size_(0) {}
+      FailRecord(const char* data, int32_t size) : scratch_(NULL), scratch_size_(0)
+      {
+        decode(data, size);
+      }
+      ~FailRecord()
+      {
+        if (scratch_ != NULL)
+        {
+          delete scratch_;
+        }
+      }
+
+      void encode()
+      {
+        if (scratch_ == NULL)
+        {
+          scratch_size_ = key_->get_size() + cluster_info_.size() + 3 * sizeof(int32_t);
+          scratch_ = new char[scratch_size_];
+          char* pos = scratch_;
+          tair::util::coding_util::encode_fixed32(pos, cluster_info_.size());
+          pos += sizeof(int32_t);
+          memcpy(pos, cluster_info_.data(), cluster_info_.size());
+          pos += cluster_info_.size();
+          tair::util::coding_util::encode_fixed32(pos, key_->get_size());
+          pos += sizeof(int32_t);
+          memcpy(pos, key_->get_data(), key_->get_size());
+          pos += key_->get_size();
+          tair::util::coding_util::encode_fixed32(pos, code_);
+        }
+      }
+      void decode(const char* data, int32_t size)
       {
         uint32_t per_size = tair::util::coding_util::decode_fixed32(data);
         cluster_info_.assign(data + sizeof(int32_t), per_size);
         data += per_size + sizeof(int32_t);
         per_size = tair::util::coding_util::decode_fixed32(data);
-        // outer will delete this
+        // a little weird, but outer MUST delete key_
         key_ = new data_entry(data + sizeof(int32_t), per_size, true);
         data += per_size + sizeof(int32_t);
         code_ = tair::util::coding_util::decode_fixed32(data);
       }
-      ~FailRecord()
+      const char* data()
       {
+        return scratch_;
       }
-
-      const char* encode()
+      int32_t size()
       {
-        if (encode_data_.empty())
-        {
-          char buf[sizeof(int32_t)];
-          encode_data_.reserve(key_->get_size() + cluster_info_.size() + 3 * sizeof(int32_t));
-          tair::util::coding_util::encode_fixed32(buf, cluster_info_.size());
-          encode_data_.append(buf, sizeof(buf));
-          encode_data_.append(cluster_info_.data(), cluster_info_.size());
-          tair::util::coding_util::encode_fixed32(buf, key_->get_size());
-          encode_data_.append(buf, sizeof(buf));
-          encode_data_.append(key_->get_data(), key_->get_size());
-          tair::util::coding_util::encode_fixed32(buf, code_);
-          encode_data_.append(buf, sizeof(buf));
-        }
-        return encode_data_.data();
-      }
-      int32_t encode_size()
-      {
-        return encode_data_.size();
+        return scratch_size_;
       }
 
       common::data_entry* key_;
       std::string cluster_info_;
       int code_;
-      std::string encode_data_;
+      char* scratch_;
+      int32_t scratch_size_;
     } FailRecord;
 
     // avoid dummy data_entry copy, use ref for aync concurrent use.
@@ -235,8 +254,15 @@ namespace tair
     int add_record(TairRemoteSyncType type, data_entry* key, data_entry* value);
     void run(tbsys::CThread*, void* arg);
 
+    int pause(bool do_pause);
+    int set_mtime_care(bool care);
+
     static void callback(int ret, void* arg);
     static int log_fail_record(RecordLogger* logger, TairRemoteSyncType type, FailRecord& record);
+
+    typedef void (*FilterKeyFuc)(common::data_entry*& key, std::string& cluster_info);
+    static void filter_key(common::data_entry*& key, std::string& cluster_info);
+    static void filter_fail_record(common::data_entry*& key, std::string& cluster_info);
 
   private:
     int32_t remote_sync_thread_count();
@@ -252,37 +278,44 @@ namespace tair
     int init_sync_conf();
     int init_sync_client();
 
-    int do_remote_sync(int32_t index);
-    int do_retry_remote_sync(int32_t index);
+    int do_remote_sync(int32_t index, RecordLogger* input_logger, bool retry, FilterKeyFuc key_filter);
 
     // Process one record.
     // Returning TAIR_RETURN_SUCCESS means this record is out of remote synchronization
     // purpose(maybe synchronization succeed, or invalid record, or out-of-date
     // record of no synchronization need, etc.)
     int do_process_remote_sync_record(TairRemoteSyncType type, int32_t bucket_num,
-                                      DataEntryWrapper* key_wrapper, data_entry* value,
+                                      DataEntryWrapper* key_wrapper, data_entry*& value,
                                       bool force_reget, bool retry, std::vector<FailRecord>& fail_records,
-                                      std::string* cluster_info = NULL);
+                                      std::string& cluster_info);
     int do_get_from_local_cluster(bool local_storage, int32_t bucket_num, data_entry* key, data_entry*& value);
+
+    // attach some specified information to deliver to remote server.
+    void attach_info_to_key(data_entry& key);
 
   private:
     tair_manager* tair_manager_;
 
-    // inited flag
-    bool inited_;
-    // whether retry when fail at first time
-    bool retry_;
+    // rsync process has paused
+    bool paused_;
 
     // logger of records to be remote synchronized,
     // this logger is specific with storage engine.
     tair::common::RecordLogger* logger_;
-    // logger of records to be retried after first synchronization,
-    // use MemFileRecordLogger.
+    // logger of records failed at first time.(optional)
     tair::common::RecordLogger* retry_logger_;
-    // logger of failed records after retring,
-    // use FileRecordLogger.
+    // logger of failed records at last.
     tair::common::RecordLogger* fail_logger_;
 
+    // whether care remote modify time when rsync.
+    // maybe data are updated both in local and remote clusters in some condition,
+    // and we can't determine final status just based on local cluster,
+    // so we do care data modify time of remote cluster, and remote cluster
+    // will check modify time to reserve latest update when processing rsync request.
+    bool mtime_care_;
+
+    // cluster inited flag
+    bool cluster_inited_;
     // one local cluster handler
     ClusterHandler local_cluster_handler_;
     // multi remote cluster handler

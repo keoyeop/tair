@@ -28,7 +28,7 @@ namespace tair
     class RingBufferRecordLogger : public RecordLogger
     {
     public:
-      explicit RingBufferRecordLogger(const char* file_path, int64_t max_mem_len);
+      explicit RingBufferRecordLogger(const char* file_path, int64_t max_mem_size);
       virtual ~RingBufferRecordLogger();
 
       int init();
@@ -39,11 +39,14 @@ namespace tair
 
     private:
       char* calc_mem_pos(int32_t size);
+      void fill_skip_tailer(char* pos, int32_t size);
+      bool is_skip_tailer(const char* pos);
       int cleanup();
 
     private:
-      static const int32_t TAIR_LOGGER_SKIP_TYPE;
+      static const int32_t LOGGER_SKIP_TYPE;
       static const int32_t HEADER_SIZE;
+      static const int32_t RECORD_HEADER_SIZE;
 
     private:
       tbsys::CThreadMutex mutex_;
@@ -52,8 +55,12 @@ namespace tair
       int64_t mem_size_;
 
       char* base_;
+      // r_offset_/w_offset should always be aligned to one record boundry
       int64_t* w_offset_;
       int64_t* r_offset_;
+      // consider r_offset > w_offset in ring buffer as reverse,
+      // we need this flag to decide how to process when r_offset == w_offset.
+      char* reverse_;
     };
 
     class FileOperation;
@@ -85,6 +92,7 @@ namespace tair
       int64_t max_file_size_;
       bool auto_rotate_;
 
+      // r_offset_/w_offset should always be aligned to one record boundry
       int64_t w_offset_;
       int64_t r_offset_;
       std::string last_data_;
@@ -93,3 +101,4 @@ namespace tair
 }
 
 #endif
+

@@ -25,6 +25,7 @@ Options::Options()
       compression(kSnappyCompression),
       filter_policy(NULL),
       reserve_log(false),
+      load_backup_version(false),
       kL0_CompactionTrigger(4),
       kL0_SlowdownWritesTrigger(8),
       kL0_StopWritesTrigger(12),

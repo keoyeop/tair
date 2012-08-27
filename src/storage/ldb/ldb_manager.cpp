@@ -380,18 +380,8 @@ namespace tair
             }
             break;
           }
-          case TAIR_SERVER_CMD_PAUSE_GC:
-          case TAIR_SERVER_CMD_RESUME_GC:
-          case TAIR_SERVER_CMD_STAT_DB:
-          {
-            break;            
-          }
-          case TAIR_SERVER_CMD_RESET_DB:
-          case TAIR_SERVER_CMD_FLUSH_MMT:
           default:
           {
-            log_error("op cmd unsupported type: %d", cmd);
-            ret = TAIR_RETURN_NOT_SUPPORTED;
             break;
           }
           }

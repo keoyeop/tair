@@ -128,7 +128,6 @@ DBImpl::DBImpl(const Options& options, const std::string& dbname)
       owns_cache_(options_.block_cache != options.block_cache),
       dbname_(dbname),
       dblog_dir_(dbname + "/logs/"),
-      reserve_log_(options.reserve_log),
       db_lock_(NULL),
       shutting_down_(NULL),
       bg_cv_(&mutex_),
@@ -239,7 +238,7 @@ void DBImpl::DeleteObsoleteFiles() {
   std::vector<std::string> filenames;
   PROFILER_BEGIN("del addchild+");
   env_->GetChildren(dbname_, &filenames); // Ignoring errors on purpose
-  if (!reserve_log_) {
+  if (!options_.reserve_log) {
     env_->GetChildren(dblog_dir_, &filenames);
   }
   PROFILER_END();
@@ -251,7 +250,7 @@ void DBImpl::DeleteObsoleteFiles() {
       bool keep = true;
       switch (type) {
         case kLogFile:
-          keep = reserve_log_ ||
+          keep = options_.reserve_log ||
             ((number >= versions_->LogNumber()) ||
              (number == versions_->PrevLogNumber()));
           break;
@@ -1786,6 +1785,19 @@ bool DBImpl::GetProperty(const Slice& property, std::string* value,
   }
 
   return false;
+}
+
+Status DBImpl::OpCmd(int cmd) {
+  MutexLock l(&mutex_);
+  Status s;
+  switch (cmd) {
+  case kCmdBackupDB:
+    s = versions_->BackupCurrentVersion();
+    break;
+  default:
+    return Status::InvalidArgument("unkonwn cmd type");
+  }
+  return s;
 }
 
 bool DBImpl::GetLevelRange(int level, std::string* smallest, std::string* largest) {

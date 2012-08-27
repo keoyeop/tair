@@ -40,6 +40,7 @@ class DBImpl : public DB {
   virtual void ReleaseSnapshot(const Snapshot* snapshot);
   virtual bool GetProperty(const Slice& property, std::string* value,
                            void (*key_printer)(const Slice&, std::string&) = NULL);
+  virtual Status OpCmd(int cmd);
   virtual bool GetLevelRange(int level, std::string* smallest, std::string* largest);
   virtual void GetApproximateSizes(const Range* range, int n, uint64_t* sizes);
   virtual void CompactRange(const Slice* begin, const Slice* end);
@@ -69,7 +70,6 @@ class DBImpl : public DB {
   log::Writer* LogWriter() { return log_; }
   ReadableAndWritableFile* LogFile(uint64_t limit_logfile_number);
   const std::string& DBLogDir() { return dblog_dir_; }
-
 
  private:
   friend class DB;

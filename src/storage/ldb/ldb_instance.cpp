@@ -246,6 +246,8 @@ namespace tair
       void LdbInstance::destroy()
       {
         stop();
+        // not delete all file now
+#if 0
         gc_.destroy();
 
         leveldb::Status status = leveldb::DestroyDB(db_path_, options_);
@@ -257,6 +259,7 @@ namespace tair
         {
           log_debug("destroy ldb database ok: %s", db_path_);
         }
+#endif
       }
 
       int LdbInstance::put(int bucket_number, tair::common::data_entry& key,
@@ -286,14 +289,16 @@ namespace tair
 
         LdbKey ldb_key(key.get_data(), key.get_size(), bucket_number, edate);
         LdbItem ldb_item;
+        std::string db_value;
+        bool mtime_care = is_mtime_care(key);
+        bool need_op = true;    // need do operation
+        int rc = TAIR_RETURN_SUCCESS;
         PROFILER_BEGIN("db lock");
         tbsys::CThreadGuard mutex_guard(get_mutex(key));
         PROFILER_END();
-        std::string db_value;
-        int rc = TAIR_RETURN_SUCCESS;
 
-        // db version care
-        if (db_version_care_ && version_care)
+        // version care or mtime_care
+        if ((db_version_care_ && version_care) || mtime_care)
         {
           PROFILER_BEGIN("db get");
           rc = do_get(ldb_key, db_value, true/* get from cache */,
@@ -302,23 +307,28 @@ namespace tair
           if (TAIR_RETURN_SUCCESS == rc)
           {
             ldb_item.assign(const_cast<char*>(db_value.data()), db_value.size());
-            // ldb already check expired. no need here.
-            cdate = ldb_item.cdate(); // set back the create time
-            if (version_care)
+            // db mtime is later than request, then need not do operation any more
+            need_op = !(mtime_care && ldb_item.mdate() > key.data_meta.mdate);
+            if (need_op)
             {
-              // item care version, check version
-              if (key.data_meta.version != 0
-                  && key.data_meta.version != ldb_item.version())
+              // ldb already check expired. no need here.
+              cdate = ldb_item.cdate(); // set back the create time
+              if (version_care)
               {
-                rc = TAIR_RETURN_VERSION_ERROR;
+                // item care version, check version
+                if (key.data_meta.version != 0
+                    && key.data_meta.version != ldb_item.version())
+                {
+                  rc = TAIR_RETURN_VERSION_ERROR;
+                }
               }
-            }
 
-            if (rc == TAIR_RETURN_SUCCESS)
-            {
-              stat_data_size -= ldb_key.key_size() + ldb_item.value_size();
-              stat_use_size -= ldb_key.size() + ldb_item.size();
-              item_count = 0;
+              if (rc == TAIR_RETURN_SUCCESS)
+              {
+                stat_data_size -= ldb_key.key_size() + ldb_item.value_size();
+                stat_use_size -= ldb_key.size() + ldb_item.size();
+                item_count = 0;
+              }
             }
           }
           else
@@ -327,7 +337,7 @@ namespace tair
           }
         }
 
-        if (rc == TAIR_RETURN_SUCCESS)
+        if (need_op && rc == TAIR_RETURN_SUCCESS)
         {
           ldb_item.meta().base_.meta_version_ = META_VER_PREFIX;
           ldb_item.meta().base_.flag_ = value.data_meta.flag;
@@ -370,11 +380,6 @@ namespace tair
 
         log_debug("ldb::put %d, key len: %d, key prefix len:%d , value len: %d", rc, key.get_size(), key.get_prefix_size(), value.get_size());
         return rc;
-      }
-
-      bool LdbInstance::is_synced(const data_entry& key)
-      {
-        return (TAIR_SERVERFLAG_CLIENT != key.server_flag && TAIR_SERVERFLAG_PROXY != key.server_flag);
       }
 
       void LdbInstance::add_prefix(LdbKey& ldb_key, int prefix_size)
@@ -548,16 +553,19 @@ namespace tair
         LdbKey ldb_key(key.get_data(), key.get_size(), bucket_number);
         LdbItem ldb_item;
         std::string db_value;
+        bool mtime_care = is_mtime_care(key);
+        bool need_op = true;
         tbsys::CThreadGuard mutex_guard(get_mutex(key));
 
-        if (db_version_care_ && version_care)
+        if ((db_version_care_ && version_care) || mtime_care)
         {
           rc = do_get(ldb_key, db_value, true/* get from cache */,
                       false/* not fill cache */, false/* not update cache stat */);
           if (TAIR_RETURN_SUCCESS == rc)
           {
             ldb_item.assign(const_cast<char*>(db_value.data()), db_value.size());
-            if (version_care &&
+            need_op = !(mtime_care && ldb_item.mdate() > key.data_meta.mdate);
+            if (need_op && version_care &&
                 key.data_meta.version != 0 &&
                 key.data_meta.version != ldb_item.version())
             {
@@ -566,16 +574,18 @@ namespace tair
           }
         }
 
-        if (rc == TAIR_RETURN_SUCCESS)
+        if (need_op && rc == TAIR_RETURN_SUCCESS)
         {
-          if (tair::common::entry_tailer::need_entry_tailer(key))
+          bool synced = is_synced(key);
+          // only not synced data need tailer now
+          if (!synced && tair::common::entry_tailer::need_entry_tailer(key))
           {
             tair::common::entry_tailer tailer(key);
-            rc = do_remove(ldb_key, is_synced(key), &tailer);
+            rc = do_remove(ldb_key, synced, &tailer);
           }
           else
           {
-            rc = do_remove(ldb_key, is_synced(key));
+            rc = do_remove(ldb_key, synced);
           }
 
           if (TAIR_RETURN_SUCCESS == rc)
@@ -645,6 +655,11 @@ namespace tair
         case TAIR_SERVER_CMD_STAT_DB:
         {
           ret = stat_db();
+          break;
+        }
+        case TAIR_SERVER_CMD_BACKUP_DB:
+        {
+          ret = backup_db();
           break;
         }
         case TAIR_SERVER_CMD_SET_CONFIG:
@@ -823,6 +838,18 @@ namespace tair
         else
         {
           log_error("get db range stat fail");
+          ret = TAIR_RETURN_FAILED;
+        }
+        return ret;
+      }
+
+      int LdbInstance::backup_db()
+      {
+        int ret = TAIR_RETURN_SUCCESS;
+        leveldb::Status s = db_->OpCmd(leveldb::kCmdBackupDB);
+        if (!s.ok())
+        {
+          log_error("backupdb fail, error: %s", s.ToString().c_str());
           ret = TAIR_RETURN_FAILED;
         }
         return ret;
@@ -1071,6 +1098,17 @@ namespace tair
         }
       }
 
+      bool LdbInstance::is_mtime_care(const data_entry& key)
+      {
+        // client request mtime care and data's mtime is valid
+        return (key.data_meta.flag & TAIR_CLIENT_DATA_MTIME_CARE) && (key.data_meta.mdate > 0);
+      }
+
+      bool LdbInstance::is_synced(const data_entry& key)
+      {
+        return (TAIR_SERVERFLAG_CLIENT != key.server_flag && TAIR_SERVERFLAG_PROXY != key.server_flag);
+      }
+
       void LdbInstance::sanitize_option()
       {
         options_.error_if_exists = false; // exist is ok
@@ -1086,6 +1124,9 @@ namespace tair
         options_.block_cache_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_CACHE_SIZE, 8<<20); // 8M
         options_.block_restart_interval = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_RESTART_INTERVAL, 16); // 16
         options_.compression = static_cast<leveldb::CompressionType>(TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_COMPRESSION, leveldb::kSnappyCompression));
+        // need reserve binlog when doing remote sync
+        options_.reserve_log = TBSYS_CONFIG.getInt(TAIRSERVER_SECTION, TAIR_DO_RSYNC, 0) > 0;
+        options_.load_backup_version = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_LOAD_BACKUP_VERSION, 0) > 0;
         options_.kL0_CompactionTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_COMPACTION_TRIGGER, 4);
         options_.kL0_SlowdownWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_SLOWDOWN_WRITE_TRIGGER, 8);
         options_.kL0_StopWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_STOP_WRITE_TRIGGER, 12);

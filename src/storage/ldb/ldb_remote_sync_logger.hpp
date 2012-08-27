@@ -44,6 +44,7 @@ namespace tair
         ~LdbRemoteSyncLogReader();
 
         int init();
+        int restart();
         int get_record(int32_t& type, int32_t& bucket_num,
                        tair::common::data_entry*& key, tair::common::data_entry*& value, bool& force_reget);
 
@@ -83,6 +84,7 @@ namespace tair
         virtual ~LdbRemoteSyncLogger();
 
         int init();
+        int restart();
         int add_record(int32_t index, int32_t type,
                        tair::common::data_entry* key, tair::common::data_entry* value);
         int get_record(int32_t index, int32_t& type, int32_t& bucket_num,

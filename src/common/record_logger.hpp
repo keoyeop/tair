@@ -33,7 +33,10 @@ namespace tair
       int get_writer_count() { return writer_count_; }
       int get_reader_count() { return reader_count_; }
 
+      // init record logger
       virtual int init() = 0;
+      // restart record logger, maybe do cleanup stuff(optional).
+      virtual int restart() { return TAIR_RETURN_SUCCESS; }
       // add one record to logger. index indicates writer index.
       virtual int add_record(int32_t index, int32_t type,
                              data_entry* key, data_entry* value) = 0;
@@ -62,6 +65,7 @@ namespace tair
         {
           tailer.set(*key);
           total_size += sizeof(int32_t) + tailer.size();
+          log_debug("@@ tailer %d", tailer.size());
         }
         buf = new char[total_size];
         char* pos = buf;

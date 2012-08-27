@@ -126,8 +126,9 @@
 #define TAIR_DUMP_DIR                "data_dump_dir"
 #define TAIR_DEFAULT_DUMP_DIR        "dump"
 #define TAIR_TASK_QUEUE_SIZE         "task_queue_size"
-#define TAIR_DO_REMOTE_SYNC          "do_remote_sync"
-#define TAIR_REMOTE_SYNC_CONF        "remote_sync_conf"
+#define TAIR_DO_RSYNC                "do_rsync"
+#define TAIR_RSYNC_MTIME_CARE        "rsync_mtime_care"
+#define TAIR_RSYNC_CONF              "rsync_conf"
 #define TAIR_RSYNC_DATA_DIR          "rsync_data_dir"
 #define TAIR_RSYNC_DO_RETRY          "rsync_do_retry"
 #define TAIR_RSYNC_RETRY_LOG_MEM_SIZE "rsync_retry_log_mem_size"
@@ -178,6 +179,7 @@
 #define LDB_DATA_DIR                    "data_dir"
 #define LDB_DEFAULT_DATA_DIR            "data/ldb"
 #define LDB_DB_INSTANCE_COUNT           "ldb_db_instance_count"
+#define LDB_LOAD_BACKUP_VERSION         "ldb_load_backup_version"
 #define LDB_DB_VERSION_CARE             "ldb_db_version_care"
 #define LDB_CACHE_STAT_FILE_SIZE        "ldb_cache_stat_file_size"
 #define LDB_COMPACT_RANGE               "ldb_compact_range"
@@ -289,11 +291,13 @@ enum {
    TAIR_ITEM_FLAG_SET,
 };
 
-// 'cause key's data_entry.data_meta.flag is meaningless when requsting to put,
-// here is a trick to set flag to data_entry.data_meta.flag when requesting.
+// 'cause key's data_entry.data_meta.flag is meaningless when requsting,
+// here is a trick to set flag in client to data_entry.data_meta.flag to deliver
+// some information to server
 enum {
   TAIR_CLIENT_PUT_PUT_CACHE_FLAG = 0,
-  TAIR_CLIENT_PUT_SKIP_CACHE_FLAG = 1
+  TAIR_CLIENT_PUT_SKIP_CACHE_FLAG = 1,
+  TAIR_CLIENT_DATA_MTIME_CARE = 2,
 };
 #define SHOULD_PUT_FILL_CACHE(flag) \
   (!((flag) & TAIR_CLIENT_PUT_SKIP_CACHE_FLAG))
@@ -373,13 +377,14 @@ enum {
 namespace {
    const int TAIR_OPERATION_VERSION   = 1;
    const int TAIR_OPERATION_DUPLICATE = 2;
-   const int TAIR_OPERATION_REMOTE    = 4;
+   const int TAIR_OPERATION_RSYNC     = 4;
    const int TAIR_OPERATION_UNLOCK    = 8;
    const int TAIR_DUPLICATE_BUSY_RETRY_COUNT = 10;
 }
 
 typedef enum {
-  TAIR_SERVER_CMD_NONE = 0,
+  // all cmd type should be larger than TAIR_SERVER_CMD_MIN_TYPE
+  TAIR_SERVER_CMD_MIN_TYPE = 0,
   TAIR_SERVER_CMD_FLUSH_MMT,
   TAIR_SERVER_CMD_RESET_DB,
   TAIR_SERVER_CMD_RESET_DS,
@@ -393,6 +398,11 @@ typedef enum {
   TAIR_SERVER_CMD_STAT_DB,
   TAIR_SERVER_CMD_SET_CONFIG,
   TAIR_SERVER_CMD_GET_CONFIG,
+  TAIR_SERVER_CMD_BACKUP_DB,
+  TAIR_SERVER_CMD_PAUSE_RSYNC,
+  TAIR_SERVER_CMD_RESUME_RSYNC,
+  // all cmd type should be less TAIR_SERVER_CMD_MAX_TYPE
+  TAIR_SERVER_CMD_MAX_TYPE,
 } ServerCmdType;
 
 typedef enum {

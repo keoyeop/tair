@@ -66,6 +66,21 @@ namespace tair
         }
       }
 
+      int LdbRemoteSyncLogReader::init()
+      {
+        return TAIR_RETURN_SUCCESS;
+      }
+
+      int LdbRemoteSyncLogReader::restart()
+      {
+        if (instance_->db_ != NULL)
+        {
+          // restart first sequence
+          first_sequence_ = dynamic_cast<leveldb::DBImpl*>(instance_->db_)->LastSequence() + 1;
+        }
+        return TAIR_RETURN_SUCCESS;
+      }
+
       int LdbRemoteSyncLogReader::get_record(int32_t& type, int32_t& bucket_num,
                                              data_entry*& key, data_entry*& value, bool& force_reget)
       {
@@ -260,7 +275,7 @@ namespace tair
           {
             log_debug("@@ from earlier log: %d", reading_logfile_number_);
             // read over one earlier whole log
-            if (!reader_->ReadRecord(last_log_record_, &last_log_scratch_, ~0))
+            if (!reader_->ReadRecord(last_log_record_, &last_log_scratch_, ~((uint64_t)0)))
             {
               log_debug("@@ read over");
               need_new_reader = true;
@@ -467,6 +482,28 @@ namespace tair
       int LdbRemoteSyncLogger::init()
       {
         int ret = TAIR_RETURN_SUCCESS;
+        for (int32_t i = 0; i < reader_count_; ++i)
+        {
+          if ((ret = reader_[i]->init()) != TAIR_RETURN_SUCCESS)
+          {
+            log_error("init reader %d fail, ret: %d", i, ret);
+            break;
+          }
+        }
+        return ret;
+      }
+
+      int LdbRemoteSyncLogger::restart()
+      {
+        int ret = TAIR_RETURN_SUCCESS;
+        for (int32_t i = 0; i < reader_count_; ++i)
+        {
+          if ((ret = reader_[i]->init()) != TAIR_RETURN_SUCCESS)
+          {
+            log_error("restart reader %d fail, ret: %d", i, ret);
+            break;
+          }
+        }
         return ret;
       }
 

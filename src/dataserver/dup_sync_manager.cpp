@@ -126,6 +126,12 @@ namespace tair{
         *ppNode= NULL;
       }
 
+      // at this point, we duplicate successfully and need record this key/value (rsync_manager->add_record(xx))
+      // for remote sync, unfortunately, current duplicate_manager doest't maintain neccessary
+      // context of request, so we can do noting but ignoring now.
+      // Howerver, storage manager who just uses its own binlog can rest easy now, because rsyc_manager->add_record(xx)
+      // is meaningless for it actually.
+      // TODO: reconstruct duplicate_manager thoroughly.
       return ret;
     }
     else
