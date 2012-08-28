@@ -1207,18 +1207,18 @@ FAIL:
     if((ret = send_request(server_list[0],packet,cwo->get_id())) < 0){
       delete packet;
       this_wait_object_manager->destroy_wait_object(cwo);
-      TBSYS_LOG(INFO, "get_range failure: %s ",get_error_msg(ret));
+      TBSYS_LOG(ERROR, "get_range failure: %s %d",get_error_msg(ret), ret);
       return ret;
     }
 
     if((ret = get_response(cwo,1,tpacket)) < 0){
       this_wait_object_manager->destroy_wait_object(cwo);
-      TBSYS_LOG(INFO, "get_range get_response failure: %s ",get_error_msg(ret));
+      TBSYS_LOG(ERROR, "get_range get_response failure: %s %d ",get_error_msg(ret), ret);
       return ret;
     }
 
     if(tpacket == 0 || tpacket->getPCode() != TAIR_RESP_GET_RANGE_PACKET){
-      TBSYS_LOG(INFO, "get_range response packet error.");
+      TBSYS_LOG(ERROR, "get_range response packet error. pcode: %d", tpacket->getPCode());
       ret = TAIR_RETURN_FAILED;
     }
     else {

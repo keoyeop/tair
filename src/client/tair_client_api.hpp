@@ -224,11 +224,11 @@ namespace tair {
        * @param end_key: end skey to seek, seek to the last skey if equals ""
        * @param offset: skip first N skey
        * @param limit: limit response less than N skey
-       * @param values: result skey with ascending sortting.
+       * @param values: result skey with ascending sortting, free memory by user.
        * @param type: CMD_RANGE_ALL means get key&value response, 
        *              CMD_RANGE_VALUE_ONL means get only values,
        *              CMD_RANGE_KEY_ONL means get only keys.
-       * @return true -- success,false -- fail, or has_next -- limit by package size.
+       * @return TAIR_RETURN_SUCCESS -- success, <0 -- fail, or TAIR_HAS_MORE_DATA -- limit by package size(1M default).
        */
       int get_range(int area, const data_entry &pkey, const data_entry &start_key, const data_entry &end_key, 
           int offset, int limit, vector<data_entry *> &values, short type=CMD_RANGE_ALL);
