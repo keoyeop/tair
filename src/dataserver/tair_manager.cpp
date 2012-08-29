@@ -1459,7 +1459,7 @@
       if (key.get_prefix_size() == 0) {
         hashcode = tair::util::string_util::mur_mur_hash(key.get_data() + diff_size, key.get_size() - diff_size);
       } else {
-        hashcode = tair::util::string_util::mur_mur_hash(key.get_data() + diff_size, key.get_prefix_size() - diff_size);
+        hashcode = tair::util::string_util::mur_mur_hash(key.get_data() + diff_size, key.get_prefix_size());
       }
       log_debug("hashcode: %u, bucket count: %d", hashcode, table_mgr->get_bucket_count());
       return hashcode % (localmode ? 1023 : table_mgr->get_bucket_count());
@@ -1493,7 +1493,8 @@
       }
 
       PROFILER_BEGIN("migrate is done?");
-      if ((server_flag == TAIR_SERVERFLAG_CLIENT || server_flag == TAIR_SERVERFLAG_PROXY)
+      if ((server_flag == TAIR_SERVERFLAG_CLIENT || server_flag == TAIR_SERVERFLAG_PROXY ||
+           server_flag == TAIR_SERVERFLAG_RSYNC)
           && migrate_done_set.test(bucket_number)
           && table_mgr->is_master(bucket_number, TAIR_SERVERFLAG_PROXY) == false) {
         rc = TAIR_RETURN_MIGRATE_BUSY;
@@ -1503,7 +1504,8 @@
       PROFILER_END();
 
       log_debug("bucket number: %d, serverFlag: %d, client const: %d", bucket_number, server_flag, TAIR_SERVERFLAG_CLIENT);
-      if ((server_flag == TAIR_SERVERFLAG_CLIENT || server_flag == TAIR_SERVERFLAG_PROXY)
+      if ((server_flag == TAIR_SERVERFLAG_CLIENT || server_flag == TAIR_SERVERFLAG_PROXY ||
+           server_flag == TAIR_SERVERFLAG_RSYNC)
           && table_mgr->is_master(bucket_number, server_flag) == false) {
         log_debug("request rejected...");
         rc = TAIR_RETURN_WRITE_NOT_ON_MASTER;

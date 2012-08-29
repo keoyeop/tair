@@ -286,8 +286,8 @@ namespace tair
     // record of no synchronization need, etc.)
     int do_process_remote_sync_record(TairRemoteSyncType type, int32_t bucket_num,
                                       DataEntryWrapper* key_wrapper, data_entry*& value,
-                                      bool force_reget, bool retry, std::vector<FailRecord>& fail_records,
-                                      std::string& cluster_info);
+                                      bool force_reget, bool retry, std::string& cluster_info,
+                                      std::vector<FailRecord>& fail_records);
     int do_get_from_local_cluster(bool local_storage, int32_t bucket_num, data_entry* key, data_entry*& value);
 
     // attach some specified information to deliver to remote server.

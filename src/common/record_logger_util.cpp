@@ -166,6 +166,7 @@ namespace tair
                                            bool& force_reget)
     {
       UNUSED(index);
+      UNUSED(force_reget);
       bucket_num = -1;
       key = value = NULL;
 
@@ -369,6 +370,7 @@ namespace tair
                                                data_entry*& key, data_entry*& value, bool& force_reget)
     {
       UNUSED(index);
+      UNUSED(force_reget);
       int ret = TAIR_RETURN_SUCCESS;
       bucket_num = -1;
       key = value = NULL;

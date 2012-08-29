@@ -78,7 +78,7 @@ bool Reader::ReadRecord(Slice* record, std::string* scratch, uint64_t limit_offs
   uint64_t prospective_record_offset = 0;
 
   Slice fragment;
-  while (end_of_buffer_offset_ < limit_offset) {
+  while (end_of_buffer_offset_ <= limit_offset) {
     uint64_t physical_record_offset = end_of_buffer_offset_ - buffer_.size();
     const unsigned int record_type = ReadPhysicalRecord(&fragment, limit_offset);
     TBSYS_LOG(DEBUG, "@@ bz: %d, eof: %d %d", buffer_.size(), end_of_buffer_offset_, record_type);

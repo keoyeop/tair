@@ -1667,6 +1667,7 @@ Status DBImpl::MakeRoomForWrite(bool force) {
       assert(versions_->PrevLogNumber() == 0);
       Log(options_.info_log, "new mem");
       uint64_t new_log_number = versions_->NewFileNumber();
+      // use ReadableAndWritableFile here to support outer reading
       ReadableAndWritableFile* lfile = NULL;
       s = env_->NewReadableAndWritableFile(LogFileName(dblog_dir_, new_log_number), &lfile);
       if (!s.ok()) {

@@ -186,6 +186,7 @@ namespace tair
             leveldb::SequentialFile* file = db->LogFile(new_logfile_number);
             bool refed = (file != NULL);
 
+            // not current writing log, current writing db logger will be ReadableAndWritableFile
             if (NULL == file)
             {
               std::string fname = leveldb::LogFileName(db_log_dir, new_logfile_number);

@@ -139,6 +139,8 @@ class PosixMmapFile : public WritableFile {
   // Have we done an munmap of unsynced data?
   bool pending_sync_;
 
+  // this mutex_ is just for mmap memory region r/w concurrency,
+  // concurrent write should be protected outside.
   port::Mutex* mutex_;
 
  private:

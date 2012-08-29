@@ -449,7 +449,7 @@ FAIL:
       request_get *packet = new request_get();
       packet->area = area;
 
-      packet->add_key(key.get_data(), key.get_size(), key.get_prefix_size());
+      packet->add_key(const_cast<data_entry*>(&key), true);
       cwo = this_wait_object_manager->create_wait_object();
 
       if (send_request(server_list[index],packet,cwo->get_id()) < 0) {
@@ -728,7 +728,7 @@ FAIL:
     wait_object *cwo = this_wait_object_manager->create_wait_object(TAIR_REQ_REMOVE_PACKET,pfunc,arg);
     request_remove *packet = new request_remove();
     packet->area = area;
-    packet->add_key(key.get_data(), key.get_size(), key.get_prefix_size());
+    packet->add_key(const_cast<data_entry*>(&key), true);
     packet->server_flag = key.server_flag;
     base_packet *tpacket = 0;
     response_return *resp  = 0;
@@ -2488,10 +2488,11 @@ OUT:
 
     uint32_t hash;
     int prefix_size = key.get_prefix_size();
+    int32_t diff_size = key.has_merged ? TAIR_AREA_ENCODE_SIZE : 0;
     if (prefix_size == 0) {
-      hash = util::string_util::mur_mur_hash(key.get_data(), key.get_size());
+      hash = util::string_util::mur_mur_hash(key.get_data() + diff_size, key.get_size() - diff_size);
     } else {
-      hash = util::string_util::mur_mur_hash(key.get_data(), prefix_size);
+      hash = util::string_util::mur_mur_hash(key.get_data() + diff_size, prefix_size);
     }
     server.clear();
 

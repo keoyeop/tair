@@ -132,6 +132,18 @@ namespace tair
   void RemoteSyncManager::run(tbsys::CThread*, void* arg)
   {
     int32_t index = static_cast<int32_t>(reinterpret_cast<int64_t>(arg));
+    int ret;
+
+    // init cluster client until success
+    while (!_stop && !cluster_inited_)
+    {
+      // first one is up to init client
+      if (index == 0 && (ret = init_sync_client()) != TAIR_RETURN_SUCCESS)
+      {
+        log_warn("client init fail, ret: %d", ret);
+      }
+      sleep(1);
+    }
 
     if (index < remote_sync_thread_count())
     {
@@ -196,13 +208,6 @@ namespace tair
         need_wait = true;
         continue;
       }
-      // init client until success
-      if ((ret = init_sync_client()) != TAIR_RETURN_SUCCESS)
-      {
-        log_warn("client init fail, ret: %d", ret);
-        need_wait = true;
-        continue;
-      }
 
       // get one remote sync log record.
       ret = input_logger->get_record(index, type, bucket_num, key, value, force_reget);
@@ -233,10 +238,10 @@ namespace tair
 
       // has refed 1
       DataEntryWrapper* key_wrapper = new DataEntryWrapper(key);
-      log_debug("@@ %s type: %d, %d, fg: %d, key: %s %d", cluster_info.size() > 16 ? cluster_info.c_str() + 16 : "", type, bucket_num, force_reget, key->get_data() + 2, key->get_size());
+      log_debug("@@ %s type: %d, %d, fg: %d, key: %s %d %d %u", cluster_info.size() > 16 ? cluster_info.c_str() + 16 : "", type, bucket_num, force_reget, key->get_data() + 6, key->get_size(), key->get_prefix_size(), key->data_meta.mdate);
       // process record to do remote sync
       ret = do_process_remote_sync_record(static_cast<TairRemoteSyncType>(type), bucket_num,
-                                          key_wrapper, value, force_reget, retry, fail_records, cluster_info);
+                                          key_wrapper, value, force_reget, retry, cluster_info, fail_records);
 
       if (ret != TAIR_RETURN_SUCCESS)
       {
@@ -269,6 +274,8 @@ namespace tair
       }
       fail_records.clear();
       cluster_info.clear();
+      bucket_num = -1;
+      force_reget = true;
       log_debug("do one sync suc.");
     }
 
@@ -279,7 +286,7 @@ namespace tair
 #undef DO_REMOTE_SYNC_OP
 #endif
 // brown sugar...
-// how come you look so dummy...
+// how come you taste so good...
 #define DO_REMOTE_SYNC_OP(type, op_func)                                \
   do {                                                                  \
     fail_records.clear();                                               \
@@ -326,8 +333,8 @@ namespace tair
 
   int RemoteSyncManager::do_process_remote_sync_record(TairRemoteSyncType type, int32_t bucket_num,
                                                        DataEntryWrapper* key_wrapper, data_entry*& value,
-                                                       bool force_reget, bool retry, std::vector<FailRecord>& fail_records,
-                                                       std::string& cluster_info)
+                                                       bool force_reget, bool retry, std::string& cluster_info,
+                                                       std::vector<FailRecord>& fail_records)
   {
     int ret = TAIR_RETURN_SUCCESS;
     bool is_master = false, need_reget = false;
@@ -367,7 +374,7 @@ namespace tair
         // we need attach some specified info to deliver to remote server.
         attach_info_to_key(*key);
 
-        log_debug("@@ value %s %d", value != NULL ? value->get_data() : "n", value != NULL ? value->get_size(): 0);
+        log_debug("@@ value %s %d %d %d", value != NULL ? value->get_data()+2 : "n", value != NULL ? value->get_size(): 0, key->has_merged, key->get_prefix_size());
         // do remote synchronization based on type
         switch (type)
         {
@@ -377,7 +384,7 @@ namespace tair
           if (!need_reget || TAIR_RETURN_DATA_NOT_EXIST == ret)
           {
             log_debug("@@ del op");
-            DO_REMOTE_SYNC_OP(TAIR_REMOTE_SYNC_TYPE_DELETE, remove(key->area, *key, &RemoteSyncManager::callback, arg));
+            DO_REMOTE_SYNC_OP(TAIR_REMOTE_SYNC_TYPE_DELETE, remove(key->get_area(), *key, &RemoteSyncManager::callback, arg));
           }
           else
           {
@@ -392,7 +399,7 @@ namespace tair
           if (TAIR_RETURN_SUCCESS == ret)
           {
             log_debug("@@ put op");
-            DO_REMOTE_SYNC_OP(TAIR_REMOTE_SYNC_TYPE_PUT, put(key->area, *key, *value, 0, 0, false,
+            DO_REMOTE_SYNC_OP(TAIR_REMOTE_SYNC_TYPE_PUT, put(key->get_area(), *key, *value, 0, 0, false,
                                                              &RemoteSyncManager::callback, arg));
           }
           else
@@ -418,7 +425,7 @@ namespace tair
   int RemoteSyncManager::do_get_from_local_cluster(bool local_storage, int32_t bucket_num,
                                                    data_entry* key, data_entry*& value)
   {
-    log_debug("@@ %d, ls: %d, key: %s %d", bucket_num, local_storage, key->get_data() + 2, key->get_size());
+    log_debug("@@ %d, ls: %d, key: %s %d", bucket_num, local_storage, key->get_data() + 6, key->get_size());
     int ret = TAIR_RETURN_SUCCESS;
     if (local_storage)
     {
@@ -434,7 +441,7 @@ namespace tair
     else
     {
       // key has merged area
-      ret = local_cluster_handler_.client()->get(key->area, *key, value);
+      ret = local_cluster_handler_.client()->get(key->get_area(), *key, value);
     }
     return ret;
   }
@@ -676,7 +683,7 @@ namespace tair
       FailRecord record(key->get_data(), key->get_size());
       // key is of no need
       delete key;
-      log_debug("@@ failrec: %s, key: %s %d", record.cluster_info_.c_str() + 16, record.key_->get_data() + 2, record.key_->get_size());
+      log_debug("@@ failrec: %s, key: %s %d", record.cluster_info_.c_str() + 16, record.key_->get_data() + 6, record.key_->get_size());
       cluster_info.assign(record.cluster_info_);
       key = record.key_;
       key->has_merged = true;

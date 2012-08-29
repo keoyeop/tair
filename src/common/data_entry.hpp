@@ -166,6 +166,14 @@ namespace tair
          //free_data();
        }
 
+       int get_area()
+       {
+         if (has_merged) {
+           this->area = (static_cast<uint32_t>(data[1]&0xFF) << 8) | (data[0]&0xFF);
+         }
+         return this->area;
+       }
+
        void merge_area(int _area)
        {
          if(has_merged) {
