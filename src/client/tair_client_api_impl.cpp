@@ -2444,7 +2444,7 @@ OUT:
   void tair_client_impl::start_tbnet()
   {
     connmgr->setDefaultQueueTimeout(0, timeout);
-    connmgr->setDefaultQueueLimit(0, 1000);
+    connmgr->setDefaultQueueLimit(0, 5000);
     transport->start();
   }
 

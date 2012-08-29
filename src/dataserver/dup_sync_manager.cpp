@@ -184,6 +184,7 @@ namespace tair{
     this->tair_mgr = tair_mgr;
     conn_mgr = new tbnet::ConnectionManager(transport, streamer, this);
     conn_mgr->setDefaultQueueTimeout(0 , MISECONDS_BEFOR_SEND_RETRY/2000);
+    conn_mgr->setDefaultQueueLimit(0, 5000);
     max_queue_size = 0;
     atomic_set(&packet_id_creater, 0);
     setThreadCount(MAX_DUP_COUNT);
