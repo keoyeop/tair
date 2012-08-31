@@ -71,8 +71,8 @@ namespace tair {
       cmd_map["backup_db"] = &tair_client::do_cmd_backup_db;
       cmd_map["pause_gc"] = &tair_client::do_cmd_pause_gc;
       cmd_map["resume_gc"] = &tair_client::do_cmd_resume_gc;
-      cmd_map["pause_rsync"] = &tair_client::do_cmd_pause_gc;
-      cmd_map["resume_rsync"] = &tair_client::do_cmd_resume_gc;
+      cmd_map["pause_rsync"] = &tair_client::do_cmd_pause_rsync;
+      cmd_map["resume_rsync"] = &tair_client::do_cmd_resume_rsync;
       cmd_map["set_config"] = &tair_client::do_cmd_set_config;
       // cmd_map["additems"] = &tair_client::doCmdAddItems;
    }

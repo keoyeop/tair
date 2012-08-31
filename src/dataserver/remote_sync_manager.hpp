@@ -65,13 +65,14 @@ namespace tair
     }
     inline int init_conf(std::vector<std::string>& conf)
     {
-      int ret = TAIR_RETURN_SUCCESS;
-      if (conf.size() == 4)
+      int ret = TAIR_RETURN_FAILED;
+      if (conf.size() == 5)
       {
         master_cs_addr_ = conf[0];
         slave_cs_addr_ = conf[1];
         group_name_ = conf[2];
         timeout_ms_ = atoi(conf[3].c_str());
+        queue_limit_ = atoi(conf[4].c_str());
 
         char buf[sizeof(uint64_t)*2];
         tair::util::coding_util::
@@ -84,10 +85,7 @@ namespace tair
         info_.reserve(sizeof(buf) + group_name_.size());
         info_.append(buf, sizeof(buf));
         info_.append(group_name_);
-      }
-      else
-      {
-        ret = TAIR_RETURN_FAILED;  
+        ret = TAIR_RETURN_SUCCESS;
       }
       return ret;
     }
@@ -97,6 +95,7 @@ namespace tair
       {
         client_ = new tair_client_impl();
         client_->set_timeout(timeout_ms_);
+        client_->set_queue_limit(queue_limit_);
       }
 
       return client_->startup(master_cs_addr_.c_str(), slave_cs_addr_.c_str(), group_name_.c_str()) ?
@@ -112,8 +111,8 @@ namespace tair
     }
     inline std::string debug_string()
     {
-      char tmp[10];
-      snprintf(tmp, sizeof(tmp), "%d", timeout_ms_);
+      char tmp[32];
+      snprintf(tmp, sizeof(tmp), "%d,%d", timeout_ms_, queue_limit_);
       return std::string("[") + master_cs_addr_ + "," + slave_cs_addr_ + "," + group_name_ + "," + tmp + "]";
     }
 
@@ -123,6 +122,7 @@ namespace tair
     std::string slave_cs_addr_;
     std::string group_name_;
     int32_t timeout_ms_;
+    int32_t queue_limit_;
     std::string info_;
   };
 
@@ -131,7 +131,7 @@ namespace tair
     // failed record stuff
     typedef struct FailRecord
     {
-      FailRecord(common::data_entry* key, std::string cluster_info, int code)
+      FailRecord(common::data_entry* key, std::string& cluster_info, int code)
         : key_(key), cluster_info_(cluster_info), code_(code), scratch_(NULL), scratch_size_(0) {}
       FailRecord(const char* data, int32_t size) : scratch_(NULL), scratch_size_(0)
       {
@@ -141,7 +141,7 @@ namespace tair
       {
         if (scratch_ != NULL)
         {
-          delete scratch_;
+          delete [] scratch_;
         }
       }
 
@@ -260,7 +260,7 @@ namespace tair
     static void callback(int ret, void* arg);
     static int log_fail_record(RecordLogger* logger, TairRemoteSyncType type, FailRecord& record);
 
-    typedef void (*FilterKeyFuc)(common::data_entry*& key, std::string& cluster_info);
+    typedef void (*FilterKeyFunc)(common::data_entry*& key, std::string& cluster_info);
     static void filter_key(common::data_entry*& key, std::string& cluster_info);
     static void filter_fail_record(common::data_entry*& key, std::string& cluster_info);
 
@@ -278,7 +278,7 @@ namespace tair
     int init_sync_conf();
     int init_sync_client();
 
-    int do_remote_sync(int32_t index, RecordLogger* input_logger, bool retry, FilterKeyFuc key_filter);
+    int do_remote_sync(int32_t index, RecordLogger* input_logger, bool retry, FilterKeyFunc key_filter);
 
     // Process one record.
     // Returning TAIR_RETURN_SUCCESS means this record is out of remote synchronization

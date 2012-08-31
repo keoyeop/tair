@@ -309,6 +309,7 @@ namespace tair
             ldb_item.assign(const_cast<char*>(db_value.data()), db_value.size());
             // db mtime is later than request, then need not do operation any more
             need_op = !(mtime_care && ldb_item.mdate() > key.data_meta.mdate);
+            log_debug("@@ mtime care: %d,np:%d, %d <> %d",mtime_care, need_op,ldb_item.mdate(),key.data_meta.mdate);
             if (need_op)
             {
               // ldb already check expired. no need here.
@@ -1100,8 +1101,9 @@ namespace tair
 
       bool LdbInstance::is_mtime_care(const data_entry& key)
       {
-        // client request mtime care and data's mtime is valid
-        return (key.data_meta.flag & TAIR_CLIENT_DATA_MTIME_CARE) && (key.data_meta.mdate > 0);
+        // client request and mtime care and data's mtime is valid
+        return (key.server_flag != TAIR_SERVERFLAG_DUPLICATE) && (key.server_flag != TAIR_SERVERFLAG_MIGRATE) &&
+          (key.data_meta.flag & TAIR_CLIENT_DATA_MTIME_CARE) && (key.data_meta.mdate > 0);
       }
 
       bool LdbInstance::is_synced(const data_entry& key)

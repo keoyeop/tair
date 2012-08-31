@@ -262,13 +262,13 @@ namespace tair
 
           if (need_new_reader)
           {
-            need_new_reader = false;
             ret = start_new_reader(reading_logfile_number_);
             if (ret != TAIR_RETURN_SUCCESS)
             {
               log_error("start new log reader fail: %d", ret);
               break;
             }
+            need_new_reader = false;
           }
 
           // reading earlier log

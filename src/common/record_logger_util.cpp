@@ -155,7 +155,7 @@ namespace tair
 
       if (buf != NULL)
       {
-        delete buf;
+        delete [] buf;
       }
       log_debug("@@ ae %ld %ld", *w_offset_, *r_offset_);
       return ret;
@@ -360,7 +360,7 @@ namespace tair
 
       if (buf != NULL)
       {
-        delete buf;
+        delete [] buf;
       }
 
       return ret;

@@ -59,7 +59,7 @@ namespace tair {
    *-----------------------------------------------------------------------------*/
 
   tair_client_impl::tair_client_impl():inited(false),is_stop(false),direct(false),data_server(0),packet_factory(0),streamer(0),
-  transport(0),connmgr(0),timeout(2000),config_version(0),
+  transport(0),connmgr(0),timeout(2000),queue_limit(1000),config_version(0),
   new_config_version(0),send_fail_count(0),this_wait_object_manager(0),
   bucket_count(0),copy_count(0),rand_read_flag(false)
   {
@@ -1812,8 +1812,22 @@ FAIL:
 
   void tair_client_impl::set_timeout(int this_timeout)
   {
-    assert(timeout >= 0);
-    timeout = this_timeout;
+    if (this_timeout > 0) {
+      timeout = this_timeout;
+      if (connmgr != NULL) {
+        connmgr->setDefaultQueueTimeout(0, timeout);
+      }
+    }
+  }
+
+  void tair_client_impl::set_queue_limit(int limit)
+  {
+    if (limit > 0) {
+      queue_limit = limit;
+      if (connmgr != NULL) {
+        connmgr->setDefaultQueueLimit(0, queue_limit);
+      }
+    }
   }
 
   void tair_client_impl::set_randread(bool rand_flag)
@@ -2444,7 +2458,7 @@ OUT:
   void tair_client_impl::start_tbnet()
   {
     connmgr->setDefaultQueueTimeout(0, timeout);
-    connmgr->setDefaultQueueLimit(0, 5000);
+    connmgr->setDefaultQueueLimit(0, queue_limit);
     transport->start();
   }
 

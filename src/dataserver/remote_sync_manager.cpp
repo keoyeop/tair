@@ -182,15 +182,17 @@ namespace tair
     return TAIR_RETURN_SUCCESS;    
   }
 
-  int RemoteSyncManager::do_remote_sync(int32_t index, RecordLogger* input_logger, bool retry, FilterKeyFuc key_filter)
+  int RemoteSyncManager::do_remote_sync(int32_t index, RecordLogger* input_logger, bool retry, FilterKeyFunc key_filter)
   {
+    static const int64_t DEFAULT_WAIT_US = 1000000; // 1s
+    static const int64_t REST_WAIT_US = 100000;     // 100ms
     int ret = TAIR_RETURN_SUCCESS;
     int32_t type = TAIR_REMOTE_SYNC_TYPE_NONE;
     int32_t bucket_num = -1;
     data_entry* key = NULL;
     data_entry* value = NULL;
     bool force_reget = false;
-    bool need_wait = false;
+    int64_t need_wait_us = DEFAULT_WAIT_US;
     // support mutil-remote-clusters, so we need record its cluster_info when failing,
     // and key to be processed may has cluster_info attached
     std::vector<FailRecord> fail_records;
@@ -198,14 +200,15 @@ namespace tair
 
     while (!_stop)
     {
-      if (need_wait)
+      if (need_wait_us > 0)
       {
-        sleep(1);
-        need_wait = false;
+        log_debug("@@ sleep %ld", need_wait_us);
+        usleep(need_wait_us);
+        need_wait_us = DEFAULT_WAIT_US;
       }
       if (paused_)
       {
-        need_wait = true;
+        need_wait_us = DEFAULT_WAIT_US;
         continue;
       }
 
@@ -215,7 +218,7 @@ namespace tair
       // maybe storage not init yet, wait..
       if (TAIR_RETURN_SERVER_CAN_NOT_WORK == ret)
       {
-        need_wait = true;
+        need_wait_us = DEFAULT_WAIT_US;
         continue;
       }
 
@@ -232,7 +235,7 @@ namespace tair
       if (NULL == key)
       {
         log_debug("@@ no new record");
-        need_wait = true;
+        need_wait_us = DEFAULT_WAIT_US;
         continue;
       }
 
@@ -245,6 +248,9 @@ namespace tair
 
       if (ret != TAIR_RETURN_SUCCESS)
       {
+        // do_process_remote_sync_record fail, async queue may be full,
+        // just rest for a while
+        need_wait_us = REST_WAIT_US;
         for (size_t i = 0; i < fail_records.size(); ++i)
         {
           if (retry)
@@ -479,7 +485,7 @@ namespace tair
 
   // much resemble json format.
   // one local cluster config and one or multi remote cluster config.
-  // {local:[master_cs_addr,slave_cs_addr,group_name,timeout_ms],remote:[...],remote:[...]}
+  // {local:[master_cs_addr,slave_cs_addr,group_name,timeout_ms,queue_limit],remote:[...],remote:[...]}
   int RemoteSyncManager::init_sync_conf()
   {
     static const char* LOCAL_CLUSTER_CONF_KEY = "local";

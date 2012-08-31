@@ -372,6 +372,9 @@ enum {
    TAIR_SERVERFLAG_MIGRATE,
    TAIR_SERVERFLAG_PROXY,
    TAIR_SERVERFLAG_RSYNC,
+   // rsynced proxy request should not be rsynced again,
+   // this flag is useless when do proxy logic is eliminated.
+   TAIR_SERVERFLAG_RSYNC_PROXY,
 };
 
 namespace {

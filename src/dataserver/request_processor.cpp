@@ -1311,7 +1311,11 @@ namespace tair {
 
    bool request_processor::do_proxy(uint64_t target_server_id, base_packet *proxy_packet, base_packet *packet)
    {
-      proxy_packet->server_flag = TAIR_SERVERFLAG_PROXY;
+      if (proxy_packet->server_flag == TAIR_SERVERFLAG_RSYNC) {
+        proxy_packet->server_flag = TAIR_SERVERFLAG_RSYNC_PROXY;
+      } else {
+        proxy_packet->server_flag = TAIR_SERVERFLAG_PROXY;
+      }
       bool rc = connection_mgr->sendPacket(target_server_id, proxy_packet, NULL, packet);
       if (rc == false) {
          delete proxy_packet;

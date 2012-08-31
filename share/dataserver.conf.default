@@ -53,8 +53,8 @@ dup_sync=1
 do_rsync=0
 # much resemble json format
 # one local cluster config and one or multi remote cluster config.
-# {local:[master_cs_addr,slave_cs_addr,group_name,timeout_ms],remote:[...],remote:[...]}
-rsync_conf={local:[10.0.0.1:5198,10.0.0.2:5198,group_local,2000],remote:[10.0.1.1:5198,10.0.1.2:5198,group_remote,2000]}
+# {local:[master_cs_addr,slave_cs_addr,group_name,timeout_ms,queue_limit],remote:[...],remote:[...]}
+rsync_conf={local:[10.0.0.1:5198,10.0.0.2:5198,group_local,2000,1000],remote:[10.0.1.1:5198,10.0.1.2:5198,group_remote,2000,3000]}
 # if same data can be updated in local and remote cluster, then we need care modify time to
 # reserve latest update when do rsync to each other.
 rsync_mtime_care=0

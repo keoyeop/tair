@@ -186,6 +186,7 @@ namespace tair {
       int get_items_count(int area,const data_entry& key);
 
       void set_timeout(int this_timeout);
+      void set_queue_limit(int limit);
       void set_randread(bool rand_flag);
 
       uint32_t get_bucket_count() const { return bucket_count;}
@@ -334,6 +335,7 @@ namespace tair {
       tbnet::ConnectionManager *connmgr;
 
       int timeout; // ms
+      int queue_limit; // connectmanager queue_limit
 
       vector<uint64_t> my_server_list;
       vector<uint64_t> config_server_list;

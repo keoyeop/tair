@@ -1357,7 +1357,7 @@
     }
     bool tair_manager::should_proxy(data_entry &key, uint64_t &target_server_id)
     {
-      if (key.server_flag == TAIR_SERVERFLAG_PROXY || localmode)
+      if (key.server_flag == TAIR_SERVERFLAG_PROXY || key.server_flag == TAIR_SERVERFLAG_RSYNC_PROXY || localmode)
         return false; // if this is proxy, dont proxy
 
       if(localmode)
@@ -1494,7 +1494,7 @@
 
       PROFILER_BEGIN("migrate is done?");
       if ((server_flag == TAIR_SERVERFLAG_CLIENT || server_flag == TAIR_SERVERFLAG_PROXY ||
-           server_flag == TAIR_SERVERFLAG_RSYNC)
+           server_flag == TAIR_SERVERFLAG_RSYNC || server_flag == TAIR_SERVERFLAG_RSYNC_PROXY)
           && migrate_done_set.test(bucket_number)
           && table_mgr->is_master(bucket_number, TAIR_SERVERFLAG_PROXY) == false) {
         rc = TAIR_RETURN_MIGRATE_BUSY;
@@ -1505,7 +1505,7 @@
 
       log_debug("bucket number: %d, serverFlag: %d, client const: %d", bucket_number, server_flag, TAIR_SERVERFLAG_CLIENT);
       if ((server_flag == TAIR_SERVERFLAG_CLIENT || server_flag == TAIR_SERVERFLAG_PROXY ||
-           server_flag == TAIR_SERVERFLAG_RSYNC)
+           server_flag == TAIR_SERVERFLAG_RSYNC || server_flag == TAIR_SERVERFLAG_RSYNC_PROXY)
           && table_mgr->is_master(bucket_number, server_flag) == false) {
         log_debug("request rejected...");
         rc = TAIR_RETURN_WRITE_NOT_ON_MASTER;
@@ -1599,7 +1599,7 @@
     void tair_manager::get_slaves(int server_flag, int bucket_number, vector<uint64_t> &slaves) {
       if (localmode || table_mgr->get_copy_count() == 1) return;
 
-      if (server_flag == TAIR_SERVERFLAG_PROXY) {
+      if (server_flag == TAIR_SERVERFLAG_PROXY || server_flag == TAIR_SERVERFLAG_RSYNC_PROXY) {
         table_mgr->get_slaves(bucket_number, true).swap(slaves);
       } else {
         table_mgr->get_slaves(bucket_number, migrate_done_set.test(bucket_number)).swap(slaves);;
@@ -1614,10 +1614,12 @@
         flag |= TAIR_OPERATION_VERSION;
         flag |= TAIR_OPERATION_DUPLICATE;
         flag |= TAIR_OPERATION_RSYNC;
+      } else if (server_flag == TAIR_SERVERFLAG_RSYNC_PROXY) { // proxied rsync data need no rsync again
+        flag |= TAIR_OPERATION_VERSION;
+        flag |= TAIR_OPERATION_DUPLICATE;
       } else if (server_flag == TAIR_SERVERFLAG_RSYNC) { // rsynced data need no version care or rsync again
         flag |= TAIR_OPERATION_DUPLICATE;
       }
-
       return flag;
     }
 
