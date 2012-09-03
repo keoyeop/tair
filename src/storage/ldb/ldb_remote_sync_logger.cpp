@@ -314,8 +314,7 @@ namespace tair
             type = TAIR_REMOTE_SYNC_TYPE_PUT;
             parse_one_key(bucket_num, key);
 
-            // maybe expired
-            if (skip_value || key == NULL)
+            if (skip_value)
             {
               skip_one_entry();
             }
@@ -366,13 +365,9 @@ namespace tair
         {
           LdbKey ldb_key;
           ldb_key.assign(const_cast<char*>(key_slice.data()), key_slice.size());
-          uint32_t edate = ldb_key.get_expired_time();
-          if (edate <= 0 || time(NULL) < edate)
-          {
-            bucket_num = ldb_key.get_bucket_number();
-            key = new data_entry(ldb_key.key(), ldb_key.key_size(), true);
-            key->has_merged = true;
-          }
+          bucket_num = ldb_key.get_bucket_number();
+          key = new data_entry(ldb_key.key(), ldb_key.key_size(), true);
+          key->has_merged = true;
         }
         return ret;
       }

@@ -19,7 +19,6 @@
 
 #include "leveldb/db.h"
 #include "common/define.hpp"
-#include "common/util.hpp"
 
 namespace leveldb
 {
@@ -119,15 +118,6 @@ namespace tair
             else
               index --;
         }
-        inline int32_t get_bucket_number()
-        {
-          return decode_bucket_number(data_ + LDB_EXPIRED_TIME_SIZE);
-        }
-        inline uint32_t get_expired_time()
-        {
-          return tair::util::coding_util::decode_fixed32(data_);
-        }
-
         static void build_key_meta(char* buf, int32_t bucket_number, uint32_t expired_time = 0)
         {
           // consistent key len SCAN_KEY_LEN
@@ -146,6 +136,11 @@ namespace tair
           {
             buf[LDB_KEY_BUCKET_NUM_SIZE - i - 1] = (bucket_number >> (i*8)) & 0xFF;
           }
+        }
+
+        inline int32_t get_bucket_number()
+        {
+          return decode_bucket_number(data_ + LDB_EXPIRED_TIME_SIZE);
         }
 
         static int32_t decode_bucket_number(const char* buf)
