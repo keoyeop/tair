@@ -192,7 +192,7 @@ namespace tair
     data_entry* key = NULL;
     data_entry* value = NULL;
     bool force_reget = false;
-    int64_t need_wait_us = DEFAULT_WAIT_US;
+    int64_t need_wait_us = 0;
     // support mutil-remote-clusters, so we need record its cluster_info when failing,
     // and key to be processed may has cluster_info attached
     std::vector<FailRecord> fail_records;
@@ -204,7 +204,7 @@ namespace tair
       {
         log_debug("@@ sleep %ld", need_wait_us);
         usleep(need_wait_us);
-        need_wait_us = DEFAULT_WAIT_US;
+        need_wait_us = 0;
       }
       if (paused_)
       {
