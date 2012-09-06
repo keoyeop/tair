@@ -372,6 +372,8 @@ namespace tair {
          data_entry key = log_entry->key;
          key.server_flag = TAIR_SERVERFLAG_MIGRATE;
          key.data_meta = log_entry->header;
+         // get prefix size here
+         key.set_prefix_size(key.data_meta.prefixsize);
          key.has_merged = true;
          log_debug("logis:%S", key.get_data());
          data_entry value;

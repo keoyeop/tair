@@ -113,6 +113,10 @@ namespace tair
 
       bool LdbComparatorImpl::ShouldDrop(const char* key, int64_t sequence, uint32_t will_gc) const
       {
+        if (gc_ == NULL)
+        {
+          return false;
+        }
         // Epired items can't drop only if it is the only key update here,
         // it should be check in ShouldDropMaybe(). eg:
         //  1) insert a => b

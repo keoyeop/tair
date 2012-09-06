@@ -796,7 +796,7 @@ VersionSet::VersionSet(const std::string& dbname,
 
 VersionSet::~VersionSet() {
   current_->Unref();
-  assert(dummy_versions_.next_ == &dummy_versions_);  // List must be empty
+  // assert(dummy_versions_.next_ == &dummy_versions_);  // List must be empty
   delete descriptor_log_;
   delete descriptor_file_;
 }
@@ -911,19 +911,25 @@ Status VersionSet::LogAndApply(VersionEdit* edit, port::Mutex* mu) {
   return s;
 }
 
-Status VersionSet::Recover() {
-  // Read "CURRENT" file, which contains a pointer to the current manifest file
-  std::string current;
-  Status s = ReadFileToString(env_, CurrentFileName(dbname_), &current);
-  if (!s.ok()) {
-    return s;
-  }
-  if (current.empty() || current[current.size()-1] != '\n') {
-    return Status::Corruption("CURRENT file does not end with newline");
-  }
-  current.resize(current.size() - 1);
+Status VersionSet::Recover(const char* manifest) {
+  std::string dscname;
+  Status s;
+  if (manifest != NULL) {
+    dscname = std::string(manifest);
+  } else {
+    // Read "CURRENT" file, which contains a pointer to the current manifest file
+    std::string current;
+    s = ReadFileToString(env_, CurrentFileName(dbname_), &current);
+    if (!s.ok()) {
+      return s;
+    }
+    if (current.empty() || current[current.size()-1] != '\n') {
+      return Status::Corruption("CURRENT file does not end with newline");
+    }
+    current.resize(current.size() - 1);
 
-  std::string dscname = dbname_ + "/" + current;
+    dscname = dbname_ + "/" + current;
+  }
   SequentialFile* file;
   s = env_->NewSequentialFile(dscname, &file);
 
@@ -1096,7 +1102,7 @@ Status VersionSet::LoadBackupVersion() {
 Status VersionSet::BackupCurrentVersion() {
   std::string bv_dir = dbname_ + "/" + VersionSet::kBackupVersionDir;
   env_->CreateDir(bv_dir);
-  std::string filename = DescriptorFileName(bv_dir, manifest_file_number_);
+  std::string filename = DescriptorFileName(bv_dir, NewFileNumber());
   WritableFile* desc_file = NULL;
   Status s = env_->NewWritableFile(filename, &desc_file);
 
@@ -1104,9 +1110,24 @@ Status VersionSet::BackupCurrentVersion() {
     log::Writer desc_log(desc_file);
     s = WriteSnapshot(&desc_log);
     if (s.ok()) {
-      // increase ref count of current version, because we want and do backup it.
-      current_->Ref();
+      // add base information
+      VersionEdit edit;
+      edit.SetComparatorName(icmp_.user_comparator()->Name());
+      edit.SetLogNumber(log_number_);
+      edit.SetNextFile(NextFileNumber());
+      edit.SetLastSequence(LastSequence());
+      std::string record;
+      edit.EncodeTo(&record);
+      s = desc_log.AddRecord(record);
+      if (s.ok()) {
+        s = desc_file->Sync();
+        if (s.ok()) {
+          // increase ref count of current version, because we want and do backup it.
+          current_->Ref();
+        }
+      }
     }
+
     delete desc_file;
   }
   return s;

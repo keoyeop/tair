@@ -51,6 +51,10 @@ class DB {
   static Status Open(const Options& options,
                      const std::string& name,
                      DB** dbptr);
+  // Open with specified manifest, resemble read_only mode.
+  // Maybe support open db with read_only_mode.
+  static Status Open(const Options& options, const std::string& dbname,
+                     const std::string& manifest, DB** dbptr);
 
   DB() { }
   virtual ~DB();

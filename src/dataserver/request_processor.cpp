@@ -227,6 +227,7 @@ namespace tair {
       }
 
       PROFILER_BEGIN("do hide");
+      request->key->server_flag = request->server_flag;
       rc = tair_mgr->hide(request->area, *request->key, request, heart_beat->get_client_version());
       PROFILER_END();
 
@@ -1034,7 +1035,10 @@ namespace tair {
        plocker.lock(*mkey);
        for (; it != request->key_list->end(); ++it) {
          data_entry *key = (*it);
-
+         // set pkey first
+         if (resp->pkey == NULL) {
+           resp->set_pkey(key->get_data(), key->get_prefix_size());
+         }
          if (tair_mgr->should_proxy(*key, target_server_id))
          {
            rc = TAIR_RETURN_SHOULD_PROXY;
@@ -1068,9 +1072,6 @@ namespace tair {
          skey->data_meta.version = key->data_meta.version;
          skey->data_meta.edate = key->data_meta.edate;
          //skey->data_meta = key->data_meta;
-         if (resp->pkey == NULL) {
-           resp->set_pkey(key->get_data(), key->get_prefix_size());
-         }
          if (rc == TAIR_RETURN_SUCCESS) {
            ++count;
            resp->add_key_value(skey, data);
@@ -1093,6 +1094,11 @@ namespace tair {
        }
      } else if (request->key != NULL) {
        data_entry *mkey = request->key;
+       // set pkey first
+       if (resp->pkey == NULL) {
+         resp->set_pkey(mkey->get_data(), mkey->get_prefix_size());
+       }
+
        plocker.lock(*mkey);
        do {
          if (tair_mgr->should_proxy(*request->key, target_server_id))
@@ -1128,9 +1134,6 @@ namespace tair {
            skey->data_meta.version = key->data_meta.version;
            skey->data_meta.edate = key->data_meta.edate;
 
-           if (resp->pkey == NULL) {
-             resp->set_pkey(key->get_data(), key->get_prefix_size());
-           }
            if (rc == TAIR_RETURN_SUCCESS) {
              resp->add_key_value(skey, data);
              data = NULL;
@@ -1177,6 +1180,10 @@ namespace tair {
        plocker.lock(*mkey);
        for (; it != request->key_list->end(); ++it) {
          data_entry *key = (*it);
+         // set pkey first
+         if (resp->pkey == NULL) {
+           resp->set_pkey(key->get_data(), key->get_prefix_size());
+         }
 
          if (tair_mgr->should_proxy(*key, target_server_id))
          {
@@ -1211,9 +1218,6 @@ namespace tair {
          skey->data_meta.version = key->data_meta.version;
          skey->data_meta.edate = key->data_meta.edate;
          //skey->data_meta = key->data_meta;
-         if (resp->pkey == NULL) {
-           resp->set_pkey(key->get_data(), key->get_prefix_size());
-         }
          if (rc == TAIR_RETURN_SUCCESS || rc == TAIR_RETURN_HIDDEN) {
            ++count;
            resp->add_key_value(skey, data, false, rc);
@@ -1236,6 +1240,11 @@ namespace tair {
        }
      } else if (request->key != NULL) {
        data_entry *mkey = request->key;
+       // set pkey first
+       if (resp->pkey == NULL) {
+         resp->set_pkey(mkey->get_data(), mkey->get_prefix_size());
+       }
+      
        plocker.lock(*mkey);
        do {
          if (tair_mgr->should_proxy(*request->key, target_server_id))
@@ -1271,9 +1280,6 @@ namespace tair {
            skey->data_meta.version = key->data_meta.version;
            skey->data_meta.edate = key->data_meta.edate;
 
-           if (resp->pkey == NULL) {
-             resp->set_pkey(key->get_data(), key->get_prefix_size());
-           }
            if (rc == TAIR_RETURN_SUCCESS || rc == TAIR_RETURN_HIDDEN) {
              resp->add_key_value(skey, data, false, rc);
              data = NULL;

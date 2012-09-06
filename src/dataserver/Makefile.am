@@ -45,7 +45,7 @@ LDADD=$(top_builddir)/src/client/.libs/libtairclientapi.a \
       @BOOST_THREAD_LIB@
 
 
-sbin_PROGRAMS=tair_server
+sbin_PROGRAMS=tair_server repair_rsync
 
 include_HEADERS=item_manager.hpp tair_manager.hpp table_manager.hpp duplicate_manager.hpp duplicate_base.hpp \
 		update_log.hpp tinyjson.hpp
@@ -74,3 +74,5 @@ tair_server_SOURCES=duplicate_manager.cpp item_manager.cpp stat_processor.cpp re
 		    update_log.hpp \
 		    prefix_locker.hpp \
 		    stat_processor.h remote_sync_manager.hpp remote_sync_manager.cpp
+
+repair_rsync_SOURCES=repair_rsync.cpp

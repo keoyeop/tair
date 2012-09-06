@@ -38,6 +38,7 @@ namespace tair
     {
       delete it->second;
     }
+    remote_cluster_handlers_.clear();
 
     if (retry_logger_ != NULL)
     {
@@ -241,16 +242,19 @@ namespace tair
 
       // has refed 1
       DataEntryWrapper* key_wrapper = new DataEntryWrapper(key);
-      log_debug("@@ %s type: %d, %d, fg: %d, key: %s %d %d %u", cluster_info.size() > 16 ? cluster_info.c_str() + 16 : "", type, bucket_num, force_reget, key->get_data() + 6, key->get_size(), key->get_prefix_size(), key->data_meta.mdate);
+      log_debug("@@ %s type: %d, %d, fg: %d, key: %s %d %d %u", cluster_info.size() > 16 ? cluster_info.c_str() + 16 : "", type, bucket_num, force_reget, key->get_size() > 6 ? key->get_data() + 6 : "", key->get_size(), key->get_prefix_size(), key->data_meta.mdate);
       // process record to do remote sync
       ret = do_process_remote_sync_record(static_cast<TairRemoteSyncType>(type), bucket_num,
                                           key_wrapper, value, force_reget, retry, cluster_info, fail_records);
 
       if (ret != TAIR_RETURN_SUCCESS)
       {
-        // do_process_remote_sync_record fail, async queue may be full,
+        // TAIR_RETURN_SEND_FAILED, async queue may be full,
         // just rest for a while
-        need_wait_us = REST_WAIT_US;
+        if (ret == TAIR_RETURN_SEND_FAILED)
+        {
+          need_wait_us = REST_WAIT_US;
+        }
         for (size_t i = 0; i < fail_records.size(); ++i)
         {
           if (retry)
@@ -359,9 +363,9 @@ namespace tair
         log_debug("@@ fr 1 %d %x %d", force_reget, value, is_remote_sync_need_value(type));
         need_reget = true;
         // need is_master to determines whether record can get from local_storage
-        is_master = tair_manager_->is_master_node(bucket_num, *key);
+        is_master = is_master_node(bucket_num, *key);
       }
-      else if (!(is_master = tair_manager_->is_master_node(bucket_num, *key)))
+      else if (!(is_master = is_master_node(bucket_num, *key)))
       {
         // current node is not master one of this key
         log_debug("@@ fr 2");
@@ -378,9 +382,9 @@ namespace tair
       if (TAIR_RETURN_SUCCESS == ret || TAIR_RETURN_DATA_NOT_EXIST == ret)
       {
         // we need attach some specified info to deliver to remote server.
-        attach_info_to_key(*key);
+        attach_info_to_key(*key, value);
 
-        log_debug("@@ value %s %d %d %d", value != NULL ? value->get_data()+2 : "n", value != NULL ? value->get_size(): 0, key->has_merged, key->get_prefix_size());
+        log_debug("@@ v %s %d %d %d %d", (value != NULL && value->get_size() > 2) ? value->get_data()+2 : "n", value != NULL ? value->get_size() : 0, key->has_merged, key->get_prefix_size(), value != NULL ? value->data_meta.flag : -1);
         // do remote synchronization based on type
         switch (type)
         {
@@ -423,6 +427,15 @@ namespace tair
         }
         }
       }
+      else
+      {
+        // log failed record
+        for (CLUSTER_HANDLER_MAP::iterator it = remote_cluster_handlers_.begin();
+             it != remote_cluster_handlers_.end(); ++it)
+        {
+          fail_records.push_back(FailRecord(key, it->second->info(), ret));
+        }
+      }
     }
 
     return ret;
@@ -431,7 +444,6 @@ namespace tair
   int RemoteSyncManager::do_get_from_local_cluster(bool local_storage, int32_t bucket_num,
                                                    data_entry* key, data_entry*& value)
   {
-    log_debug("@@ %d, ls: %d, key: %s %d", bucket_num, local_storage, key->get_data() + 6, key->get_size());
     int ret = TAIR_RETURN_SUCCESS;
     if (local_storage)
     {
@@ -446,15 +458,38 @@ namespace tair
     }
     else
     {
-      // key has merged area
-      ret = local_cluster_handler_.client()->get(key->get_area(), *key, value);
+      // key has merged area,
+      // consider hidden data as normal.
+      ret = local_cluster_handler_.client()->get_hidden(key->get_area(), *key, value);
     }
+    
+    // wrap some return code
+    if (ret == TAIR_RETURN_HIDDEN)
+    {
+      ret = TAIR_RETURN_SUCCESS;
+    }
+    else if (ret == TAIR_RETURN_DATA_EXPIRED)
+    {
+      ret = TAIR_RETURN_DATA_NOT_EXIST;
+    }
+
     return ret;
   }
 
-  void RemoteSyncManager::attach_info_to_key(data_entry& key)
+  void RemoteSyncManager::attach_info_to_key(data_entry& key, data_entry* value)
   {
+    // I have a dream that one day server would only check value's meta info,
+    // then key will be free.
+    if (value != NULL)
+    {
+      key.data_meta.cdate = value->data_meta.cdate;
+      key.data_meta.edate = value->data_meta.edate;
+      key.data_meta.mdate = value->data_meta.mdate;
+      key.data_meta.version = value->data_meta.version;
+    }
     key.server_flag = TAIR_SERVERFLAG_RSYNC;
+    key.data_meta.flag = 0;
+
     if (mtime_care_)
     {
       // not |=, use = to clear other dummy flag
@@ -471,6 +506,18 @@ namespace tair
   int32_t RemoteSyncManager::retry_remote_sync_thread_count()
   {
     return retry_logger_ != NULL ? retry_logger_->get_reader_count() : 0;
+  }
+
+  bool RemoteSyncManager::is_master_node(int32_t& bucket_num, const data_entry& key)
+  {
+    if (bucket_num < 0)
+    {
+      bucket_num = tair_manager_->get_bucket_number(key);
+    }
+
+    // TODO. we consider all data is due to this node now, all will be ok when emitting do_proxy()
+    return tair_manager_->get_table_manager()->is_master(bucket_num, TAIR_SERVERFLAG_CLIENT) ||
+      tair_manager_->get_table_manager()->is_master(bucket_num, TAIR_SERVERFLAG_PROXY);
   }
 
   bool RemoteSyncManager::is_valid_record(TairRemoteSyncType type)
@@ -638,11 +685,12 @@ namespace tair
     switch (callback_arg->type_)
     {
     case TAIR_REMOTE_SYNC_TYPE_PUT:
-      failed = (ret != TAIR_RETURN_SUCCESS);
+      failed = (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_MTIME_EARLY);
       break;
     case TAIR_REMOTE_SYNC_TYPE_DELETE:
       // not exist or expired also OK
-      failed = (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_DATA_NOT_EXIST && ret != TAIR_RETURN_DATA_EXPIRED);
+      failed = (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_DATA_NOT_EXIST &&
+                ret != TAIR_RETURN_DATA_EXPIRED && ret != TAIR_RETURN_MTIME_EARLY);
       break;
     default:
       log_error("unknown callback type: %d, ret: %d", callback_arg->type_, ret);
@@ -667,9 +715,8 @@ namespace tair
 
   int RemoteSyncManager::log_fail_record(RecordLogger* logger, TairRemoteSyncType type, FailRecord& record)
   {
-    record.encode();
-    // not copy
-    data_entry entry(record.data(), record.size(), false);
+    data_entry entry;
+    FailRecord::record_to_entry(record, entry);
     // only one writer here
     return logger->add_record(0, type, &entry, NULL);
   }
@@ -685,14 +732,13 @@ namespace tair
   {
     if (key != NULL)
     {
-      // key is actually a FailRecord
-      FailRecord record(key->get_data(), key->get_size());
+      // key data is FailRecord actually
+      FailRecord record;
+      FailRecord::entry_to_record(*key, record);
       // key is of no need
       delete key;
-      log_debug("@@ failrec: %s, key: %s %d", record.cluster_info_.c_str() + 16, record.key_->get_data() + 6, record.key_->get_size());
       cluster_info.assign(record.cluster_info_);
       key = record.key_;
-      key->has_merged = true;
     }
   }
 

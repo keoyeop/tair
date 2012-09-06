@@ -347,6 +347,9 @@ enum {
    TAIR_RETURN_LOCK_EXIST = -3975,
    TAIR_RETURN_LOCK_NOT_EXIST = -3974,
 
+   // remove/update and mtime_care but mtime is early
+   TAIR_RETURN_MTIME_EARLY = -3976,
+
    TAIR_RETURN_REMOVE_NOT_ON_MASTER= -4101,
    TAIR_RETURN_REMOVE_ONE_FAILED= -4102,
 

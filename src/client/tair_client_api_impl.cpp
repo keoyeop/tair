@@ -917,7 +917,7 @@ FAIL:
     }
 
     request_get_hidden *req = new request_get_hidden();
-    req->add_key(key.get_data(), key.get_size(), key.get_prefix_size());
+    req->add_key(const_cast<data_entry*>(&key), true);
     req->area = area;
     response_get *resp = NULL;
 
@@ -933,9 +933,9 @@ FAIL:
     if (resp != NULL) {
       new_config_version = resp->config_version;
       value = resp->data;
-      if (value == NULL) {
-        ret = TAIR_RETURN_PROXYED;
-      }
+      // if (value == NULL) {
+      //   ret = TAIR_RETURN_PROXYED;
+      // }
       resp->data = NULL;
     }
     this_wait_object_manager->destroy_wait_object(cwo);

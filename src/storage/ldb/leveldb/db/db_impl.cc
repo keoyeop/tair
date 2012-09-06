@@ -250,8 +250,7 @@ void DBImpl::DeleteObsoleteFiles() {
       bool keep = true;
       switch (type) {
         case kLogFile:
-          keep = options_.reserve_log ||
-            ((number >= versions_->LogNumber()) ||
+          keep = ((number >= versions_->LogNumber()) ||
              (number == versions_->PrevLogNumber()));
           break;
         case kDescriptorFile:
@@ -281,7 +280,11 @@ void DBImpl::DeleteObsoleteFiles() {
         Log(options_.info_log, "Delete type=%d #%lld\n",
             int(type),
             static_cast<unsigned long long>(number));
-        env_->DeleteFile(dbname_ + "/" + filenames[i]);
+        if (type == kLogFile) {
+          env_->DeleteFile(dblog_dir_ + "/" + filenames[i]);
+        } else {
+          env_->DeleteFile(dbname_ + "/" + filenames[i]);
+        }
       }
     }
   }
@@ -395,10 +398,12 @@ Status DBImpl::RecoverLogFile(uint64_t log_number,
   // Note: binlog will be in directory dbname_/logs/ now,
   //       we also try to find it in directory dbname_/ to
   //       be compatible to recovering from old version db.
+  bool old_log = false;
   std::string fname = LogFileName(dblog_dir_, log_number);
   if (!env_->FileExists(fname)) {
     Log(options_.info_log, "try to find log file in db dir, recover from old version db.");
     fname = LogFileName(dbname_, log_number);
+    old_log = true;
   }
   SequentialFile* file;
   Status status = env_->NewSequentialFile(fname, &file);
@@ -468,6 +473,11 @@ Status DBImpl::RecoverLogFile(uint64_t log_number,
     status = WriteLevel0Table(mem, edit, NULL);
     // Reflect errors immediately so that conditions like full
     // file-systems cause the DB::Open() to fail.
+
+    // delete log file when recover from old version log file
+    if (status.ok() && old_log) {
+      env_->DeleteFile(fname);
+    }
   }
 
   if (mem != NULL) mem->Unref();
@@ -1888,6 +1898,32 @@ Status DB::Open(const Options& options, const std::string& dbname,
     }
   }
   impl->mutex_.Unlock();
+  if (s.ok()) {
+    *dbptr = impl;
+  } else {
+    delete impl;
+  }
+  return s;
+}
+
+// open with specified manifest,
+// resemble read_only mode.
+// TODO: maybe support open db with read_only_mode.
+Status DB::Open(const Options& options, const std::string& dbname,
+                const std::string& manifest, DB** dbptr) {
+  *dbptr = NULL;
+
+  Status s;
+  DBImpl* impl = new DBImpl(options, dbname);
+  impl->mutex_.Lock();
+  if (!impl->env_->FileExists(manifest)) {
+    s = Status::InvalidArgument("manifest file not exist");
+  } else {
+    // recover with specified manifest
+    s = impl->versions_->Recover(manifest.c_str());
+  }
+  impl->mutex_.Unlock();
+
   if (s.ok()) {
     *dbptr = impl;
   } else {

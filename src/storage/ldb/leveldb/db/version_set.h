@@ -182,7 +182,7 @@ class VersionSet {
   Status LogAndApply(VersionEdit* edit, port::Mutex* mu);
 
   // Recover the last saved descriptor from persistent storage.
-  Status Recover();
+  Status Recover(const char* manifest = NULL);
 
   // when recover over, maybe some backupversion should be loaded to db.
   // backupversion is used to maintain some version(snapshot).

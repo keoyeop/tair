@@ -310,7 +310,11 @@ namespace tair
             // db mtime is later than request, then need not do operation any more
             need_op = !(mtime_care && ldb_item.mdate() > key.data_meta.mdate);
             log_debug("@@ mtime care: %d,np:%d, %d <> %d",mtime_care, need_op,ldb_item.mdate(),key.data_meta.mdate);
-            if (need_op)
+            if (!need_op)
+            {
+              rc = TAIR_RETURN_MTIME_EARLY;
+            }
+            else
             {
               // ldb already check expired. no need here.
               cdate = ldb_item.cdate(); // set back the create time
@@ -566,9 +570,13 @@ namespace tair
           {
             ldb_item.assign(const_cast<char*>(db_value.data()), db_value.size());
             need_op = !(mtime_care && ldb_item.mdate() > key.data_meta.mdate);
-            if (need_op && version_care &&
-                key.data_meta.version != 0 &&
-                key.data_meta.version != ldb_item.version())
+            if (!need_op)
+            {
+              rc = TAIR_RETURN_MTIME_EARLY;
+            }
+            else if (version_care &&
+                     key.data_meta.version != 0 &&
+                     key.data_meta.version != ldb_item.version())
             {
               rc = TAIR_RETURN_VERSION_ERROR;
             }

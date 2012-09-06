@@ -1465,14 +1465,6 @@
       return hashcode % (localmode ? 1023 : table_mgr->get_bucket_count());
     }
 
-    bool tair_manager::is_master_node(int32_t& bucket_num, const data_entry& key)
-    {
-      if (bucket_num < 0) {
-        bucket_num = get_bucket_number(key);
-      }
-      return table_mgr->is_master(bucket_num, key.server_flag);
-    }
-
     bool tair_manager::should_write_local(int bucket_number, int server_flag, int op_flag, int &rc)
     {
 

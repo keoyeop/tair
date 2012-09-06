@@ -137,7 +137,7 @@ namespace tair {
 
       bool is_localmode();
       uint32_t get_bucket_number(const data_entry &key);
-      bool is_master_node(int32_t& bucket_num, const data_entry& key);
+      table_manager* get_table_manager() { return table_mgr; }
 
    private:
       tair::storage::storage_manager *get_storage_manager(data_entry &key);

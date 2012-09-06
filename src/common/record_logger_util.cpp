@@ -381,7 +381,7 @@ namespace tair
       {
         int32_t size = RecordLogger::common_decode_record(last_data_.data(), type, key, value);
         r_offset_ += size;
-        last_data_.erase(size);
+        last_data_.erase(0, size);
       }
       return ret;
     }

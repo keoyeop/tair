@@ -65,7 +65,6 @@ namespace tair
         {
           tailer.set(*key);
           total_size += sizeof(int32_t) + tailer.size();
-          log_debug("@@ tailer %d", tailer.size());
         }
         buf = new char[total_size];
         char* pos = buf;
