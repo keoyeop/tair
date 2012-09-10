@@ -258,7 +258,7 @@ int get_from_local_cluster(ClusterHandler& handler, data_entry& key, data_entry*
 }
 
 int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t>& buckets, 
-             ClusterHandler* local_handler, ClusterHandler* remote_handler,
+             ClusterHandler* local_handler, ClusterHandler* remote_handler, bool mtime_care,
              DataFilter& filter, DataStat& stat, RecordLogger* fail_logger)
 {
   // open db with specified manifest(read only)
@@ -296,6 +296,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
   data_entry* key = NULL;
   data_entry* value = NULL;
 
+  int32_t mtime_care_flag = mtime_care ? TAIR_CLIENT_DATA_MTIME_CARE : 0;
   int ret = TAIR_RETURN_SUCCESS;
 
   if (db_it == NULL)
@@ -363,7 +364,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
           {
             log_debug("@@ k:%d %s %d %d %u %u %u.v:%s %d %d %u %u %u", key->get_area(), key->get_size() > 6 ? key->get_data()+6 : "", key->get_size(), key->get_prefix_size(),key->data_meta.cdate,key->data_meta.mdate,key->data_meta.edate, value->get_size() > 4 ? value->get_data()+4 : "", value->get_size(), value->data_meta.flag, value->data_meta.cdate, value->data_meta.mdate, value->data_meta.edate);
             // mtime care / skip cache
-            key->data_meta.flag = TAIR_CLIENT_DATA_MTIME_CARE | TAIR_CLIENT_PUT_SKIP_CACHE_FLAG;
+            key->data_meta.flag = mtime_care_flag | TAIR_CLIENT_PUT_SKIP_CACHE_FLAG;
             key->server_flag = TAIR_SERVERFLAG_RSYNC;
             // sync to remote cluster
             ret = remote_handler->client()->put(key->get_area(), *key, *value, 0, 0, false/* not fill cache */);
@@ -430,11 +431,12 @@ void print_help(const char* name)
 {
   fprintf(stderr,
           "synchronize one ldb version data of specified buckets to remote cluster.\n"
-          "%s -p dbpath -f manifest_file -r remote_cluster_addr -e faillogger_file -b buckets [-a yes_areas] [-A no_areas] [-l local_cluster_addr]\n"
+          "%s -p dbpath -f manifest_file -r remote_cluster_addr -e faillogger_file -b buckets [-a yes_areas] [-A no_areas] [-l local_cluster_addr] [-n]\n"
           "NOTE:\n"
           "\tcluster_addr like: 10.0.0.1:5198,10.0.0.1:5198,group_1\n"
           "\tbuckets/areas like: 1,2,3\n"
-          "\tconfig local cluster address mean that data WILL BE RE-GOT from local cluster\n", name);
+          "\tconfig local cluster address mean that data WILL BE RE-GOT from local cluster\n"
+          "\t-n : NOT mtime_care\n", name);
 }
 
 int main(int argc, char* argv[])
@@ -448,10 +450,10 @@ int main(int argc, char* argv[])
   char* buckets = NULL;
   char* yes_areas = NULL;
   char* no_areas = NULL;
-  bool reget = false;
+  bool mtime_care = true;
   int i = 0;
 
-  while ((i = getopt(argc, argv, "p:f:l:r:e:b:a:A:")) != EOF)
+  while ((i = getopt(argc, argv, "p:f:l:r:e:b:a:A:n")) != EOF)
   {
     switch (i)
     {
@@ -479,8 +481,8 @@ int main(int argc, char* argv[])
     case 'A':
       no_areas = optarg;
       break;
-    case 'g':
-      reget = true;
+    case 'n':
+      mtime_care = false;
       break;
     default:
       print_help(argv[0]);
@@ -548,7 +550,7 @@ int main(int argc, char* argv[])
 
     // do data rsync
     uint32_t start_time = time(NULL);
-    ret = do_rsync(db_path, manifest_file, bucket_container, local_handler, remote_handler, filter, stat, fail_logger);
+    ret = do_rsync(db_path, manifest_file, bucket_container, local_handler, remote_handler, mtime_care, filter, stat, fail_logger);
 
     log_warn("rsync data over, stopped: %s, cost: %u(s), stat:", g_stop ? "yes" : "no", time(NULL) - start_time);
     stat.dump_all();
