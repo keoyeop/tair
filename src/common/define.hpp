@@ -90,6 +90,7 @@
 #define PREFIX_KEY_OFFSET 	        (22)
 #define PREFIX_KEY_MASK 		        (0x3FFFFF)
 #define MAGIC_ITEM_META_LDB_PREFIX  (0x0101)
+#define RANGE_DEFAULT_LIMIT         (1000)
 //hasnext flag for getrange
 #define FLAG_HASNEXT                (0x01)
 #define FLAG_HASNEXT_MASK           (0xFFFE)
@@ -209,7 +210,6 @@
 #define LDB_BLOOMFILTER_BITS_PER_KEY    "ldb_bloomfilter_bits_per_key"
 #define LDB_FILTER_BASE_LOGARITHM       "ldb_filter_base_logarithm"
 #define LDB_RANGE_MAX_SIZE              "ldb_range_max_size"
-#define LDB_RANGE_MAX_LIMIT             "ldb_range_max_limit"
 #define LDB_LIMIT_COMPACT_LEVEL_COUNT   "ldb_limit_compact_level_count"
 #define LDB_LIMIT_COMPACT_COUNT_INTERVAL "ldb_limit_compact_count_interval"
 #define LDB_LIMIT_COMPACT_TIME_INTERVAL "ldb_limit_compact_time_interval"
@@ -284,11 +284,11 @@ enum {
 };
 //////////////////////////////////////////////
 enum {
-   TAIR_ITEM_FLAG_ADDCOUNT = 1,
-   TAIR_ITEM_FLAG_DELETED = 2,
-   TAIR_ITEM_FLAG_ITEM = 4,
-   TAIR_ITEM_FLAG_LOCKED=8,
-   TAIR_ITEM_FLAG_SET,
+   TAIR_ITEM_FLAG_ADDCOUNT = 0x1,
+   TAIR_ITEM_FLAG_DELETED = 0x2,
+   TAIR_ITEM_FLAG_ITEM = 0x4,
+   TAIR_ITEM_FLAG_LOCKED = 0x8,
+   TAIR_ITEM_FLAG_NEWMETA = 0x10,
 };
 
 // 'cause key's data_entry.data_meta.flag is meaningless when requsting,
@@ -305,6 +305,7 @@ enum {
 enum {
    TAIR_RETURN_SUCCESS = 0,
    TAIR_DUP_WAIT_RSP = 133,
+   TAIR_HAS_MORE_DATA = 150,
 
    TAIR_RETURN_NOT_SUPPORTED = -4001,
    TAIR_RETURN_PROXYED = -4000,
