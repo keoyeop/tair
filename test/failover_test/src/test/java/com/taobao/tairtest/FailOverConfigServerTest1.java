@@ -7,6 +7,7 @@ import static org.junit.Assert.*;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class FailOverConfigServerTest1 extends FailOverBaseCase {
@@ -2547,6 +2548,57 @@ public class FailOverConfigServerTest1 extends FailOverBaseCase {
 		log.info("Successfully Verified data!");
 
 		log.info("end config test Failover case 21");
+	}
+	
+	@Test
+	@Ignore
+	public void testFailover_22_restart_all_cs_after_clean_group_info() {
+		log.info("start config test Failover case 22");
+		
+		// start cluster
+		controlCluster(csList, dsList, start, 0);
+		log.info("Start Cluster Successful!");
+		log.info("wait system initialize ...");
+		waitto(down_time);
+		
+		// start putget data
+		if (!modify_config_file(local, test_bin + toolconf, actiontype, "putget"))
+			fail("modify configure file failed");
+		execute_data_verify_tool();
+		waitto(10);
+		
+		// remember put success count
+		int putSucOld = getToolResult(local, "put", "success");
+		int putFailOld = getToolResult(local, "put", "fail");
+		assertTrue(putSucOld > 0);
+		assertTrue(putFailOld == 0);
+		
+		// stop all cs
+		assertTrue(batch_control_cs(csList, stop, 1));
+		
+		// clean tair_bin/data/data/ on all cs
+		assertTrue(clean_group_info(csList.get(0)));
+		assertTrue(clean_group_info(csList.get(1)));
+		waitto(ds_down_time);
+		
+		// restart all cs
+		assertTrue(batch_control_cs(csList, start, 0));
+		
+		// assert client recover
+		int waitCnt = 0;
+		while (waitCnt++ < 12) {
+			waitto(6);
+			int putSucNow = getToolResult(local, "put", "success");
+			int putFailNow = getToolResult(local, "put", "fail");
+			if(putSucNow > putSucOld && putFailNow == putFailOld)
+				break;
+			putSucOld = getToolResult(local, "put", "success");
+			putFailOld = getToolResult(local, "put", "fail");
+		}
+		if(waitCnt >= 12)
+			fail("wait client recover timeout!");
+		
+		log.info("end config test Failover case 22");
 	}
 
 	@BeforeClass

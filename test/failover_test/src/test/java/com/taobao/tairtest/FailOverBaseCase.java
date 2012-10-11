@@ -403,6 +403,54 @@ public class FailOverBaseCase extends BaseTestCase {
 			ret = true;
 		return ret;
 	}
+	
+	protected boolean clean_group_info(String machine) {
+		log.debug("clean group info on " + machine);
+		boolean ret = false;
+		String cmd = "rm -f " + tair_bin + "data/data/*";
+		STAFResult result = executeShell(stafhandle, machine, cmd);
+		if (result.rc != 0)
+			ret = false;
+		else
+			ret = true;
+		return ret;
+	}
+	
+	protected int getToolResult(String machine, String keyword, String result) {
+		log.debug("get " + keyword + " count on " + machine);
+		int ret = 0;
+		String cmd = "";
+		if ("success".equals(result))
+			cmd = "grep \"" + keyword + ":\" " + test_bin
+					+ "datadbg0.log | tail -1|awk -F \" \" \'{print $6}\'";
+		else if ("fail".equals(result))
+			cmd = "grep \"" + keyword + ":\" " + test_bin
+					+ "datadbg0.log | tail -1|awk -F \" \" \'{print $7}\'";
+		else if ("conecterror".equals(result))
+			cmd = "grep \"" + keyword + ":\" " + test_bin
+					+ "datadbg0.log | tail -1|awk -F \" \" \'{print $8}\'";
+		else if ("exceptionerror".equals(result))
+			cmd = "grep \"" + keyword + ":\" " + test_bin
+					+ "datadbg0.log | tail -1|awk -F \" \" \'{print $9}\'";
+		else {
+			log.error("result must be success | fail | conecterror | exceptionerror!");
+			return -1;
+		}
+		STAFResult sr = executeShell(stafhandle, machine, cmd);
+		if (sr.rc != 0)
+			ret = -1;
+		else {
+			String stdout = getShellOutput(sr);
+			try {
+				ret = (new Integer(stdout.trim())).intValue();
+				log.info("verify result: " + ret);
+			} catch (Exception e) {
+				log.error("get verify exception: " + stdout);
+				ret = -1;
+			}
+		}
+		return ret;
+	}
 
 	protected boolean killall_tool_proc() {
 		log.debug("force kill all data tool process");
