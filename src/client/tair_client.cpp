@@ -303,18 +303,9 @@ namespace tair {
 #ifdef HAVE_LIBREADLINE
    char* tair_client::input(char *buffer, size_t size) {
      static const char *prompt = "[0;31;40mTAIR>[0;37;40m ";
-     char *line = readline(prompt);
-     if (line == NULL) return NULL; //~ EOF reveived
-     if (*line == '\0') {
-       free(line);
-       HIST_ENTRY *hist = previous_history();
-       if (hist != NULL) {
-         strncpy(buffer, hist->line, size);
-         return buffer;
-       }
-       while ((line = readline(prompt)) != NULL && *line == '\0') free(line);
-       if (line == NULL) return NULL;
-     }
+     char *line = NULL;
+     while ((line = readline(prompt)) != NULL && *line == '\0') free(line);
+     if (line == NULL) return NULL;
      update_history(line);
      strncpy(buffer, line, size);
      free(line);
