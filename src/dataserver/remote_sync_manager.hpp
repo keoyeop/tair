@@ -305,6 +305,7 @@ namespace tair
 
     int pause(bool do_pause);
     int set_mtime_care(bool care);
+    int set_wait_us(int64_t us);
 
     static void callback(int ret, void* arg);
     static int log_fail_record(RecordLogger* logger, TairRemoteSyncType type, FailRecord& record);
@@ -348,6 +349,10 @@ namespace tair
     // rsync process has paused
     bool paused_;
 
+    // followings are all for flow control simply,
+    // TODO: control dynamically..
+    // wait us each op
+    uint64_t wait_us_;
     // rsync max process count allowed
     uint64_t max_process_count_;
     // rsync processing count

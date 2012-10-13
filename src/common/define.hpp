@@ -129,6 +129,7 @@
 #define TAIR_TASK_QUEUE_SIZE         "task_queue_size"
 #define TAIR_DO_RSYNC                "do_rsync"
 #define TAIR_RSYNC_MTIME_CARE        "rsync_mtime_care"
+#define TAIR_RSYNC_WAIT_US           "rsync_wait_us"
 #define TAIR_RSYNC_CONF              "rsync_conf"
 #define TAIR_RSYNC_DATA_DIR          "rsync_data_dir"
 #define TAIR_RSYNC_DO_RETRY          "rsync_do_retry"

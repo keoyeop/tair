@@ -22,7 +22,7 @@
 namespace tair
 {
   RemoteSyncManager::RemoteSyncManager(tair_manager* tair_manager)
-    : tair_manager_(tair_manager), paused_(false), max_process_count_(0), processing_count_(0),
+    : tair_manager_(tair_manager), paused_(false), wait_us_(0), max_process_count_(0), processing_count_(0),
       logger_(NULL), retry_logger_(NULL), fail_logger_(NULL),
       mtime_care_(false), cluster_inited_(false)
   {
@@ -183,6 +183,16 @@ namespace tair
     return TAIR_RETURN_SUCCESS;    
   }
 
+  int RemoteSyncManager::set_wait_us(int64_t us)
+  {
+    if (us >= 0)
+    {
+      wait_us_ = us;
+    }
+    log_warn("set wait us: %"PRI64_PREFIX"d", us);
+    return TAIR_RETURN_SUCCESS;
+  }
+
   int RemoteSyncManager::do_remote_sync(int32_t index, RecordLogger* input_logger, bool retry, FilterKeyFunc key_filter)
   {
     static const int64_t DEFAULT_WAIT_US = 1000000; // 1s
@@ -207,7 +217,7 @@ namespace tair
       {
         log_debug("@@ sleep %ld", need_wait_us);
         usleep(need_wait_us);
-        need_wait_us = 0;
+        need_wait_us = wait_us_;
       }
       if (paused_)
       {

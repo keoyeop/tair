@@ -373,7 +373,15 @@ namespace tair
           {
             stat_data_size += ldb_key.key_size() + ldb_item.value_size();
             stat_use_size += ldb_key.size() + ldb_item.size();
-            stat_add(bucket_number, key.area, stat_data_size, stat_use_size, item_count);
+            // stat_data_size > 0 then stat_use_size > 0
+            if (stat_data_size > 0)
+            {
+              stat_add(bucket_number, key.area, stat_data_size, stat_use_size, item_count);
+            }
+            else if (stat_data_size < 0)
+            {
+              stat_sub(bucket_number, key.area, -stat_data_size, -stat_use_size, item_count);
+            }
           }
 
           //update key's meta info

@@ -50,6 +50,7 @@
 #include "prefix_hides_packet.hpp"
 #include "flowrate.h"
 #include "op_cmd_packet.hpp"
+#include "mupdate_packet.hpp"
 
 namespace tair {
 
@@ -209,6 +210,7 @@ namespace tair {
       void run(tbsys::CThread *thread, void *arg);
 
 
+      int direct_update(std::vector<uint64_t>& servers, tair_operc_vector* opercs);
 
       int remove_area(int area);
       //    int getStatInfo(int type, int area, vector<ResponseStatPacket *> &list);
@@ -218,6 +220,7 @@ namespace tair {
       int op_cmd_to_cs(ServerCmdType cmd, std::vector<std::string>* params, std::vector<std::string>* ret_values);
       int op_cmd_to_ds(ServerCmdType cmd, std::vector<std::string>* params, const char* dest_server_addr = NULL);
 
+      bool get_server_id(int32_t bucket, vector<uint64_t>& server);
       void force_change_dataserver_status(uint64_t server_id, int cmd);
       void get_migrate_status(uint64_t server_id,vector<pair<uint64_t,uint32_t> >& result);
       void query_from_configserver(uint32_t query_type, const string group_name, map<string, string>&, uint64_t server_id = 0);
