@@ -2556,6 +2556,12 @@ public class FailOverConfigServerTest1 extends FailOverBaseCase {
 		log.info("start config test Failover case 22");
 		
 		// start cluster
+		if (!modify_config_file(csList.get(0), tair_bin + groupconf,
+				"_min_data_server_count", "2"))
+			fail("modify configure file failed");
+		if (!modify_config_file(csList.get(1), tair_bin + groupconf,
+				"_min_data_server_count", "2"))
+			fail("modify configure file failed");
 		controlCluster(csList, dsList, start, 0);
 		log.info("Start Cluster Successful!");
 		log.info("wait system initialize ...");
@@ -2573,16 +2579,24 @@ public class FailOverConfigServerTest1 extends FailOverBaseCase {
 		assertTrue(putSucOld > 0);
 		assertTrue(putFailOld == 0);
 		
-		// stop all cs
-		assertTrue(batch_control_cs(csList, stop, 1));
+		// stop all server
+		if (!modify_config_file(csList.get(0), tair_bin + groupconf,
+				"_min_data_server_count", "10"))
+			fail("modify configure file failed");
+		if (!modify_config_file(csList.get(1), tair_bin + groupconf,
+				"_min_data_server_count", "10"))
+			fail("modify configure file failed");
+		waitto(down_time);
+		batchControlServer(csList, cs, stop, 1);
+		batchControlServer(dsList, ds, stop, 1);
 		
 		// clean tair_bin/data/data/ on all cs
 		assertTrue(clean_group_info(csList.get(0)));
 		assertTrue(clean_group_info(csList.get(1)));
-		waitto(ds_down_time);
+		waitto(down_time);
 		
 		// restart all cs
-		assertTrue(batch_control_cs(csList, start, 0));
+		batchControlServer(csList, cs, start, 0);
 		
 		// assert client recover
 		int waitCnt = 0;
