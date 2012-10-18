@@ -358,7 +358,7 @@ FAIL:
     }
 
     vector<base_packet*> tpk;
-    if (get_response(cwo, servers.size(), tpk) < 1) {
+    if (get_response(cwo, servers.size(), tpk) < static_cast<int32_t>(servers.size())) {
       this_wait_object_manager->destroy_wait_object(cwo);
       TBSYS_LOG(ERROR,"all requests are failed");
       return TAIR_RETURN_TIMEOUT;

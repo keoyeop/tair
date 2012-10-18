@@ -1132,6 +1132,15 @@ namespace tair
         }
       }
 
+      void LdbInstance::get_buckets(std::vector<int32_t>& buckets)
+      {
+        STAT_MANAGER_MAP* tmp_stat_manager = stat_manager_;
+        for (STAT_MANAGER_MAP_ITER it = tmp_stat_manager->begin(); it != tmp_stat_manager->end(); ++it)
+        {
+          buckets.push_back(it->first);
+        }
+      }
+
       bool LdbInstance::is_mtime_care(const data_entry& key)
       {
         // client request and mtime care and data's mtime is valid

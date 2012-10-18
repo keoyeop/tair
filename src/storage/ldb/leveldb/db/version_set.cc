@@ -1178,7 +1178,7 @@ void VersionSet::Finalize(Version* v) {
     if (score > best_score) {
       if (need_limit_compact && score >= 1) {
         if (ShouldLimitCompact(level)) {
-          Log(options_->info_log, "limit com %lu@%d", has_limited_compact_count_, level);
+          Log(options_->info_log, "limit com %ld@%d", has_limited_compact_count_, level);
           break;                // following level need no check because we will limit it.
         } else if (level > current_max_level_ - config::kLimitCompactLevelCount) { // higher level need no check
           need_limit_compact = false;
@@ -1217,7 +1217,7 @@ bool VersionSet::LimitCompactByInterval() {
   bool limit = (0 == config::kLimitCompactCountInterval || 0 == config::kLimitCompactTimeInterval) || // limit always Or
     (has_limited_compact_count_ < config::kLimitCompactCountInterval) || // limit count not over Or
     (0 == first_limited_compact_time_ ||                                 // has not limited Or
-     env_->NowSecs() - first_limited_compact_time_ < config::kLimitCompactTimeInterval); // limit time not over
+     static_cast<int32_t>(env_->NowSecs() - first_limited_compact_time_) < config::kLimitCompactTimeInterval); // limit time not over
 
   if (limit) {
     ++has_limited_compact_count_;
@@ -1345,7 +1345,7 @@ void VersionSet::AddLiveFiles(std::set<uint64_t>* live, port::Mutex* mu) {
     mu->Unlock();
   }
   PROFILER_END();
-  Log(options_->info_log, "addlivefile %d", all_versions.size());
+  Log(options_->info_log, "addlivefile %zd", all_versions.size());
 
   for (std::vector<Version*>::iterator it = all_versions.begin(); it != all_versions.end(); ++it) {
     for (int level = 0; level < config::kNumLevels; level++) {
@@ -1616,25 +1616,11 @@ Compaction* VersionSet::CompactRangeOneLevel(
     const InternalKey* begin,
     const InternalKey* end) {
   std::vector<FileMetaData*> inputs;
-  current_->GetOverlappingInputsOneLevel(level, limit_filenumber, begin, end, &inputs);
+  const uint64_t limit_filesize = MaxFileSizeForLevel(level) * 4;
+  current_->GetOverlappingInputsOneLevel(level, limit_filenumber, limit_filesize, begin, end, &inputs);
   if (inputs.empty()) {
     return NULL;
   }
-
-  size_t orig_size = inputs.size();
-  // Avoid compacting too much in one shot in case the range is large.
-  const uint64_t limit = MaxFileSizeForLevel(level);
-  uint64_t total = 0;
-  for (size_t i = 0; i < inputs.size(); i++) {
-    uint64_t s = inputs[i]->file_size;
-    total += s;
-    if (total >= limit) {
-      inputs.resize(i + 1);
-      break;
-    }
-  }
-
-  Log(options_->info_log, "one level resize %zd => %zd", orig_size, inputs.size());
 
   Compaction* c = new Compaction(level);
   c->input_version_ = current_;
@@ -1647,6 +1633,7 @@ Compaction* VersionSet::CompactRangeOneLevel(
 void Version::GetOverlappingInputsOneLevel(
   int level,
   uint64_t limit_filenumber,
+  uint64_t limit_filesize,
   const InternalKey* begin,
   const InternalKey* end,
   std::vector<FileMetaData*>* inputs) {
@@ -1658,6 +1645,8 @@ void Version::GetOverlappingInputsOneLevel(
   if (end != NULL) {
     user_end = end->user_key();
   }
+
+  uint64_t total_filesize = 0;
   const Comparator* user_cmp = vset_->icmp_.user_comparator();
   for (size_t i = 0; i < files_[level].size(); i++) {
     FileMetaData* f = files_[level][i];
@@ -1670,6 +1659,10 @@ void Version::GetOverlappingInputsOneLevel(
         // "f" is completely after specified range; skip it
       } else {
         inputs->push_back(f);
+        total_filesize += f->file_size;
+        if (total_filesize > limit_filesize) {
+          break;
+        }
       }
     }
   }

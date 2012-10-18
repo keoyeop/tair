@@ -92,6 +92,7 @@ class Version {
   void GetOverlappingInputsOneLevel(
     int level,
     uint64_t limit_filenumber,
+    uint64_t limit_filesize,
     const InternalKey* begin,
     const InternalKey* end,
     std::vector<FileMetaData*>* inputs);
@@ -342,7 +343,7 @@ class VersionSet {
   // uint64_t last_sequence_;
   uint64_t log_number_;
   uint64_t prev_log_number_;  // 0 or backing store for memtable being compacted
-  uint64_t has_limited_compact_count_;
+  int64_t has_limited_compact_count_;
   // compaction(especially seek-compaction by Db::Get()) may be triggered very frequently,
   // so only limiting compaction count may make us got this situation soon(maybe
   // just next MaybeScheduleCompaction()), so we need limit compaction for a specified time.

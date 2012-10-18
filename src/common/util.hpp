@@ -53,19 +53,19 @@ namespace tair
       public:
 
          static char *conv_show_string(char *str, int size, char *ret = NULL, int msize = 0) 
-          {
-            int index = 0;
-            if (ret == NULL) {
-               msize = size*3+5;
-               ret = (char*) malloc(msize);
-            }
-            unsigned char *p = (unsigned char *)str;
-            while (size-->0 && index<msize-4) {
-               index += sprintf(ret+index, "\\%02X", *p);
-               p ++;
-            }
-            ret[index] = '\0';
-            return ret;
+         {
+           int index = 0;
+           if (ret == NULL) {
+             msize = size*3+5;
+             ret = (char*) malloc(msize);
+           }
+           unsigned char *p = (unsigned char *)str;
+           while (size-->0 && index<msize-4) {
+             index += sprintf(ret+index, "\\%02X", *p);
+             p ++;
+           }
+           ret[index] = '\0';
+           return ret;
          }
 
          static char *bin2ascii(char *str, int size, char *ret = NULL, int msize = 0) {
@@ -140,48 +140,63 @@ namespace tair
      class time_util {
      public:
        static int get_time_range(const char* str, int32_t& min, int32_t& max)
+       {
+         bool ret = str != NULL;
+
+         if (ret)
          {
-           bool ret = str != NULL;
+           int32_t tmp_min = 0, tmp_max = 0;
+           char buf[32];
+           char* max_p = strncpy(buf, str, sizeof(buf));
+           char* min_p = strsep(&max_p, "-~");
 
-           if (ret)
+           if (min_p != NULL && min_p[0] != '\0')
            {
-             int32_t tmp_min = 0, tmp_max = 0;
-             char buf[32];
-             char* max_p = strncpy(buf, str, sizeof(buf));
-             char* min_p = strsep(&max_p, "-~");
-
-             if (min_p != NULL && min_p[0] != '\0')
-             {
-               tmp_min = atoi(min_p);
-             }
-             if (max_p != NULL && max_p[0] != '\0')
-             {
-               tmp_max = atoi(max_p);
-             }
-
-             if ((ret = tmp_min >= 0 && tmp_max >= 0))
-             {
-               min = tmp_min;
-               max = tmp_max;
-             }
+             tmp_min = atoi(min_p);
+           }
+           if (max_p != NULL && max_p[0] != '\0')
+           {
+             tmp_max = atoi(max_p);
            }
 
-           return ret;
+           if ((ret = tmp_min >= 0 && tmp_max >= 0))
+           {
+             min = tmp_min;
+             max = tmp_max;
+           }
          }
+
+         return ret;
+       }
 
        static bool is_in_range(int32_t min, int32_t max)
+       {
+         time_t t = time(NULL);
+         struct tm *tm = localtime((const time_t*) &t);
+         bool reverse = false;
+         if (min > max)
          {
-           time_t t = time(NULL);
-           struct tm *tm = localtime((const time_t*) &t);
-           bool reverse = false;
-           if (min > max)
-           {
-             std::swap(min, max);
-             reverse = true;
-           }
-           bool in_range = tm->tm_hour >= min && tm->tm_hour <= max;
-           return reverse ? !in_range : in_range;
+           std::swap(min, max);
+           reverse = true;
          }
+         bool in_range = tm->tm_hour >= min && tm->tm_hour <= max;
+         return reverse ? !in_range : in_range;
+       }
+
+       static std::string time_to_str(time_t t)
+       {
+         struct tm r;
+         char buf[32];
+         memset(&r, 0, sizeof(r));
+         if (localtime_r((const time_t*)&t, &r) == NULL) {
+           fprintf(stderr, "TIME: %s (%d)\n", strerror(errno), errno);
+           return "";
+         }
+         snprintf(buf, sizeof(buf), "%04d%02d%02d%02d%02d%02d",
+                 r.tm_year+1900, r.tm_mon+1, r.tm_mday,
+                 r.tm_hour, r.tm_min, r.tm_sec);
+         return std::string(buf);
+       }
 
      };
 

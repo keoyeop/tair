@@ -24,6 +24,8 @@
   #include <endian.h>
 #endif
 #include <pthread.h>
+#include <errno.h>
+#include <sys/time.h>
 #ifdef SNAPPY
 #include <snappy.h>
 #endif
@@ -83,6 +85,7 @@ class CondVar {
   explicit CondVar(Mutex* mu);
   ~CondVar();
   void Wait();
+  void TimedWait(int64_t timeout_us);
   void Signal();
   void SignalAll();
  private:

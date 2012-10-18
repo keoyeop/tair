@@ -205,7 +205,7 @@ private:
 
 // global stop sentinel
 static bool g_stop = false;
-static int64_t g_wait_ms = 100;
+static int64_t g_wait_ms = 0;
 
 void sign_handler(int sig)
 {
@@ -215,11 +215,11 @@ void sign_handler(int sig)
     log_error("catch sig %d", sig);
     g_stop = true;
     break;
-  case 41:
+  case 51:
     g_wait_ms += 10;
     log_warn("g_wait_ms: %ld", g_wait_ms);
     break;
-  case 42:
+  case 52:
     g_wait_ms -= 10;
     if (g_wait_ms < 0)
     {
@@ -299,13 +299,24 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
   open_options.create_if_missing = true; // create if not exist
   open_options.comparator = new LdbComparatorImpl(); // self-defined comparator
   open_options.env = leveldb::Env::Instance();
-  leveldb::Status s = leveldb::DB::Open(open_options, db_path, manifest_file, &db);
+
+  char buf[32];
+  snprintf(buf, sizeof(buf), "./rsync_db_log.%d", getpid());
+  leveldb::Status s = open_options.env->NewLogger(buf, &open_options.info_log);
+  if (s.ok())
+  {
+    s = leveldb::DB::Open(open_options, db_path, manifest_file, &db);
+  }
 
   if (!s.ok())
   {
     log_error("open db with mainfest fail: %s", s.ToString().c_str());
     delete open_options.comparator;
     delete open_options.env;
+    if (open_options.info_log != NULL)
+    {
+      delete open_options.info_log;
+    }
     return TAIR_RETURN_FAILED;
   }
 
@@ -514,6 +525,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
   }
   delete open_options.comparator;
   delete open_options.env;
+  delete open_options.info_log;
 
   return ret;
 }
@@ -522,11 +534,12 @@ void print_help(const char* name)
 {
   fprintf(stderr,
           "synchronize one ldb version data of specified buckets to remote cluster.\n"
-          "%s -p dbpath -f manifest_file -r remote_cluster_addr -e faillogger_file -b buckets [-a yes_areas] [-A no_areas] [-l local_cluster_addr] [-n]\n"
+          "%s -p dbpath -f manifest_file -r remote_cluster_addr -e faillogger_file -b buckets [-a yes_areas] [-A no_areas] [-w wait_ms] [-l local_cluster_addr] [-n]\n"
           "NOTE:\n"
           "\tcluster_addr like: 10.0.0.1:5198,10.0.0.1:5198,group_1\n"
           "\tbuckets/areas like: 1,2,3\n"
           "\tconfig local cluster address mean that data WILL BE RE-GOT from local cluster\n"
+          "\twait_ms means wait time after each request\n"
           "\t-n : NOT mtime_care\n", name);
 }
 
@@ -544,7 +557,7 @@ int main(int argc, char* argv[])
   bool mtime_care = true;
   int i = 0;
 
-  while ((i = getopt(argc, argv, "p:f:l:r:e:b:a:A:n")) != EOF)
+  while ((i = getopt(argc, argv, "p:f:l:r:e:b:a:A:w:n")) != EOF)
   {
     switch (i)
     {
@@ -572,6 +585,9 @@ int main(int argc, char* argv[])
     case 'A':
       no_areas = optarg;
       break;
+    case 'w':
+      g_wait_ms = atoll(optarg);
+      break;
     case 'n':
       mtime_care = false;
       break;
@@ -590,8 +606,8 @@ int main(int argc, char* argv[])
   // init signals
   signal(SIGINT, sign_handler);
   signal(SIGTERM, sign_handler);
-  signal(41, sign_handler);
-  signal(42, sign_handler);
+  signal(51, sign_handler);
+  signal(52, sign_handler);
 
   TBSYS_LOGGER.setLogLevel("warn");
 
@@ -628,6 +644,8 @@ int main(int argc, char* argv[])
     bucket_container.push_back(atoi(bucket_strs[i].c_str()));
   }
 
+  std::random_shuffle(bucket_container.begin(), bucket_container.end());
+
   // init fail logger
   RecordLogger* fail_logger = new SequentialFileRecordLogger(fail_logger_file, 30<<20/*30M*/, true/*rotate*/);
   if (fail_logger->init() != TAIR_RETURN_SUCCESS)
@@ -641,6 +659,7 @@ int main(int argc, char* argv[])
     // init data stat
     DataStat stat;
 
+    log_warn("start rsync data, g_wait_ms: %"PRI64_PREFIX"d, mtime_care: %s", g_wait_ms, mtime_care ? "yes" : "no");
     // do data rsync
     uint32_t start_time = time(NULL);
     ret = do_rsync(db_path, manifest_file, bucket_container, local_handler, remote_handler, mtime_care, filter, stat, fail_logger);
