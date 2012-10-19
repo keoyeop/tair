@@ -78,6 +78,7 @@ namespace tair
         {
           // restart first sequence
           first_sequence_ = dynamic_cast<leveldb::DBImpl*>(instance_->db_)->LastSequence() + 1;
+          log_warn("reader restart, first_sequence: %"PRI64_PREFIX"u", first_sequence_);
         }
         return TAIR_RETURN_SUCCESS;
       }
@@ -500,7 +501,7 @@ namespace tair
         int ret = TAIR_RETURN_SUCCESS;
         for (int32_t i = 0; i < reader_count_; ++i)
         {
-          if ((ret = reader_[i]->init()) != TAIR_RETURN_SUCCESS)
+          if ((ret = reader_[i]->restart()) != TAIR_RETURN_SUCCESS)
           {
             log_error("restart reader %d fail, ret: %d", i, ret);
             break;
