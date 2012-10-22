@@ -339,7 +339,7 @@ namespace tair{
       }
       //and send it to slave
       log_debug("duplicate packet %d sent: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
-      if(conn_mgr->sendPacket(des_server_ids[i], tmp_packet, NULL, NULL, true) == false)
+      if(conn_mgr->sendPacket(des_server_ids[i], tmp_packet, NULL, (void*)((long)max_packet_id), true) == false)
       {
         //duplicate sendpacket error.
         log_error("duplicate packet %d faile send: %s",tmp_packet->packet_id,tbsys::CNetUtil::addrToString(des_server_ids[i]).c_str());
@@ -357,16 +357,6 @@ namespace tair{
       return ret;
     }
 
-    //all data is send,wait response or timeout it.
-    CPacket_Timeout_hint  *phint=new CPacket_Timeout_hint(max_packet_id);
-    if(!packets_mgr.put_timeout_hint(max_packet_id%MAX_DUP_COUNT,phint))
-    {
-      //put to queue error,should remove the map node.
-      delete phint;
-      packets_mgr.clear_waitnode(max_packet_id);
-	    log_warn("timeout wait packet full ,ignore packet=%d",max_packet_id);
-      return TAIR_RETURN_DUPLICATE_BUSY;
-    }
     return TAIR_DUP_WAIT_RSP;
   }
 
@@ -405,6 +395,8 @@ namespace tair{
       case TAIR_REQ_PUT_PACKET:
       case TAIR_REQ_REMOVE_PACKET:
       case TAIR_REQ_LOCK_PACKET:
+      case TAIR_REQ_MPUT_PACKET:
+        log_debug("@@ dup sync return %d", pNode->pcode);
         rv = tair_packet_factory::set_return_packet(pNode->conn,pNode->chid,pNode->pcode,0,"",pNode->conf_version);
         break;
       case TAIR_REQ_INCDEC_PACKET:
