@@ -936,6 +936,32 @@ namespace tair {
         if(master_config_server_id == util::local_server_ip::ip) {
           group_info_founded->do_proxy_report(*req);
         }
+        if (group_info_founded->is_migrating()
+            && req->loop_count != group_info_founded->get_migrate_version())
+        {
+          log_debug("send back server list as the migrate version diff, ds is %llu, local is %llu",
+                    req->loop_count, group_info_founded->get_migrate_version());
+          // send back table
+          resp->bucket_count = group_info_founded->get_server_bucket_count();
+          resp->copy_count = group_info_founded->get_copy_count();
+          resp->set_hash_table(group_info_founded->
+                              get_hash_table_deflate_data(req->server_flag),
+                              group_info_founded->
+                              get_hash_table_deflate_size(req->server_flag));
+          // set the migrate_version back
+          int temp_val = resp->data_need_move;
+          if (temp_val != 0 && temp_val != 1) {
+            log_error("invalid value of data need move : %d", temp_val);
+          } else {
+            resp->data_need_move = group_info_founded->get_migrate_version();
+            if (resp->data_need_move < 0) {
+              log_warn("ds may not get the right migrate version");
+            }
+            log_debug("send back the migrate version through data_need_move");
+            resp->data_need_move <<= 1;
+            resp->data_need_move += temp_val;
+          }
+        }
       }
 
       if(req->plugins_version != group_info_founded->get_plugins_version()) {

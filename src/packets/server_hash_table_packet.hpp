@@ -38,7 +38,7 @@ namespace tair{
          }
       }
 
-      int get_hash_table_size() const 
+      int get_hash_table_size() const
       {
          return hash_table_size;
       }
