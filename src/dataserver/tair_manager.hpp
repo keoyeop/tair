@@ -90,8 +90,8 @@ namespace tair {
       int direct_put(data_entry &key, data_entry &value);
       int direct_remove(data_entry &key);
 
-      int get_range(int32_t area, data_entry &key_start, data_entry &key_end, int offset, int limit, int type, std::vector<data_entry*> &result, bool &has_next); 
-    
+      int get_range(int32_t area, data_entry &key_start, data_entry &key_end, int offset, int limit, int type, std::vector<data_entry*> &result, bool &has_next);
+
       int add_items(int area,
                     data_entry& key,
                     data_entry& value,
@@ -126,6 +126,7 @@ namespace tair {
       bool is_working();
 
       void update_server_table(uint64_t *server_table, int server_table_size, uint32_t server_table_version, int32_t data_need_remove, vector<uint64_t> &current_state_table, uint32_t copy_count, uint32_t bucket_count);
+      void try_update_table(uint64_t *server_table, uint32_t copy_count, uint32_t bucket_count);
 
       void get_proxying_buckets(vector<uint32_t> &buckets);
 

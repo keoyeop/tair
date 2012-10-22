@@ -140,6 +140,10 @@ namespace tair {
     {
       return *server_table_manager.server_version;
     }
+    uint32_t group_info::get_migrate_version() const
+    {
+      return *server_table_manager.migrate_version;
+    }
     uint32_t group_info::get_plugins_version() const
     {
       return *server_table_manager.plugins_version;
@@ -774,6 +778,9 @@ namespace tair {
           return;
         }
         log_debug("quick table build ok");
+        // init migrate version in cs;
+        *(server_table_manager.migrate_version) = 0;
+        log_debug("reset migrate_version of group, migrate_version is %lld");
       }
       p_grp_locker->unlock();
       int ret =
@@ -1142,6 +1149,8 @@ namespace tair {
       }
       if(ret == true) {
         inc_version(server_table_manager.client_version);
+        // increase migrate version in cs, to push table to ds
+        inc_version(server_table_manager.migrate_version);
         deflate_hash_table();
         log_info("[%s] version changed: clientVersion: %u, serverVersion: %u",
                group_name, *server_table_manager.client_version,
