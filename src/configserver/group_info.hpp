@@ -41,7 +41,6 @@ namespace tair {
                                                       void *args);
       uint32_t get_client_version() const;
       uint32_t get_server_version() const;
-      uint32_t get_migrate_version() const;
       uint32_t get_plugins_version() const;
       uint32_t get_area_capacity_version() const;
       const std::map<uint32_t, uint64_t> &get_area_capacity_info() const;

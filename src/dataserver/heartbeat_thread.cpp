@@ -112,8 +112,6 @@ namespace tair {
          for (uint32_t i=0; i<config_server_list.size(); i++) {
             //if ((config_server_list[i] & TAIR_FLAG_CFG_DOWN)) continue;
             request_heartbeat *new_packet = new request_heartbeat(heartbeat_packet);
-            // change loop_count
-            new_packet->loop_count = migrate_version;
             if (conn_mgr->sendPacket(config_server_list[i], new_packet, NULL, (void*)((long)i)) == false) {
                delete new_packet;
             }
@@ -166,36 +164,21 @@ namespace tair {
                server_version = 1;
             }
 
-            int temp_migrate_version = resp->data_need_move >> 1;
-            resp->data_need_move %= 2;
-
             if (need_set && resp->server_version >= TAIR_CONFIG_MIN_VERSION && resp->server_version != server_version) {
-                 log_info("set _serverVersion to %d from %d", resp->server_version, server_version);
-                 server_version = resp->server_version;
-                 // init migrate_version in ds
-                 migrate_version = 0;
+               log_info("set _serverVersion to %d from %d", resp->server_version, server_version);
+               server_version = resp->server_version;
 
-                 uint64_t *server_list = resp->get_server_list(resp->bucket_count, resp->copy_count);
-                 if(server_list != NULL) {
 
-                   // update the serverTable async
-                   server_table_updater *stu = new server_table_updater(tair_mgr, server_list, resp->server_list_count, server_version, resp->data_need_move, resp->migrated_info, resp->copy_count, resp->bucket_count);
-                   stu->start();
-                 } else {
-                   log_debug("serverTable is NULL");
-                 }
-            } else {
-                // just update the server table, don't replace the former table, inorder to cooperative with no proxy
-                // check the migrate table, if there if a bucket, the master of which is local::ip in new table, but not in the old one
-                // ought to update. tair_mgr->update_server_table
-                if (temp_migrate_version) {
-                  log_debug("the temp_migrate_version is not null, to read server_list");
-                  migrate_version = temp_migrate_version;
-                  uint64_t *server_list = resp->get_server_list(resp->bucket_count, resp->copy_count);
-                  if (NULL != server_list) {
-                    tair_mgr->try_update_table(server_list ,resp->copy_count, resp->bucket_count);
-                  }
-                }
+               uint64_t *server_list = resp->get_server_list(resp->bucket_count, resp->copy_count);
+               if(server_list != NULL) {
+
+                  // update the serverTable async
+                  server_table_updater *stu = new server_table_updater(tair_mgr, server_list, resp->server_list_count, server_version, resp->data_need_move, resp->migrated_info, resp->copy_count, resp->bucket_count);
+                  stu->start();
+               } else {
+                  log_debug("serverTable is NULL");
+               }
+
             }
             if (resp->down_slave_config_server && have_config_server_down == false) {
                for (uint32_t i=0; i<config_server_list.size(); i++) {

@@ -44,7 +44,7 @@ namespace tair {
      pthread_rwlock_destroy(&m_mutex);
    }
 
-   bool table_manager::is_master(int bucket_number, int server_flag)
+   bool table_manager::is_master(int bucket_number, int server_flag) 
    {
       tair::common::CScopedRwLock __scoped_lock(&m_mutex,false);
       assert (server_table != NULL);
@@ -127,31 +127,7 @@ namespace tair {
 #endif
    }
 
-   void table_manager::try_update_table(uint64_t *tmp_table, uint32_t copy_count, uint32_t bucket_count)
-   {
-     log_debug("enter %s", __func__);
-     if ((copy_count != this->copy_count) || (bucket_count != this->bucket_count)) {
-       log_error("copy_count or bucket_count confict, copy_count(old) is %d, (new) is %d; bucket_count(old) is %d, (new) is %d",
-                this->copy_count, copy_count, this->bucket_count, bucket_count);
-       return;
-     }
-
-     if (NULL == tmp_table || NULL == server_table) {
-       return;
-     }
-
-     for (int i = 0; i < bucket_count; i++) {
-        if ((tmp_table[i] == local_server_ip::ip) && (server_table[i] != local_server_ip::ip)) {
-          tair::common::CScopedRwLock __scoped_lock(&m_mutex, true);
-          log_error("change table of bucket %d", i);
-          for (int j = 0; j < copy_count; j++) {
-            server_table[i + j * bucket_count] = tmp_table[i + j * bucket_count];
-          }
-        }
-     }
-   }
-
-   vector<uint64_t> table_manager::get_slaves(int bucket_number, bool is_migrating)
+   vector<uint64_t> table_manager::get_slaves(int bucket_number, bool is_migrating) 
    {
       tair::common::CScopedRwLock __scoped_lock(&m_mutex,false);
       assert (server_table != NULL);
@@ -183,7 +159,7 @@ namespace tair {
       return slaves;
    }
 
-   uint64_t table_manager::get_migrate_target(int bucket_number)
+   uint64_t table_manager::get_migrate_target(int bucket_number) 
    {
       tair::common::CScopedRwLock __scoped_lock(&m_mutex,false);
       assert (server_table != NULL);
@@ -211,7 +187,7 @@ namespace tair {
          bool need_migrate = true;
          uint64_t dest_dataserver = pdest_table[index + this->bucket_count * i];
 
-         for (size_t j =0; j < this->copy_count; ++j)
+         for (size_t j =0; j < this->copy_count; ++j) 
          {
             if (dest_dataserver == psource_table[index + this->bucket_count * j]) {
                need_migrate = false;
@@ -225,9 +201,9 @@ namespace tair {
          }
       }
       bucket_server_map_it it = migrates.find(index);
-      if (it == migrates.end())
+      if (it == migrates.end()) 
       {
-         if (psource_table[index] != pdest_table[index])
+         if (psource_table[index] != pdest_table[index]) 
          {
             //this will add a empty vector to migrates,
             //some times only need to change master for a bucket

@@ -1509,13 +1509,6 @@
       duplicator->do_hash_table_changed();
     }
 
-    void tair_manager::try_update_table(uint64_t *server_table, uint32_t copy_count, uint32_t bucket_count)
-    {
-      if (localmode == true)
-        return;
-      table_mgr->try_update_table(server_table, copy_count, bucket_count);
-    }
-
     // private methods
     uint32_t tair_manager::get_bucket_number(const data_entry &key)
     {

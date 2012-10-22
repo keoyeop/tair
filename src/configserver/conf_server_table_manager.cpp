@@ -5,7 +5,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- * conf_server_table_manager.cpp is to store and load the hashtable
+ * conf_server_table_manager.cpp is to store and load the hashtable 
  *
  * Version: $Id$
  *
@@ -32,7 +32,7 @@ namespace tair {
       hash_table_deflate_data_for_client_size =
         hash_table_deflate_data_for_data_server_size = 0;
       file_opened = false;
-      migrate_version = new uint32_t();
+
     }
     conf_server_table_manager::conf_server_table_manager()
     {
@@ -46,7 +46,6 @@ namespace tair {
       if(hash_table_deflate_data_for_data_server) {
         free(hash_table_deflate_data_for_data_server);
       }
-      delete migrate_version;
       close();
     }
     void conf_server_table_manager::print_table() const

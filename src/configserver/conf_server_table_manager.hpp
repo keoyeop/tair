@@ -85,9 +85,6 @@ namespace tair {
       uint32_t *flag;
       uint32_t *client_version;
       uint32_t *server_version;
-      // to cooperate with no proxy, merge into data_need_move in_heartbeat response
-      // the lowest bit represents data_need_move
-      uint32_t *migrate_version;
       uint32_t *plugins_version;
       uint32_t *area_capacity_version;
       uint32_t *last_load_config_time;

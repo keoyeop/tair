@@ -46,7 +46,6 @@ namespace tair {
 
       /////////////////////////////
       void do_update_table(uint64_t *new_server_table, size_t size, uint32_t table_version, uint32_t copy_count, uint32_t bucket_count);
-      void try_update_table(uint64_t *server_table, uint32_t copy_count, uint32_t bucket_count);
       std::vector<int> get_holding_buckets() const;
       std::vector<int> get_padding_buckets() const;
       std::vector<int> get_release_buckets() const;

@@ -56,8 +56,6 @@ namespace tair {
       uint32_t client_version;
       uint32_t server_version;
       uint32_t plugins_version;
-      // to cooperate with no proxy, replace loop_count in request_heartbeat
-      uint32_t migrate_version;
    };
 
    class server_table_updater : public tbsys::CDefaultRunnable {
