@@ -166,12 +166,12 @@ namespace tair
 
   int RemoteSyncManager::pause(bool do_pause)
   {
-    paused_ = do_pause;
-    // resume rsync, logger may need some restart process
-    if (!do_pause)
+    // resume rsync from paused state, logger may need some restart process
+    if (paused_ && !do_pause)
     {
       logger_->restart();
     }
+    paused_ = do_pause;
     log_warn("%s remote sync process.", do_pause ? "pause" : "resume");
     return TAIR_RETURN_SUCCESS;
   }

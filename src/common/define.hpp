@@ -184,7 +184,7 @@
 #define LDB_LOAD_BACKUP_VERSION         "ldb_load_backup_version"
 #define LDB_DB_VERSION_CARE             "ldb_db_version_care"
 #define LDB_CACHE_STAT_FILE_SIZE        "ldb_cache_stat_file_size"
-#define LDB_COMPACT_RANGE               "ldb_compact_range"
+#define LDB_COMPACT_GC_RANGE            "ldb_compact_gc_range"
 #define LDB_CHECK_COMPACT_INTERVAL      "ldb_check_compact_interval"
 #define LDB_USE_CACHE                   "ldb_use_cache"
 #define LDB_MIGRATE_BATCH_COUNT         "ldb_migrate_batch_count"

@@ -54,7 +54,7 @@ namespace tair
         {
           db_ = db;
 
-          const char* time_range = TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_COMPACT_RANGE, "2-7");
+          const char* time_range = TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_COMPACT_GC_RANGE, "2-7");
           if (!util::time_util::get_time_range(time_range, min_time_hour_, max_time_hour_))
           {
             log_warn("config compact hour range error: %s, use default 2-7", time_range);
@@ -166,10 +166,7 @@ namespace tair
                        db_->index(), round_largest_filenumber_);
             }
 
-            uint64_t limit_filenumber = round_largest_filenumber_;
-            // TODO: actually, following is correct logically,
-            //       just compatible to old version now(gc_node.file_number_ is set to ~0UL in old version)
-            // uint64_t limit_filenumber = std::max(round_largest_filenumber_, gc_node.file_number_);
+            uint64_t limit_filenumber = std::max(round_largest_filenumber_, gc_node.file_number_);
 
             DUMP_GCNODE(warn, gc_node,
                         "[%d] gc type: %d, count: %d, start time: %s, limit filenumber: %"PRI64_PREFIX"u",
