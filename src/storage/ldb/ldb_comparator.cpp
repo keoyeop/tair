@@ -113,7 +113,7 @@ namespace tair
 
       bool BitcmpLdbComparatorImpl::ShouldDrop(const char* key, int64_t sequence, uint32_t will_gc) const
       {
-        if (gc_ == NULL)
+        if (gc_ == NULL || gc_->empty())
         {
           return false;
         }
