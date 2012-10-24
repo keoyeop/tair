@@ -138,9 +138,9 @@ ldb_limit_compact_time_interval=0
 ## limit compaction time range, start == end means doing limit the whole day.
 ldb_limit_compact_time_range=6-1
 ## limit delete obsolete files when finishing one compaction
-ldb_limit_delete_obsolete_file_interval=0
+ldb_limit_delete_obsolete_file_interval=5
 ## whether trigger compaction by seek
-ldb_do_seek_compaction=1
+ldb_do_seek_compaction=0
 
 #### following config effects on FastDump ####
 ## when ldb_db_instance_count > 1, bucket will be sharded to instance base on config strategy.
@@ -184,7 +184,7 @@ ldb_block_cache_size=16777216
 ## specifid compression method (snappy only now)
 # ldb_compression=1
 ## compact when sstables count in level-0 is over this trigger
-ldb_l0_compaction_trigger=2
+ldb_l0_compaction_trigger=1
 ## write will slow down when sstables count in level-0 is over this trigger
 ldb_l0_slowdown_write_trigger=32
 ## write will stop(wait until trigger down)
