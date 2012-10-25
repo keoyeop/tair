@@ -827,7 +827,7 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
 
   logfile_number_ = new_log_number;
 
-  Log(options_.info_log, "new log %d", new_log_number);
+  Log(options_.info_log, "new log %lu", new_log_number);
   bu = new BucketUpdate();
   bu->bucket_number_ = bucket;
   bu->log_number_ = new_log_number;
@@ -942,10 +942,7 @@ Status DBImpl::CompactRangeSelfLevel(
   InternalKey begin_storage, end_storage;
 
   ManualCompaction manual;
-  // @@ TEMPORARILY CHANGE FOR SAFE @@
-  manual.limit_filenumber = versions_->NextFileNumber();
-  // manual.limit_filenumber = limit_filenumber;
-  // @@ TEMPORARILY CHANGE FOR SAFE @@
+  manual.limit_filenumber = limit_filenumber;
   manual.done = false;
   manual.reschedule = false;    // only run once
 
@@ -963,20 +960,22 @@ Status DBImpl::CompactRangeSelfLevel(
     manual.end = &end_storage;
   }
 
+  // avoid to miss bg_cv's signal() occasionally(wait() compete somewhere), use TimedCond() here
+  int64_t timed_us = 1000000;   // 1s
   MutexLock l(&mutex_);
   manual.bg_compaction_func = &DBImpl::BackgroundCompactionSelfLevel;
   for (int level = 0; level < config::kNumLevels && manual.compaction_status.ok(); ++level) {
     ManualCompaction each_manual = manual;
     each_manual.level = level;
     while (each_manual.compaction_status.ok() && !each_manual.done) {
-      // still have other manual compaction running
-      while (manual_compaction_ != NULL) {
-        bg_cv_.Wait();
+      // still have other compaction running
+      while (bg_compaction_scheduled_) {
+        bg_cv_.TimedWait(timed_us);
       }
       manual_compaction_ = &each_manual;
       MaybeScheduleCompaction();
       while (manual_compaction_ == &each_manual) {
-        bg_cv_.Wait();
+        bg_cv_.TimedWait(timed_us);
       }
     }
     manual.compaction_status = each_manual.compaction_status;
@@ -986,7 +985,6 @@ Status DBImpl::CompactRangeSelfLevel(
 }
 
 void DBImpl::BackgroundCompactionSelfLevel() {
-  mutex_.AssertHeld();
   assert(bg_compaction_scheduled_);
   assert(manual_compaction_ != NULL); // this must be a manual compaction
 
@@ -995,20 +993,22 @@ void DBImpl::BackgroundCompactionSelfLevel() {
   ManualCompaction* m = manual_compaction_;
   Status status;
   do {
-    c = versions_->CompactRangeOneLevel(m->level, m->limit_filenumber, m->begin, m->end);
+    // level-0 is dumped by memtable, apply no filter, so ignore filenumber limit
+    c = versions_->
+      CompactRangeOneLevel(m->level, m->level > 0 ? m->limit_filenumber : ~(static_cast<uint64_t>(0)), m->begin, m->end);
     if (NULL == c) {            // no compact for this level
-      Log(options_.info_log, "no file for this key in level: %d\n", m->level);
+      Log(options_.info_log, "need no selfcom in level: %d\n", m->level);
       m->done = true;           // done all.
       break;
     }
     manual_end = c->input(0, c->num_input_files(0) - 1)->largest;
 
-    Log(options_.info_log,
-        "SelfLevel compaction at level-%d from %s .. %s; will stop at %s\n",
-        m->level,
-        (m->begin ? m->begin->DebugString().c_str() : "(begin)"),
-        (m->end ? m->end->DebugString().c_str() : "(end)"),
-        (m->done ? "(end)" : manual_end.DebugString().c_str()));
+#if 0
+    int input_size = c->num_input_files(0);
+    for (int i = 0; i < input_size; ++i) {
+      Log(options_.info_log, "[%lu]", c->input(0, i)->number);
+    }
+#endif
 
     CompactionState* compact = new CompactionState(c);
     status = DoCompactionWorkSelfLevel(compact);
@@ -1061,9 +1061,6 @@ Status DBImpl::DoCompactionWorkSelfLevel(CompactionState* compact) {
     compact->smallest_snapshot = snapshots_.oldest()->number_;
   }
 
-  // Release mutex while we're actually doing the compaction work
-  mutex_.Unlock();
-
   Iterator* input = versions_->MakeInputIterator(compact->compaction);
   input->SeekToFirst();
   Status status;
@@ -1071,21 +1068,16 @@ Status DBImpl::DoCompactionWorkSelfLevel(CompactionState* compact) {
   std::string current_user_key;
   bool has_current_user_key = false;
   SequenceNumber last_sequence_for_key = kMaxSequenceNumber;
-  // @ caculate expired end time only once for speed
-  // @ consider cost time of one compaction (range matters), the precision (maybe) is tolerable
-  uint32_t expired_end_time = start_micros/1000000;
 
   for (; input->Valid() && !shutting_down_.Acquire_Load(); ) {
     // Prioritize immutable compaction work
     if (has_imm_.NoBarrier_Load() != NULL) {
       const uint64_t imm_start = env_->NowMicros();
-      mutex_.Lock();
       if (imm_ != NULL) {
         Log(options_.info_log, "com mem");
         CompactMemTable();
         bg_cv_.SignalAll();  // Wakeup MakeRoomForWrite() if necessary
       }
-      mutex_.Unlock();
       imm_micros += (env_->NowMicros() - imm_start);
     }
 
@@ -1186,16 +1178,15 @@ Status DBImpl::DoCompactionWorkSelfLevel(CompactionState* compact) {
     stats.bytes_written += compact->outputs[i].file_size;
   }
 
-  mutex_.Lock();
   // stat add this level
   stats_[compact->compaction->level()].Add(stats);
 
   if (status.ok()) {
-    Log(options_.info_log,  "SelfLevel Compacted %d@%d (%lld) files => %lld bytes, [%lld + %lld]",
+    Log(options_.info_log,  "SelfLevel Compacted %d@%d (%ld) bytes => %ld bytes, [%ld + %ld]",
         compact->compaction->num_input_files(0),
         compact->compaction->level(),
         stats.bytes_read,
-        static_cast<long long>(compact->total_bytes),
+        static_cast<int64_t>(compact->total_bytes),
         imm_micros, stats.micros
       );
     status = InstallCompactionResults(compact, false); // output files is in current level, not level + 1
@@ -1244,7 +1235,9 @@ void DBImpl::BackgroundCall() {
   assert(bg_compaction_scheduled_);
   if (!shutting_down_.Acquire_Load()) {
     if (manual_compaction_ != NULL) {
+      mutex_.Unlock();
       (this->*manual_compaction_->bg_compaction_func)(); // use user-defined compaction function
+      mutex_.Lock();
     } else {
       PROFILER_BEGIN("do com+");
       mutex_.Unlock();
@@ -1276,7 +1269,7 @@ void DBImpl::BackgroundCompaction() {
     PROFILER_BEGIN("com mem+");
     CompactMemTable();
     PROFILER_END();
-    Log(options_.info_log, "only com mem cost %lld", env_->NowMicros() - imm_start);
+    Log(options_.info_log, "only com mem cost %ld", env_->NowMicros() - imm_start);
     return;
   }
 
@@ -1632,12 +1625,12 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
   stats_[compact->compaction->level() + 1].Add(stats);
 
   if (status.ok()) {
-    Log(options_.info_log,  "Compacted %d@%d + %d@%d files => %lld bytes, [%lld + %lld]",
+    Log(options_.info_log,  "Compacted %d@%d + %d@%d files => %ld bytes, [%ld + %ld]",
         compact->compaction->num_input_files(0),
         compact->compaction->level(),
         compact->compaction->num_input_files(1),
         compact->compaction->level() + 1,
-        static_cast<long long>(compact->total_bytes),
+        static_cast<int64_t>(compact->total_bytes),
         imm_micros, stats.micros
       );
     PROFILER_BEGIN("install com result+");
@@ -2016,7 +2009,7 @@ bool DBImpl::GetProperty(const Slice& property, std::string* value,
     in.remove_prefix(strlen("num-files-at-level"));
     uint64_t level;
     bool ok = ConsumeDecimalNumber(&in, &level) && in.empty();
-    if (!ok || level >= config::kNumLevels) {
+    if (!ok || static_cast<int64_t>(level) >= config::kNumLevels) {
       return false;
     } else {
       char buf[100];
@@ -2059,17 +2052,17 @@ bool DBImpl::GetProperty(const Slice& property, std::string* value,
     return true;
   } else if (in == "sequence") {
     char buf[50];
-    snprintf(buf, sizeof(buf), "%llu", versions_->LastSequence());
+    snprintf(buf, sizeof(buf), "%lu", versions_->LastSequence());
     value->append(buf);
     return true;
   } else if (in == "largest-filenumber") {
     char buf[50];
-    snprintf(buf, sizeof(buf), "%llu", versions_->NextFileNumber());
+    snprintf(buf, sizeof(buf), "%lu", versions_->NextFileNumber());
     value->append(buf);
     return true;
   } else if (in == "smallest-filenumber") {
     char buf [50];
-    snprintf(buf, sizeof(buf), "%llu", versions_->SmallestFileNumber());
+    snprintf(buf, sizeof(buf), "%lu", versions_->SmallestFileNumber());
     value->append(buf);
     return true;
   } else if (in == "ranges") {
@@ -2199,6 +2192,11 @@ Status DB::Open(const Options& options, const std::string& dbname,
 Status DB::Open(const Options& options, const std::string& dbname,
                 const std::string& manifest, DB** dbptr) {
   *dbptr = NULL;
+
+  // not overlap current using LOG
+  if (options.info_log == NULL) {
+    return Status::InvalidArgument("not provide info log");
+  }
 
   Status s;
   DBImpl* impl = new DBImpl(options, dbname);

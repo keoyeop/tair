@@ -369,13 +369,18 @@ namespace tair
 
       void LdbGcFactory::pause_gc()
       {
-        log_error("pause gc");
+        log_warn("pause gc");
         can_gc_ = false;
       }
 
       void LdbGcFactory::resume_gc()
       {
-        log_error("resume gc");
+        if (!can_gc_)
+        {
+          // restart to new task round
+          db_->bg_task()->restart();
+        }
+        log_warn("resume gc");
         can_gc_ = true;
       }
 
@@ -566,11 +571,7 @@ namespace tair
       void LdbGcFactory::set_gc_info(GcNode& node)
       {
         get_db_stat(db_->db(), node.sequence_, "sequence");
-        // @@ TEMPORARILY CHANGE FOR SAFE @@
-        // 'cause leveldb's compaction may NOT gc keys, so filenumber is not considered here.
-        node.file_number_ = ~0UL;
-        // get_db_stat(db_->db(), node.file_number_, "largest-filenumber");
-        // @@ TEMPORARILY CHANGE FOR SAFE @@
+        get_db_stat(db_->db(), node.file_number_, "largest-filenumber");
         node.when_ = time(NULL);
       }
 

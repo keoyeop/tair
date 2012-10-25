@@ -28,12 +28,14 @@ namespace tair
     {
       ////////// LdbCompactTask
       LdbCompactTask::LdbCompactTask()
-        : db_(NULL), min_time_(0), max_time_(0), is_compacting_(false)
+        : stop_(false), db_(NULL), min_time_hour_(0), max_time_hour_(0),
+          round_largest_filenumber_(0), is_compacting_(false)
       {
       }
 
       LdbCompactTask::~LdbCompactTask()
       {
+        stop();
       }
 
       void LdbCompactTask::runTimerTask()
@@ -52,12 +54,12 @@ namespace tair
         {
           db_ = db;
 
-          const char* time_range = TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_COMPACT_RANGE, "2-7");
-          if (!util::time_util::get_time_range(time_range, min_time_, max_time_))
+          const char* time_range = TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_COMPACT_GC_RANGE, "2-7");
+          if (!util::time_util::get_time_range(time_range, min_time_hour_, max_time_hour_))
           {
             log_warn("config compact hour range error: %s, use default 2-7", time_range);
           }
-          log_info("compact hour range: %d - %d", min_time_, max_time_);
+          log_info("compact hour range: %d - %d", min_time_hour_, max_time_hour_);
         }
         else
         {
@@ -66,10 +68,21 @@ namespace tair
         return ret;
       }
 
+      void LdbCompactTask::stop()
+      {
+        stop_ = true;
+      }
+
+      void LdbCompactTask::reset()
+      {
+        log_warn("reset compact task");
+        round_largest_filenumber_ = 0;
+      }
+
       bool LdbCompactTask::should_compact()
       {
         tbsys::CThreadGuard guard(&lock_);
-        bool ret = db_->gc_factory()->can_gc() && !is_compacting_ && is_compact_time() && need_compact();
+        bool ret = !stop_ && db_->gc_factory()->can_gc() && !is_compacting_ && is_compact_time() && need_compact();
         if (ret)
         {
           is_compacting_ = true;
@@ -124,59 +137,109 @@ namespace tair
       void LdbCompactTask::compact_gc(GcType gc_type, bool& all_done)
       {
         log_debug("compact gc %d", gc_type);
-        db_->gc_factory()->try_evict();
+        // db_->gc_factory()->try_evict();
         all_done = db_->gc_factory()->empty(gc_type);
 
         if (!all_done)          // not evict all
         {
           GcNode gc_node = db_->gc_factory()->pick_gc_node(gc_type);
-          std::string start_key, end_key;
           DUMP_GCNODE(info, gc_node, "pick gc node, type: %d", gc_type);
           if (gc_node.key_ < 0)
           {
             all_done = true;
+            log_warn("[%d] gc all done, type: %d", db_->index(), gc_type);
           }
           else
           {
-            switch (gc_type) {
-            case GC_BUCKET:
-              LdbKey::build_scan_key(gc_node.key_, start_key, end_key);
-              break;
-            case GC_AREA:
-              LdbKey::build_scan_key_with_area(gc_node.key_, start_key, end_key);
-              break;
-            default:
-              log_error("invalid compact gc type: %d", gc_type);
-              break;
-            }
             uint32_t start_time = time(NULL);
-            DUMP_GCNODE(info, gc_node, "compact for gc type: %d, start: %u", gc_type, start_time);
+            // get scan key to gc
+            std::vector<ScanKey> gc_scan_keys;
+            build_scan_key(gc_type, gc_node.key_, gc_scan_keys);
 
-            leveldb::Slice comp_start(start_key), comp_end(end_key);
-            leveldb::Status status = db_->db()->
-              CompactRangeSelfLevel(gc_node.file_number_, &comp_start, &comp_end);
-
-            if (!status.ok())
+            if (round_largest_filenumber_ <= 0)
             {
-              DUMP_GCNODE(error, gc_node, "compact for gc fail. type: %d, error: %s",
-                          gc_type, status.ToString().c_str());
+              // new task round, reset largest_filenumber_,
+              // 'cause in one new task round, every file whose filenumber is large than round_largest_filenumber
+              // is generated after gced(ShouldDrop() filter)
+              get_db_stat(db_->db(), round_largest_filenumber_, "largest-filenumber");
+              log_warn("[%d] new task round, round_largest_filenumber: %"PRI64_PREFIX"u",
+                       db_->index(), round_largest_filenumber_);
             }
-            else
+
+            uint64_t limit_filenumber = std::max(round_largest_filenumber_, gc_node.file_number_);
+
+            DUMP_GCNODE(warn, gc_node,
+                        "[%d] gc type: %d, count: %d, start time: %s, limit filenumber: %"PRI64_PREFIX"u",
+                        db_->index(), gc_type, gc_scan_keys.size(),
+                        tair::util::time_util::time_to_str(start_time).c_str(), limit_filenumber);
+
+            size_t i = 0;
+            for (i = 0; !stop_ && db_->gc_factory()->can_gc() && i < gc_scan_keys.size(); ++i)
             {
-              DUMP_GCNODE(info, gc_node, "compact for gc success. type: %d, cost: %u",
-                          gc_type, (time(NULL) - start_time));
+              leveldb::Slice comp_start(gc_scan_keys[i].start_key_), comp_end(gc_scan_keys[i].end_key_);
+              leveldb::Status status = db_->db()->
+                CompactRangeSelfLevel(limit_filenumber, &comp_start, &comp_end);
+
+              if (!status.ok())
+              {
+                DUMP_GCNODE(error, gc_node, "[%d] gc fail. type: %d, error: %s",
+                            db_->index(), gc_type, status.ToString().c_str());
+                break;
+              }
+              // just have a rest..
+              ::sleep(1);
+            }
+
+            if (i >= gc_scan_keys.size()) // all is ok
+            {
+              DUMP_GCNODE(warn, gc_node, "[%d] gc success. type: %d, cost: %u",
+                          db_->index(), gc_type, (time(NULL) - start_time));
               db_->gc_factory()->remove(gc_node, gc_type);
-              // may can evict some
-              db_->gc_factory()->try_evict();
+              // // may can evict some
+              // db_->gc_factory()->try_evict();
               all_done = db_->gc_factory()->empty(gc_type);
+              if (all_done)
+              {
+                log_warn("[%d] gc all done, type: %d", db_->index(), gc_type);
+              }
             }
           }
         }
       }
 
+      void LdbCompactTask::build_scan_key(GcType type, int32_t key, std::vector<ScanKey>& scan_keys)
+      {
+        switch (type)
+        {
+        case GC_BUCKET:
+        {
+          ScanKey scan_key;
+          LdbKey::build_scan_key(key, scan_key.start_key_, scan_key.end_key_);
+          scan_keys.push_back(scan_key);
+          break;
+        }
+        case GC_AREA:
+        {
+          // build each scan key with one bucket with area
+          std::vector<int32_t> buckets;
+          db_->get_buckets(buckets);
+          for (size_t i = 0; i < buckets.size(); ++i)
+          {
+            ScanKey scan_key;
+            LdbKey::build_scan_key_with_area(buckets[i], key, scan_key.start_key_, scan_key.end_key_);
+            scan_keys.push_back(scan_key);
+          }
+          break;
+        }
+        default:
+          log_error("[%d] invalid gc type to build scan key, type: %d, key: %d", db_->index(), type, key);
+          break;
+        }
+      }
+
       bool LdbCompactTask::is_compact_time()
       {
-        return (min_time_ != max_time_) && util::time_util::is_in_range(min_time_, max_time_);
+        return (min_time_hour_ != max_time_hour_) && util::time_util::is_in_range(min_time_hour_, max_time_hour_);
       }
 
       ////////// BgTask
@@ -211,6 +274,14 @@ namespace tair
         }
       }
 
+      void BgTask::restart()
+      {
+        if (compact_task_ != 0)
+        {
+          compact_task_->reset();
+        }
+      }
+
       bool BgTask::init_compact_task(LdbInstance* db)
       {
         bool ret = false;
@@ -237,6 +308,7 @@ namespace tair
         if (timer_ != 0 && compact_task_ != 0)
         {
           timer_->cancel(compact_task_);
+          compact_task_->stop();
           compact_task_ = 0;
         }
       }

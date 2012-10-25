@@ -35,14 +35,20 @@ namespace tair
 
       class LdbCompactTask : public tbutil::TimerTask
       {
-      public:
-        static const int COMPACT_PAUSE_TIME = 43200; // 12h
+        typedef struct
+        {
+          std::string start_key_;
+          std::string end_key_;
+        } ScanKey;
 
+      public:
         LdbCompactTask();
         virtual ~LdbCompactTask();
         virtual void runTimerTask();
 
         bool init(LdbInstance* db);
+        void stop();
+        void reset();
 
       private:
         bool is_compact_time();
@@ -54,10 +60,15 @@ namespace tair
         void compact_gc(GcType gc_type, bool& all_done);
         void compact_for_expired();
 
+        void build_scan_key(GcType type, int32_t key, std::vector<ScanKey>& scan_keys);
+
       private:
+        bool stop_;
         LdbInstance* db_;
-        int32_t min_time_;
-        int32_t max_time_;
+        int32_t min_time_hour_;
+        int32_t max_time_hour_;
+        // largest filenumber in this task round
+        uint64_t round_largest_filenumber_;
         tbsys::CThreadMutex lock_;
         bool is_compacting_;
       };
@@ -71,6 +82,7 @@ namespace tair
 
         bool start(LdbInstance* db);
         void stop();
+        void restart();
 
       private:
         bool init_compact_task(LdbInstance* db);

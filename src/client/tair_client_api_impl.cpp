@@ -51,6 +51,7 @@
 #include "hide_by_proxy_packet.hpp"
 #include "prefix_hides_by_proxy_packet.hpp"
 #include "prefix_invalids_packet.hpp"
+#include "mupdate_packet.hpp"
 #include "inval_stat.hpp"
 
 namespace tair {
@@ -426,6 +427,52 @@ FAIL:
     {
       ret = TAIR_RETURN_PARTIAL_SUCCESS;
     }
+    this_wait_object_manager->destroy_wait_object(cwo);
+    return ret;
+  }
+
+  int tair_client_impl::direct_update(std::vector<uint64_t>& servers, tair_operc_vector* opercs)
+  {
+    if (opercs == NULL || servers.empty()) {
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
+
+    int ret = TAIR_RETURN_SUCCESS;
+    wait_object* cwo = this_wait_object_manager->create_wait_object();
+    for (size_t i = 0; i < servers.size(); ++i) {
+      uint64_t server_id = servers[i];
+      request_mupdate* packet = new request_mupdate();
+      packet->server_flag = TAIR_SERVERFLAG_MIGRATE;
+      packet->key_and_values = opercs;
+      packet->alloc = false;
+      packet->count = opercs->size();
+
+      if ((ret = send_request(server_id, packet, cwo->get_id())) != TAIR_RETURN_SUCCESS) {
+        delete packet;
+        log_error("send direct update fail, %s", tbsys::CNetUtil::addrToString(server_id).c_str());
+        break;
+      }
+    }
+
+    if (ret != TAIR_RETURN_SUCCESS) {
+      this_wait_object_manager->destroy_wait_object(cwo);
+      return ret;
+    }
+
+    vector<base_packet*> tpk;
+    if (get_response(cwo, servers.size(), tpk) < static_cast<int32_t>(servers.size())) {
+      this_wait_object_manager->destroy_wait_object(cwo);
+      TBSYS_LOG(ERROR,"all requests are failed");
+      return TAIR_RETURN_TIMEOUT;
+    }
+
+    for (size_t i = 0; i < tpk.size(); ++i) {
+      if (tpk[i]->getPCode() != TAIR_RESP_RETURN_PACKET ||
+          (ret = ((response_return*)tpk[i])->get_code()) != TAIR_RETURN_SUCCESS) {
+        break;
+      }
+    }
+
     this_wait_object_manager->destroy_wait_object(cwo);
     return ret;
   }
@@ -978,12 +1025,7 @@ FAIL:
       //return fail
       ret = TAIR_RETURN_FAILED;
       //free
-      tair_keyvalue_map::iterator mit = data.begin();
-      for ( ; mit != data.end(); ++mit)
-      {
-        delete mit->first;
-        delete mit->second;
-      }
+      defree(data);
       data.clear();
     }
     else
@@ -3376,6 +3418,21 @@ OUT:
     connmgr = 0;
     this_wait_object_manager = 0;
     inited = false;
+  }
+
+  bool tair_client_impl::get_server_id(int32_t bucket, vector<uint64_t>& server)
+  {
+    if (this->direct) {
+      server.push_back(this->data_server);
+      return true;
+    }
+    for(uint32_t i=0;i<copy_count && i < my_server_list.size(); ++ i){
+      uint64_t server_id = my_server_list[bucket + i * bucket_count];
+      if(server_id != 0){
+        server.push_back(server_id);
+      }
+    }
+    return server.size() > 0 ? true : false;
   }
 
   bool tair_client_impl::get_server_id(const data_entry &key,vector<uint64_t>& server)

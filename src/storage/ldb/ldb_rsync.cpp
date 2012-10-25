@@ -20,6 +20,7 @@
 #include "common/util.hpp"
 #include "common/data_entry.hpp"
 #include "common/record_logger_util.hpp"
+#include "packets/mupdate_packet.hpp"
 
 // this is an ugly include now, we just need some struct
 #include "dataserver/remote_sync_manager.hpp"
@@ -34,6 +35,7 @@ using tair::common::RecordLogger;
 using tair::common::SequentialFileRecordLogger;
 using tair::ClusterHandler;
 using tair::FailRecord;
+using tair::tair_operc_vector;
 
 class DataStat
 {
@@ -204,6 +206,7 @@ private:
 
 // global stop sentinel
 static bool g_stop = false;
+static int64_t g_wait_ms = 0;
 
 void sign_handler(int sig)
 {
@@ -212,6 +215,18 @@ void sign_handler(int sig)
   case SIGINT:
     log_error("catch sig %d", sig);
     g_stop = true;
+    break;
+  case 51:
+    g_wait_ms += 10;
+    log_warn("g_wait_ms: %ld", g_wait_ms);
+    break;
+  case 52:
+    g_wait_ms -= 10;
+    if (g_wait_ms < 0)
+    {
+      g_wait_ms = 0;
+    }
+    log_warn("g_wait_ms: %ld", g_wait_ms);
     break;
   }
 }
@@ -257,10 +272,27 @@ int get_from_local_cluster(ClusterHandler& handler, data_entry& key, data_entry*
   return ret;
 }
 
+void log_fail(RecordLogger* logger, std::string& info, tair_operc_vector& kvs, int ret)
+{
+  log_error("fail one %d", ret);
+  for (size_t i = 0; i < kvs.size(); ++i)
+  {
+    FailRecord record(kvs[i]->key, info, ret);
+    data_entry entry;
+    FailRecord::record_to_entry(record, entry);
+    int tmp_ret = logger->add_record(0, TAIR_REMOTE_SYNC_TYPE_PUT, &entry, NULL);
+    if (tmp_ret != TAIR_RETURN_SUCCESS)
+    {
+      log_error("add fail record fail, ret: %d", tmp_ret);
+    }
+  }
+}
+
 int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t>& buckets, 
              ClusterHandler* local_handler, ClusterHandler* remote_handler, bool mtime_care,
              DataFilter& filter, DataStat& stat, RecordLogger* fail_logger)
 {
+  static const int32_t MAX_BATCH_SIZE = 256 << 10; // 256K
   // open db with specified manifest(read only)
   leveldb::DB* db = NULL;
   leveldb::Options open_options;
@@ -268,13 +300,24 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
   open_options.create_if_missing = true; // create if not exist
   open_options.comparator = LdbComparator(NULL); // self-defined comparator
   open_options.env = leveldb::Env::Instance();
-  leveldb::Status s = leveldb::DB::Open(open_options, db_path, manifest_file, &db);
+
+  char buf[32];
+  snprintf(buf, sizeof(buf), "./rsync_db_log.%d", getpid());
+  leveldb::Status s = open_options.env->NewLogger(buf, &open_options.info_log);
+  if (s.ok())
+  {
+    s = leveldb::DB::Open(open_options, db_path, manifest_file, &db);
+  }
 
   if (!s.ok())
   {
     log_error("open db with mainfest fail: %s", s.ToString().c_str());
     delete open_options.comparator;
     delete open_options.env;
+    if (open_options.info_log != NULL)
+    {
+      delete open_options.info_log;
+    }
     return TAIR_RETURN_FAILED;
   }
 
@@ -296,6 +339,11 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
   data_entry* key = NULL;
   data_entry* value = NULL;
 
+  int32_t total_size = 0;
+
+  std::vector<uint64_t> ds_ids;
+  tair_operc_vector kvs;
+
   int32_t mtime_care_flag = mtime_care ? TAIR_CLIENT_DATA_MTIME_CARE : 0;
   int ret = TAIR_RETURN_SUCCESS;
 
@@ -310,8 +358,15 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
     {
       start_time = time(NULL);
       area = -1;
-      bucket = buckets[i];
+      ds_ids.clear();
 
+      bucket = buckets[i];
+      remote_handler->client()->get_server_id(bucket, ds_ids);
+
+      for (size_t i = 0; i < ds_ids.size(); ++i)
+      {
+        log_warn("begin rsync bucket %d to %s", bucket, tbsys::CNetUtil::addrToString(ds_ids[i]).c_str());
+      }
       // seek to bucket
       LdbKey::build_key_meta(scan_key, bucket);
 
@@ -338,7 +393,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
         }
         else
         {
-          key = new data_entry(ldb_key.key(), ldb_key.key_size(), false);
+          key = new data_entry(ldb_key.key(), ldb_key.key_size(), true);
           value = NULL;
           key->has_merged = true;
           key->set_prefix_size(ldb_item.prefix_size());
@@ -350,7 +405,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
           }
           else
           {
-            value = new data_entry(ldb_item.value(), ldb_item.value_size(), false);
+            value = new data_entry(ldb_item.value(), ldb_item.value_size(), true);
             key->data_meta.cdate = value->data_meta.cdate = ldb_item.cdate();
             key->data_meta.edate = value->data_meta.edate = ldb_item.edate();
             key->data_meta.mdate = value->data_meta.mdate = ldb_item.mdate();
@@ -367,43 +422,91 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
             key->data_meta.flag = mtime_care_flag | TAIR_CLIENT_PUT_SKIP_CACHE_FLAG;
             key->server_flag = TAIR_SERVERFLAG_RSYNC;
             // sync to remote cluster
-            ret = remote_handler->client()->put(key->get_area(), *key, *value, 0, 0, false/* not fill cache */);
-            if (ret == TAIR_RETURN_MTIME_EARLY)
+            tair::operation_record *oprec = new tair::operation_record();
+            oprec->operation_type = 1;
+            oprec->key = key;
+            oprec->value = value;
+            kvs.push_back(oprec);
+            total_size += key->get_size() + value->get_size() + sizeof(tair::item_data_info) * 2;
+
+            if (total_size > MAX_BATCH_SIZE)
             {
-              ret = TAIR_RETURN_SUCCESS;
+              log_debug("@@ size %d %d", kvs.size(), total_size);
+              if (g_wait_ms > 0)
+              {
+                ::usleep(g_wait_ms * 1000);
+              }
+              ret = remote_handler->client()->direct_update(ds_ids, &kvs);
+              // consider timeout as success
+              if (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_TIMEOUT)
+              {
+                log_fail(fail_logger, remote_handler->info(), kvs, ret);
+              }
+              for (size_t i = 0; i < kvs.size(); ++i)
+              {
+                delete kvs[i];
+              }
+              kvs.clear();
+              total_size = 0;
             }
+            // @@
+            // @@ use client put
+            // ret = remote_handler->client()->put(key->get_area(), *key, *value, 0, 0, false/* not fill cache */);
+            // if (ret == TAIR_RETURN_MTIME_EARLY)
+            // {
+            //   ret = TAIR_RETURN_SUCCESS;
+            // }
+            // @@ 
           }
 
-          // log failed key
-          if (ret != TAIR_RETURN_SUCCESS)
-          {
-            log_error("fail one: %d", ret);
-            FailRecord record(key, remote_handler->info(), ret);
-            data_entry entry;
-            FailRecord::record_to_entry(record, entry);
-            int tmp_ret = fail_logger->add_record(0, TAIR_REMOTE_SYNC_TYPE_PUT, &entry, NULL);
-            if (tmp_ret != TAIR_RETURN_SUCCESS)
-            {
-              log_error("add fail record fail, ret: %d", tmp_ret);
-            }
-          }
+          // // log failed key
+          // if (ret != TAIR_RETURN_SUCCESS)
+          // {
+          //   log_error("fail one: %d", ret);
+          //   FailRecord record(key, remote_handler->info(), ret);
+          //   data_entry entry;
+          //   FailRecord::record_to_entry(record, entry);
+          //   int tmp_ret = fail_logger->add_record(0, TAIR_REMOTE_SYNC_TYPE_PUT, &entry, NULL);
+          //   if (tmp_ret != TAIR_RETURN_SUCCESS)
+          //   {
+          //     log_error("add fail record fail, ret: %d", tmp_ret);
+          //   }
+          // }
         }
 
         // update stat
         stat.update(bucket, skip_in_bucket ? -1 : area, // skip in bucket, then no area to update
                     ldb_key.key_size() + ldb_item.value_size(), (skip_in_bucket || skip_in_area), ret == TAIR_RETURN_SUCCESS);
 
-        // cleanup
-        if (key != NULL)
+        // // cleanup
+        // if (key != NULL)
+        // {
+        //   delete key;
+        //   key = NULL;
+        // }
+        // if (value != NULL)
+        // {
+        //   delete value;
+        //   value = NULL;
+        // }
+      }
+
+      // last packet
+      if (!kvs.empty())
+      {
+        log_debug("@@ size %d %d", kvs.size(), total_size);
+        ret = remote_handler->client()->direct_update(ds_ids, &kvs);
+        if (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_TIMEOUT)
         {
-          delete key;
-          key = NULL;
+          log_fail(fail_logger, remote_handler->info(), kvs, ret);
         }
-        if (value != NULL)
+
+        for (size_t i = 0; i < kvs.size(); ++i)
         {
-          delete value;
-          value = NULL;
+          delete kvs[i];
         }
+        kvs.clear();
+        total_size = 0;
       }
 
       log_warn("sync bucket %d over, cost: %d(s), stat:\n",
@@ -423,6 +526,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
   }
   delete open_options.comparator;
   delete open_options.env;
+  delete open_options.info_log;
 
   return ret;
 }
@@ -431,11 +535,12 @@ void print_help(const char* name)
 {
   fprintf(stderr,
           "synchronize one ldb version data of specified buckets to remote cluster.\n"
-          "%s -p dbpath -f manifest_file -r remote_cluster_addr -e faillogger_file -b buckets [-a yes_areas] [-A no_areas] [-l local_cluster_addr] [-n]\n"
+          "%s -p dbpath -f manifest_file -r remote_cluster_addr -e faillogger_file -b buckets [-a yes_areas] [-A no_areas] [-w wait_ms] [-l local_cluster_addr] [-n]\n"
           "NOTE:\n"
           "\tcluster_addr like: 10.0.0.1:5198,10.0.0.1:5198,group_1\n"
           "\tbuckets/areas like: 1,2,3\n"
           "\tconfig local cluster address mean that data WILL BE RE-GOT from local cluster\n"
+          "\twait_ms means wait time after each request\n"
           "\t-n : NOT mtime_care\n", name);
 }
 
@@ -453,7 +558,7 @@ int main(int argc, char* argv[])
   bool mtime_care = true;
   int i = 0;
 
-  while ((i = getopt(argc, argv, "p:f:l:r:e:b:a:A:n")) != EOF)
+  while ((i = getopt(argc, argv, "p:f:l:r:e:b:a:A:w:n")) != EOF)
   {
     switch (i)
     {
@@ -481,6 +586,9 @@ int main(int argc, char* argv[])
     case 'A':
       no_areas = optarg;
       break;
+    case 'w':
+      g_wait_ms = atoll(optarg);
+      break;
     case 'n':
       mtime_care = false;
       break;
@@ -499,6 +607,8 @@ int main(int argc, char* argv[])
   // init signals
   signal(SIGINT, sign_handler);
   signal(SIGTERM, sign_handler);
+  signal(51, sign_handler);
+  signal(52, sign_handler);
 
   TBSYS_LOGGER.setLogLevel("warn");
 
@@ -510,7 +620,7 @@ int main(int argc, char* argv[])
     ret = init_cluster_handler(local_cluster_addr, *local_handler);
     if (ret != TAIR_RETURN_SUCCESS)
     {
-      log_error("init local client fail, addr: %d, ret: %d", local_cluster_addr, ret);
+      log_error("init local client fail, addr: %s, ret: %d", local_cluster_addr, ret);
       delete local_handler;
       return 1;
     }
@@ -535,6 +645,8 @@ int main(int argc, char* argv[])
     bucket_container.push_back(atoi(bucket_strs[i].c_str()));
   }
 
+  std::random_shuffle(bucket_container.begin(), bucket_container.end());
+
   // init fail logger
   RecordLogger* fail_logger = new SequentialFileRecordLogger(fail_logger_file, 30<<20/*30M*/, true/*rotate*/);
   if (fail_logger->init() != TAIR_RETURN_SUCCESS)
@@ -548,6 +660,7 @@ int main(int argc, char* argv[])
     // init data stat
     DataStat stat;
 
+    log_warn("start rsync data, g_wait_ms: %"PRI64_PREFIX"d, mtime_care: %s", g_wait_ms, mtime_care ? "yes" : "no");
     // do data rsync
     uint32_t start_time = time(NULL);
     ret = do_rsync(db_path, manifest_file, bucket_container, local_handler, remote_handler, mtime_care, filter, stat, fail_logger);

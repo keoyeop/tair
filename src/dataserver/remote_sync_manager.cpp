@@ -22,7 +22,7 @@
 namespace tair
 {
   RemoteSyncManager::RemoteSyncManager(tair_manager* tair_manager)
-    : tair_manager_(tair_manager), paused_(false), max_process_count_(0), processing_count_(0),
+    : tair_manager_(tair_manager), paused_(false), wait_us_(0), max_process_count_(0), processing_count_(0),
       logger_(NULL), retry_logger_(NULL), fail_logger_(NULL),
       mtime_care_(false), cluster_inited_(false)
   {
@@ -166,12 +166,12 @@ namespace tair
 
   int RemoteSyncManager::pause(bool do_pause)
   {
-    paused_ = do_pause;
-    // resume rsync, logger may need some restart process
-    if (!do_pause)
+    // resume rsync from paused state, logger may need some restart process
+    if (paused_ && !do_pause)
     {
       logger_->restart();
     }
+    paused_ = do_pause;
     log_warn("%s remote sync process.", do_pause ? "pause" : "resume");
     return TAIR_RETURN_SUCCESS;
   }
@@ -181,6 +181,16 @@ namespace tair
     mtime_care_ = care;
     log_warn("set rsync mtime care: %s", care ? "yes" : "no");
     return TAIR_RETURN_SUCCESS;    
+  }
+
+  int RemoteSyncManager::set_wait_us(int64_t us)
+  {
+    if (us >= 0)
+    {
+      wait_us_ = us;
+    }
+    log_warn("set wait us: %"PRI64_PREFIX"d", us);
+    return TAIR_RETURN_SUCCESS;
   }
 
   int RemoteSyncManager::do_remote_sync(int32_t index, RecordLogger* input_logger, bool retry, FilterKeyFunc key_filter)
@@ -207,7 +217,7 @@ namespace tair
       {
         log_debug("@@ sleep %ld", need_wait_us);
         usleep(need_wait_us);
-        need_wait_us = 0;
+        need_wait_us = wait_us_;
       }
       if (paused_)
       {
@@ -372,7 +382,7 @@ namespace tair
       // force reget or this record need synchronize value but value is null
       if (force_reget || (NULL == value && is_remote_sync_need_value(type)))
       {
-        log_debug("@@ fr 1 %d %x %d", force_reget, value, is_remote_sync_need_value(type));
+        log_debug("@@ fr 1 %d %p %d", force_reget, value, is_remote_sync_need_value(type));
         need_reget = true;
         // need is_master to determines whether record can get from local_storage
         is_master = is_master_node(bucket_num, *key);

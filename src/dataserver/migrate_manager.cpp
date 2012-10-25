@@ -62,7 +62,7 @@ namespace tair {
       log_warn("migrate_manager destruct");
       this->stop();
       int i=0;
-      while(is_running && i++<9)
+      while(is_running && i++<2)
       {
         sleep(1);
       }

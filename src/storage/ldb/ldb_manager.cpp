@@ -120,7 +120,7 @@ namespace tair
         UNUSED(close);
         if (total <= 0 || NULL == sharding_buckets)
         {
-          log_error("sharing bucket fail. total count is invalid: %d, output sharding buckets: %x", total, sharding_buckets);
+          log_error("sharing bucket fail. total count is invalid: %d, output sharding buckets: %p", total, sharding_buckets);
           return TAIR_RETURN_FAILED;
         }
 
@@ -368,7 +368,7 @@ namespace tair
           if (::rename(tmp_file_name, bucket_index_file_path_) != 0)
           {
             log_error("change new bucket index file fail %s => %s, error: %s",
-                      new_file, bucket_index_file_path_, strerror(errno));
+                      tmp_file_name, bucket_index_file_path_, strerror(errno));
             ret = TAIR_RETURN_FAILED;
           }
           else

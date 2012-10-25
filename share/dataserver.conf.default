@@ -99,10 +99,10 @@ ldb_load_backup_version=0
 ## if yes, put will do get operation to update existed items's meta info(version .etc),
 ## get unexist item is expensive for leveldb. set 0 to disable if nobody even care version stuff.
 ldb_db_version_care=1
-## compact time range, 1-1 means do no compaction at all
-ldb_compact_range = 3-6
-## backgroud task check compact interval
-ldb_check_compact_interval = 5
+## time range to compact for gc, 1-1 means do no compaction at all
+ldb_compact_gc_range = 3-6
+## backgroud task check compact interval (s)
+ldb_check_compact_interval = 120
 ## use cache count, 0 means NOT use cache,`ldb_use_cache_count should NOT be larger
 ## than `ldb_db_instance_count, and better to be a factor of `ldb_db_instance_count.
 ## each cache mdb's config depends on mdb's config item(mdb_type, slab_mem_size, etc)
@@ -116,13 +116,14 @@ ldb_migrate_batch_size = 3145728
 ## real batch migrate items depends on the smaller size/count
 ldb_migrate_batch_count = 5000
 ## comparator_type bitcmp by default
-#ldb_comparator_type=numeric
+# ldb_comparator_type=numeric
 ## numeric comparator: special compare method for user_key sorting in order to reducing compact
 ## parameters for numeric compare. format: [meta][prefix][delimiter][number][suffix] 
 ## skip meta size in compare
-#ldb_userkey_skip_meta_size=2
+# ldb_userkey_skip_meta_size=2
 ## delimiter between prefix and number 
-#ldb_userkey_num_delimiter=:
+# ldb_userkey_num_delimiter=:
+####
 ## use blommfilter
 ldb_use_bloomfilter=1
 ## use mmap to speed up random acess file(sstable),may cost much memory

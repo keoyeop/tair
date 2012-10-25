@@ -206,7 +206,7 @@ class DBImpl : public DB {
   std::set<uint64_t> pending_outputs_;
 
   // how many times to delete obsolete files continuously
-  uint64_t has_limited_delete_obsolete_file_count_;
+  int64_t has_limited_delete_obsolete_file_count_;
 
   // Has a background compaction been scheduled or is running?
   bool bg_compaction_scheduled_;

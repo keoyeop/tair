@@ -78,6 +78,7 @@ namespace tair
         {
           // restart first sequence
           first_sequence_ = dynamic_cast<leveldb::DBImpl*>(instance_->db_)->LastSequence() + 1;
+          log_warn("reader restart, first_sequence: %"PRI64_PREFIX"u", first_sequence_);
         }
         return TAIR_RETURN_SUCCESS;
       }
@@ -275,7 +276,7 @@ namespace tair
           // reading earlier log
           if (reading_logfile_number_ < db_logfile_number)
           {
-            log_debug("@@ from earlier log: %d", reading_logfile_number_);
+            log_debug("@@ from earlier log: %lu", reading_logfile_number_);
             // read over one earlier whole log
             if (!reader_->ReadRecord(last_log_record_, &last_log_scratch_, ~((uint64_t)0)))
             {
@@ -287,7 +288,7 @@ namespace tair
           }
           else                  // reading current writting log
           {
-            log_debug("@@ from now log: %d %lu", reading_logfile_number_, db_logfile_size);
+            log_debug("@@ from now log: %lu %lu", reading_logfile_number_, db_logfile_size);
             reader_->ReadRecord(last_log_record_, &last_log_scratch_, db_logfile_size);
             // read one record OR read over all written record, both OK.
             break;
@@ -500,7 +501,7 @@ namespace tair
         int ret = TAIR_RETURN_SUCCESS;
         for (int32_t i = 0; i < reader_count_; ++i)
         {
-          if ((ret = reader_[i]->init()) != TAIR_RETURN_SUCCESS)
+          if ((ret = reader_[i]->restart()) != TAIR_RETURN_SUCCESS)
           {
             log_error("restart reader %d fail, ret: %d", i, ret);
             break;

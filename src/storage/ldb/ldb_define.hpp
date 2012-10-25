@@ -195,15 +195,15 @@ namespace tair
           end_key.assign(buf, LDB_KEY_META_SIZE);
         }
 
-        static void build_scan_key_with_area(int32_t area, std::string& start_key, std::string& end_key)
+        static void build_scan_key_with_area(int32_t bucket_number, int32_t area, std::string& start_key, std::string& end_key)
         {
-          char buf[LDB_KEY_META_SIZE + 2];
+          char buf[LDB_KEY_META_SIZE + LDB_KEY_AREA_SIZE];
 
-          build_key_meta(buf, 0);
+          build_key_meta(buf, bucket_number);
           encode_area(buf + LDB_KEY_META_SIZE, area);
           start_key.assign(buf, sizeof(buf));
 
-          build_key_meta(buf, MAX_BUCKET_NUMBER);
+          build_key_meta(buf, bucket_number);
           encode_area(buf + LDB_KEY_META_SIZE, area + 1);
           end_key.assign(buf, sizeof(buf));
         }

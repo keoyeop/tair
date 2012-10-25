@@ -118,10 +118,10 @@ namespace tair
 #undef DUMP_GCNODE
 
 #define GCNODE_SELF_FMT                                                 \
-      ", node [key: %d, sequence: %"PRI64_PREFIX"u, filenumber: %"PRI64_PREFIX"u, when: %u]."
+      ", node [key: %d, sequence: %"PRI64_PREFIX"u, filenumber: %"PRI64_PREFIX"u, when: %s]."
 
 #define GCNODE_SELF_ARGS(NODE)                                          \
-      (NODE).key_, (NODE).sequence_, (NODE).file_number_, (NODE).when_
+      (NODE).key_, (NODE).sequence_, (NODE).file_number_, tair::util::time_util::time_to_str((NODE).when_).c_str()
 
 #define DUMP_GCNODE(level, node, fmt, args...)                          \
       (log_##level(fmt GCNODE_SELF_FMT, ##args, GCNODE_SELF_ARGS(node)))

@@ -20,6 +20,7 @@ view_cache_stat_SOURCES=view_cache_stat.cpp
 ldb_rsync_SOURCES=ldb_rsync.cpp
 ldb_rsync_CPPFLAGS=${AM_CPPFLAGS} -I${top_srcdir}/src/packets -I${top_srcdir}/src/dataserver \
 		  -I${top_srcdir}/src/plugin -I${top_srcdir}/src/statserver/include
-ldb_rsync_LDADD=libldb.a ./leveldb/libleveldb.a ./leveldb/libsnappy.a ${top_builddir}/src/client/.libs/libtairclientapi.a \
+ldb_rsync_LDADD=libldb.a ./leveldb/libleveldb.a ./leveldb/libsnappy.a  ${top_builddir}/src/storage/mdb/.libs/libmdb.a \
+		${top_builddir}/src/client/.libs/libtairclientapi.a\
 		${top_builddir}/src/common/libtair_common.a $(TBLIB_ROOT)/lib/libtbnet.a $(TBLIB_ROOT)/lib/libtbsys.a\
 		${BOOST_LDFLAGS} @BOOST_THREAD_LIB@ -lpthread -lz -lrt

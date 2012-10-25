@@ -64,6 +64,7 @@ namespace tair {
          server_flag = 0;
          count = 0;
          len = 8;
+         alloc = true;
          key_and_values = NULL;
       }
 
@@ -73,6 +74,7 @@ namespace tair {
          server_flag = packet.server_flag;
          count = packet.count;
          len = packet.len;
+         alloc = packet.alloc;
          key_and_values = NULL;
          if (packet.key_and_values != NULL) {
             key_and_values = new tair_operc_vector();
@@ -86,7 +88,7 @@ namespace tair {
 
       ~request_mupdate()
       {
-         if (key_and_values != NULL) {
+         if (key_and_values != NULL && alloc) {
             tair_operc_vector::iterator it;
             for (it=key_and_values->begin(); it!=key_and_values->end(); ++it) {
                delete (*it);
@@ -199,6 +201,7 @@ namespace tair {
    public:
       uint32_t count;
       uint32_t len;
+      bool alloc;
       tair_operc_vector  *key_and_values;
    };
 }

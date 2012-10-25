@@ -1130,8 +1130,14 @@
         break;
       case TAIR_SERVER_CMD_SET_CONFIG:
         ret = params.size() >= 2 ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED;
-        if (ret == TAIR_RETURN_SUCCESS && params[0] == TAIR_RSYNC_MTIME_CARE && remote_sync_mgr != NULL) {
+        if (ret != TAIR_RETURN_SUCCESS) {
+          break;
+        }
+        // TODO: maybe config center to do all config modify.
+        if (params[0] == TAIR_RSYNC_MTIME_CARE && remote_sync_mgr != NULL) {
           remote_sync_mgr->set_mtime_care(atoi(params[1].c_str()) > 0);
+        } else if (params[0] == TAIR_RSYNC_WAIT_US && remote_sync_mgr != NULL) {
+          remote_sync_mgr->set_wait_us(atoi(params[1].c_str()));
         }
         break;
       default:

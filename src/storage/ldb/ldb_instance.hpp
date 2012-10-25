@@ -79,6 +79,7 @@ namespace tair
 
         void get_buckets(std::vector<int32_t>& buckets);
 
+        int32_t index() { return index_; }
         const char* db_path() { return db_path_; }
         // use inner leveldb/gc_factory when compact
         leveldb::DB* db() { return db_; }
