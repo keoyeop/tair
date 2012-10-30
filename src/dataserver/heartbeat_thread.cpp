@@ -181,6 +181,7 @@ namespace tair {
                    // update the serverTable async
                    server_table_updater *stu = new server_table_updater(tair_mgr, server_list, resp->server_list_count, server_version, resp->data_need_move, resp->migrated_info, resp->copy_count, resp->bucket_count);
                    stu->start();
+                   stu->stop();
                  } else {
                    log_debug("serverTable is NULL");
                  }
@@ -218,6 +219,7 @@ namespace tair {
                plugins_version = resp->plugins_version;
                plugins_updater* pud = new plugins_updater(tair_mgr, resp->plugins_dll_names);
                pud->start(); //this will delete itself
+               pud->stop();
             }
             if (need_set && !resp->vec_area_capacity_info.empty() && !tair_mgr->is_localmode()) {
                char area_arry[TAIR_MAX_AREA_COUNT];

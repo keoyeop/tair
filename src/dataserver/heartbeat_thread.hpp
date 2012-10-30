@@ -88,6 +88,11 @@ namespace tair {
                                           data_need_move, current_state_table,
                                           copy_count, bucket_count);
          }
+
+         // wait for main thread
+         while (!_stop) {
+           sleep(1);
+         }
          delete this;
       }
 
@@ -121,6 +126,10 @@ namespace tair {
             log_info("change plugins ok");
          }else {
             log_info("change plugins error");
+         }
+         // wait for main thread
+         while (!_stop) {
+           sleep(1);
          }
          delete this;
 
