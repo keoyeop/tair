@@ -11,8 +11,6 @@
 #include <stdio.h>
 #include <vector>
 
-#include "tbsys.h"
-
 #include "db/builder.h"
 #include "db/db_iter.h"
 #include "db/dbformat.h"

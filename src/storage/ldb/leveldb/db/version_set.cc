@@ -7,8 +7,6 @@
 #include <algorithm>
 #include <stdio.h>
 
-#include "tbsys.h"
-
 #include "db/filename.h"
 #include "db/log_writer.h"
 #include "db/memtable.h"

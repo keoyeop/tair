@@ -5,8 +5,8 @@ endif
 if WITH_LDB
 LDB_CPPFLAGS= -DWITH_LDB -I${top_srcdir}/src/storage/ldb
 LDB_LDFLAGS= $(top_builddir)/src/storage/ldb/libldb.a \
-             $(top_builddir)/src/storage/ldb/leveldb/libleveldb.a \
-             $(top_builddir)/src/storage/ldb/leveldb/libsnappy.a
+             $(top_builddir)/src/storage/ldb/libleveldb.a \
+             $(top_builddir)/src/storage/ldb/libsnappy.a
 endif
 if WITH_COMPRESS
 COMPRESS_LDFLAGS= -lsnappy

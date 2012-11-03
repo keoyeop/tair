@@ -103,9 +103,9 @@ AS_IF([test x$with_ldb = xyes],
     [
     AC_MSG_NOTICE([ with ldb ])
     # configure leveldb && snappy
-    m4_include([src/storage/ldb/leveldb/ax_port_leveldb.m4])
-    AC_CONFIG_HEADERS([src/storage/ldb/leveldb/snappy/config.h])
-    AC_CONFIG_FILES([src/storage/ldb/leveldb/snappy/snappy-stubs-public.h])
+    m4_include([src/storage/ldb/ax_port_leveldb.m4])
+    AC_CONFIG_HEADERS([src/storage/ldb/snappy/config.h])
+    AC_CONFIG_FILES([src/storage/ldb/snappy/snappy-stubs-public.h])
     ],
   [AC_MSG_NOTICE([ without ldb ])])
 
@@ -131,7 +131,6 @@ AC_CONFIG_FILES([\
 		 src/storage/kdb/Makefile \
 		 src/storage/kdb/kyotocabinet/Makefile \
 		 src/storage/ldb/Makefile \
-		 src/storage/ldb/leveldb/Makefile \
 		 src/packets/Makefile \
 		 src/statserver/storage/Makefile \
 		 src/statserver/Makefile \

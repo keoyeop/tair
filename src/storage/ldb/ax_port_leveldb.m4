@@ -3,7 +3,7 @@
 # based on git-svn-id: https://leveldb.googlecode.com/svn/trunk@50 62dab493-f737-651d-591e-8d6aee1b9529.
 
 # absolute path
-m4_include([src/storage/ldb/leveldb/snappy/ax_port_snappy.m4])
+m4_include([src/storage/ldb/ax_port_snappy.m4])
 
 save_cppflags="${CPPFLAGS}"
 check_cflags="${CPPFLAGS} -std=c++0x -x c++"

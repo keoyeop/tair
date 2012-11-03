@@ -4,8 +4,6 @@
 
 #include "db/log_writer.h"
 
-#include <tbsys.h>
-
 #include <stdint.h>
 #include "leveldb/env.h"
 #include "util/coding.h"

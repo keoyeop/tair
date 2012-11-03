@@ -26,6 +26,7 @@ class VersionSet;
 
 struct LoggerId;
 
+// multi-memtable update sharding by bucket
 struct BucketUpdate
 {
   int bucket_number_;
@@ -35,9 +36,6 @@ struct BucketUpdate
   MemTable* mem_;
   BucketUpdate* prev_;
   BucketUpdate* next_;
-  // TODO: fine-grained lock
-  LoggerId* logger_;            // NULL, or the id of the current logging thread
-  port::CondVar* logger_cv_;     // For threads waiting to log
 };
 
 typedef std::map<int, BucketUpdate*> BucketMap;

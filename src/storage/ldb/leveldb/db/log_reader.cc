@@ -3,7 +3,6 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "db/log_reader.h"
-#include <tbsys.h>
 
 #include <stdio.h>
 #include "leveldb/env.h"
@@ -81,7 +80,6 @@ bool Reader::ReadRecord(Slice* record, std::string* scratch, uint64_t limit_offs
   while (end_of_buffer_offset_ <= limit_offset) {
     uint64_t physical_record_offset = end_of_buffer_offset_ - buffer_.size();
     const unsigned int record_type = ReadPhysicalRecord(&fragment, limit_offset);
-    TBSYS_LOG(DEBUG, "@@ bz: %d, eof: %d %d", buffer_.size(), end_of_buffer_offset_, record_type);
     switch (record_type) {
       case kFullType:
         if (in_fragmented_record) {
@@ -205,8 +203,6 @@ unsigned int Reader::ReadPhysicalRecord(Slice* result, uint64_t limit_offset) {
         offset_in_reading_block_ += buffer_.size();
         end_of_buffer_offset_ += buffer_.size();
 
-        TBSYS_LOG(DEBUG, "@@ read size: %d = %d =%d", read_size, buffer_.size(), offset_in_reading_block_);
-
         if (!status.ok()) {
           buffer_.clear();
           ReportDrop(kBlockSize, status);
@@ -233,12 +229,11 @@ unsigned int Reader::ReadPhysicalRecord(Slice* result, uint64_t limit_offset) {
     const uint32_t b = static_cast<uint32_t>(header[5]) & 0xff;
     const unsigned int type = header[6];
     const uint32_t length = a | (b << 8);
-    TBSYS_LOG(DEBUG, "@@ type: %d %d %d", type, length, buffer_.size());
+
     if (kHeaderSize + length > buffer_.size()) {
       size_t drop_size = buffer_.size();
       buffer_.clear();
       ReportCorruption(drop_size, "bad record length");
-      TBSYS_LOG(DEBUG, "@@ %d len Header + %d < %d", type, length, buffer_.size());
       return kBadRecord;
     }
 
@@ -247,7 +242,6 @@ unsigned int Reader::ReadPhysicalRecord(Slice* result, uint64_t limit_offset) {
       // such records are produced by the mmap based writing code in
       // env_posix.cc that preallocates file regions.
       buffer_.clear();
-      TBSYS_LOG(DEBUG, "@@ zeror type");
       return kBadRecord;
     }
 
@@ -263,7 +257,6 @@ unsigned int Reader::ReadPhysicalRecord(Slice* result, uint64_t limit_offset) {
         size_t drop_size = buffer_.size();
         buffer_.clear();
         ReportCorruption(drop_size, "checksum mismatch");
-        TBSYS_LOG(DEBUG, "@@ %d cksum fail %d  %d", type, length, buffer_.size());
         return kBadRecord;
       }
     }
@@ -274,7 +267,6 @@ unsigned int Reader::ReadPhysicalRecord(Slice* result, uint64_t limit_offset) {
     if (end_of_buffer_offset_ - buffer_.size() - kHeaderSize - length <
         initial_offset_) {
       result->clear();
-      TBSYS_LOG(DEBUG, "@@ init offset ");
       return kBadRecord;
     }
 

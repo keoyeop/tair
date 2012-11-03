@@ -19,6 +19,17 @@
 #include <stdint.h>
 #include "leveldb/status.h"
 
+// TaoBao utility
+#ifdef WITH_TBUTIL
+  #include <tbsys.h>
+#else
+  #define PROFILER_START(s)
+  #define PROFILER_BEGIN(s)
+  #define PROFILER_END()
+  #define PROFILER_DUMP()
+  #define PROFILER_STOP()
+#endif
+
 namespace leveldb {
 
 class FileLock;

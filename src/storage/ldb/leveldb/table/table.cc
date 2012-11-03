@@ -4,8 +4,6 @@
 
 #include "leveldb/table.h"
 
-#include "tbsys.h"
-
 #include "leveldb/cache.h"
 #include "leveldb/comparator.h"
 #include "leveldb/env.h"

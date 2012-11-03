@@ -1,4 +1,4 @@
-/* src/storage/ldb/leveldb/snappy/config.h.in.  Generated from configure.ac by autoheader.  */
+/* src/storage/ldb/snappy/config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* define if the Boost library is available */
 #undef HAVE_BOOST

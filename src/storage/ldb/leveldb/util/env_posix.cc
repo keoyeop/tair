@@ -27,7 +27,6 @@
 #include "util/posix_logger.h"
 #include "util/config.h"
 
-#include <tbsys.h>
 namespace leveldb {
 
 namespace {
@@ -375,7 +374,6 @@ public:
                                  static_cast<size_t>(n - read_file_size));
       }
 
-      TBSYS_LOG(DEBUG, "@@ rm: %d, rf: %d", read_mem_size, read_file_size);
       if (read_mem_size > 0) {
         memcpy(scratch + read_file_size, mem_start, read_mem_size);
       }
