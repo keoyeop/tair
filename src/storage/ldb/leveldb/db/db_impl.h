@@ -47,8 +47,8 @@ class DBImpl : public DB {
   virtual ~DBImpl();
 
   // Implementations of the DB interface
-  virtual Status Put(const WriteOptions&, const Slice& key, const Slice& value, bool synced = false);
-  virtual Status Delete(const WriteOptions&, const Slice& key, bool synced = false);
+  virtual Status Put(const WriteOptions&, const Slice& key, const Slice& value, bool synced);
+  virtual Status Delete(const WriteOptions&, const Slice& key, bool synced);
   virtual Status Delete(const WriteOptions&, const Slice& key, const Slice& tailer, bool synced = false);
   virtual Status Write(const WriteOptions& options, WriteBatch* updates);
   virtual Status Write(const WriteOptions& options, WriteBatch* updates, int bucket);

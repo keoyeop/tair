@@ -64,14 +64,31 @@ class DB {
   // Note: consider setting options.sync = true.
   virtual Status Put(const WriteOptions& options,
                      const Slice& key,
+                     const Slice& value) {
+    return Put(options, key, value, false);
+  }
+    
+  // Set the database entry for "key" to "value".  Returns OK on success,
+  // and a non-OK status on error.
+  // Note: consider setting options.sync = true.
+  virtual Status Put(const WriteOptions& options,
+                     const Slice& key,
                      const Slice& value,
-                     bool synced = false) = 0;
+                     bool synced) = 0;
 
   // Remove the database entry (if any) for "key".  Returns OK on
   // success, and a non-OK status on error.  It is not an error if "key"
   // did not exist in the database.
   // Note: consider setting options.sync = true.
-  virtual Status Delete(const WriteOptions& options, const Slice& key, bool synced = false) = 0;
+  virtual Status Delete(const WriteOptions& options, const Slice& key) {
+    return Delete(options, key, false);
+  }
+
+  // Remove the database entry (if any) for "key".  Returns OK on
+  // success, and a non-OK status on error.  It is not an error if "key"
+  // did not exist in the database.
+  // Note: consider setting options.sync = true.
+  virtual Status Delete(const WriteOptions& options, const Slice& key, bool synced) = 0;
 
   // Remove the database entry (if any) for "key".  Returns OK on
   // success, and a non-OK status on error.  It is not an error if "key"
