@@ -8,135 +8,13 @@
 using namespace std;
 
 namespace tair {
-  inval_loader_test::inval_loader_test(bool this_failed_abtain_group_names, bool this_failed_startup)
-    : failed_abtain_group_names(this_failed_abtain_group_names),
+  inval_loader_test::inval_loader_test(bool this_failed_obtain_group_names, bool this_failed_startup)
+    : failed_obtain_group_names(this_failed_obtain_group_names),
     failed_startup(this_failed_startup),tair::InvalLoader()
   {
   }
   inval_loader_test::~inval_loader_test()
   {
-  }
-
-  void inval_loader_test::retrieve_group_names()
-  {
-    //re-connect group
-    uint64_t master = 0;
-    uint64_t slave = 0;
-    log_debug("do_check_client, cluster_without_groupnames size: %d", cluster_without_groupnames.size());
-    vector<std::string> group_names;
-    for (cluster_info_map::iterator it = cluster_without_groupnames.begin();
-        it != cluster_without_groupnames.end();) {
-      master = it->first;
-      slave = it->second;
-      if (master != 0) {
-        group_names.clear();
-        tair_client_impl client;
-        if (client.get_group_name_list(master, slave, group_names) == true) {
-          for (int i = 0; i < group_names.size(); i++) {
-            if (group_names[i].size() > 0) {
-              disconnected_client_map_insert(master, slave, group_names[i]);
-              printf("got the group names, master: %s, slave: %s, group name: %s\n",
-                  tbsys::CNetUtil::addrToString(master).c_str(),
-                  tbsys::CNetUtil::addrToString(slave).c_str(),
-                  group_names[i].c_str());
-            }
-          }
-          // remove the cluster info from the cluster_without_groupnames.
-          cluster_without_groupnames.erase(it++);
-        }
-        else {
-          it++;
-        }
-      }
-      else {
-        it++;
-      }
-    }
-  }
-  void inval_loader_test::build_connections()
-  {
-    //re startup client
-    uint64_t master = 0;
-    uint64_t slave = 0;
-    int timeout = TBSYS_CONFIG.getInt("invalserver", "client_timeout", 1000);
-    log_debug("disconnected_client_map size: %d", disconnected_client_map.size());
-    std::string group_name;
-    for (group_client_map::iterator it = disconnected_client_map.begin();
-        it != disconnected_client_map.end(); it++) {
-      group_info_map *gi = it->second;
-      if (gi != NULL) {
-        for (group_info_map::iterator i = gi->begin(); i != gi->end(); i++) {
-          group_client_info *gc = i->second;
-          if (gc != NULL) {
-            master = gc->master;
-            slave = gc->slave;
-            group_name = gc->group_name;
-            //restartup
-            tair_client_api * client = new tair_client_api();
-            if (client->startup(tbsys::CNetUtil::addrToString(master).c_str(),
-                  tbsys::CNetUtil::addrToString(slave).c_str(),
-                  group_name.c_str()) == true) {
-              //remove from the disconnected_client_map
-              printf("connected successfully to the group, master: %s, slave: %s, group name: %s\n",
-                  tbsys::CNetUtil::addrToString(master).c_str(),
-                  tbsys::CNetUtil::addrToString(slave).c_str(),
-                  group_name.c_str());
-              disconnected_client_map_markup(master, group_name);
-              //add instance tair_client_api to list.
-              log_info("timeout of clients set to %dms.", timeout);
-              client->set_timeout(timeout);
-              client_list.push_back(client);
-              client_helper_map[group_name.c_str()].push_back(client);
-            }
-            else {
-              log_error("failed to connect the group, master: %s, slave: %s, group name: %s",
-                  tbsys::CNetUtil::addrToString(master).c_str(),
-                  tbsys::CNetUtil::addrToString(slave).c_str(),
-                  group_name.c_str());
-              delete client;
-              client = NULL;
-            }
-          }
-          else {
-            log_error("[FATAL ERROR], group_client_info is null");
-          }
-        }
-      }
-      else { //gi == NULL, group_info_map is null
-        log_error("[FATAL ERROR], group_info_map is null, master: %s",
-            tbsys::CNetUtil::addrToString(master).c_str());
-      }
-    }
-    disconnected_client_map_remove();
-  }
-  void inval_loader_test::run(tbsys::CThread *thread, void *arg) {
-    load_group_name();
-    cout<<"load groupname complete.";
-
-    const char *pkey = "invalid_server_counter";
-    data_entry key(pkey, strlen(pkey), false);
-    int value;
-
-    while (!_stop) {
-      if (cluster_without_groupnames.size() > 0) {
-        cout<<"retrieve_group_names"<<endl;
-        retrieve_group_names();
-      }
-      if (disconnected_client_map.size() > 0) {
-        cout<<"build_connections"<<endl;
-        build_connections();
-      }
-      cout<<"while"<<endl;
-      for (int i = 0; i < client_list.size(); i++) {
-        client_list[i]->add_count(0, key, 1, &value);
-        printf("client: %d, 'invalid_server_counter': %d\n", i, value);
-        if (_stop) {
-          break;
-        }
-      }
-      cout<<"KeepAlive client count: "<< client_list.size();
-      TAIR_SLEEP(_stop, 10);
-    }
   }
   void inval_loader_test::load_group_name() {
     log_info("start loading groupnames.");
@@ -181,7 +59,7 @@ namespace tair {
               tbsys::CNetUtil::addrToString(spid->id2).c_str());
           tair_client_impl client;
           if (client.get_group_name_list(spid->id1, spid->id2, spid->group_name_list) == false
-              || failed_abtain_group_names == true) {
+              || failed_obtain_group_names == true) {
             log_error("exception, when fetch group name from %s.",
                 tbsys::CNetUtil::addrToString(spid->id1).c_str());
             //save <master, slave>
@@ -200,7 +78,7 @@ namespace tair {
           if (it == group_names.end()) {
             group_names.push_back(spid->group_name_list[i]);
           }
-          tair_client_api * client = new tair_client_api();
+          tair_client_impl * client = new tair_client_impl();
           if (client->startup(tbsys::CNetUtil::addrToString(spid->id1).c_str(),
                 tbsys::CNetUtil::addrToString(spid->id2).c_str(),
                 (spid->group_name_list[i]).c_str()) == false

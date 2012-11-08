@@ -22,13 +22,13 @@
 
 #include "define.hpp"
 #include "data_entry.hpp"
+#include "wait_object.hpp"
 
 namespace tair
 {
   using tair::common::data_entry;
   using tair::common::key_code_map_t;
   using tair::common::tair_dataentry_set;
-  typedef void (*TAIRCALLBACKFUNC)(int retcode, void* parg);
   struct inval_stat_data_t;
   class i_tair_client_impl
   {
@@ -55,9 +55,9 @@ namespace tair
     { return TAIR_RETURN_NOT_SUPPORTED; }
     virtual int expire(int area, const data_entry& key, int expire)
     { return TAIR_RETURN_NOT_SUPPORTED; }
-    virtual int invalidate(int area, const data_entry &key, const char *groupname)
+    virtual int invalidate(int area, const data_entry &key, const char *groupname, bool is_sync = true)
     { return TAIR_RETURN_NOT_SUPPORTED; }
-    virtual int invalidate(int area, const data_entry &key)
+    virtual int invalidate(int area, const data_entry &key, bool is_sync = true)
     { return TAIR_RETURN_NOT_SUPPORTED; }
     virtual int hide(int area, const data_entry &key)
     { return TAIR_RETURN_NOT_SUPPORTED; }
@@ -108,22 +108,22 @@ namespace tair
       return it != i_tair_client_impl::errmsg_.end() ? it->second.c_str() : "unknow";
     }
 
-    virtual int prefix_invalidate(int area, const data_entry &key, const char *groupname)
+    virtual int prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync = true)
     { return TAIR_RETURN_NOT_SUPPORTED; }
 
-    virtual int prefix_invalidate(int area, const data_entry &key)
+    virtual int prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, bool is_sync = true)
     { return TAIR_RETURN_NOT_SUPPORTED; }
 
-    virtual int hide_by_proxy(int area, const data_entry &key, const char* groupname)
+    virtual int hide_by_proxy(int area, const data_entry &key, const char* groupname, bool is_sync = true)
     { return TAIR_RETURN_NOT_SUPPORTED; }
 
-    virtual int hide_by_proxy(int area, const data_entry &key)
+    virtual int hide_by_proxy(int area, const data_entry &key, bool is_sync = true)
     { return TAIR_RETURN_NOT_SUPPORTED; }
 
-    virtual int prefix_hide_by_proxy(int area, const data_entry &key, const char *groupname)
+    virtual int prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync = true)
     { return TAIR_RETURN_NOT_SUPPORTED; }
 
-    virtual int prefix_hide_by_proxy(int area, const data_entry &key)
+    virtual int prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, bool is_sync = true)
     { return TAIR_RETURN_NOT_SUPPORTED; }
 
     virtual int debug_support(uint64_t server_id, std::vector<std::string> &infos)

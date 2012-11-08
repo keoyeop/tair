@@ -497,7 +497,6 @@ namespace tair {
          success = true;
 
       } else if (send_return && packet->get_direction() == DIRECTION_RECEIVE) {
-         log_debug("send return packet, return code: %d", ret);
          tair_packet_factory::set_return_packet(packet, ret, msg, heartbeat.get_client_version(), stat.out);
          success = true;
       }

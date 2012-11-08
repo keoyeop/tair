@@ -31,7 +31,6 @@
 #include "tair_client_api.hpp"
 #include "packet_factory.hpp"
 #include "packet_streamer.hpp"
-#include "wait_object.hpp"
 #include "response_return_packet.hpp"
 #include "util.hpp"
 #include "dump_data_info.hpp"
@@ -101,27 +100,47 @@ namespace tair {
         const vector<data_entry *> &keys,
         tair_keyvalue_map &data);
 
-    int remove(int area,
-        const data_entry &key,
-        TAIRCALLBACKFUNC pfunc=NULL,void * arg=NULL);
+    //with callback
+    inline int remove(int area, const data_entry &key, TAIRCALLBACKFUNC pfunc=NULL,void * parg=NULL)
+    {
+      return do_process_with_key(TAIR_REQ_REMOVE_PACKET, area, key, pfunc, parg);
+    }
 
-    int invalidate(int area, const data_entry &key, const char *groupname);
+    inline int removes(int area, const tair_dataentry_set &mkey_set,
+        key_code_map_t *key_code_map,
+        TAIRCALLBACKFUNC_EX pfunc = NULL, void *parg = NULL )
+    {
+      return do_process_with_multi_keys(TAIR_REQ_PREFIX_REMOVES_PACKET, area, mkey_set, key_code_map, pfunc, parg);
+    }
 
-    int invalidate(int area, const data_entry &key);
+    inline int hide(int area, const data_entry &key,TAIRCALLBACKFUNC pfunc, void *parg)
+    {
+      return do_process_with_key(TAIR_REQ_HIDE_PACKET, area, key, pfunc, parg);
+    }
 
-    int hide(int area, const data_entry &key);
+    inline int hides(int area, const tair_dataentry_set &mkey_set,
+        key_code_map_t *key_code_map,
+        TAIRCALLBACKFUNC_EX pfunc = NULL, void *parg = NULL )
+    {
+      return do_process_with_multi_keys(TAIR_REQ_PREFIX_HIDES_PACKET, area, mkey_set, key_code_map, pfunc, parg);
+    }
 
-    int prefix_invalidate(int area, const data_entry &key, const char *groupname);
+    int invalidate(int area, const data_entry &key, const char *groupname, bool is_sync = true);
 
-    int prefix_invalidate(int area, const data_entry &key);
+    int invalidate(int area, const data_entry &key, bool is_sync = true);
 
-    int hide_by_proxy(int area, const data_entry &key, const char* groupname);
 
-    int hide_by_proxy(int area, const data_entry &key);
+    int prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync = true);
 
-    int prefix_hide_by_proxy(int area, const data_entry &key, const char *groupname);
+    int prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, bool is_sync = true);
 
-    int prefix_hide_by_proxy(int area, const data_entry &key);
+    int hide_by_proxy(int area, const data_entry &key, const char* groupname, bool is_sync = true);
+
+    int hide_by_proxy(int area, const data_entry &key, bool is_sync = true);
+
+    int prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey,const char *groupname, bool is_sync = true);
+
+    int prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, bool is_sync = true);
 
     int debug_support(uint64_t server_id, std::vector<std::string> &infos);
 
@@ -161,6 +180,8 @@ namespace tair {
 
     int mdelete(int area,
         const vector<data_entry*> &keys);
+
+    int hide(int area, const data_entry &key);
 
     int add_count(int area,
         const data_entry &key,
@@ -386,6 +407,17 @@ namespace tair {
     //the invalid server indicated by `invalid_server_id.
     int do_interaction_with_is(base_packet* packet, uint64_t invalid_server_id = 0);
 
+    //aysnchronous to ineract with ds.
+    inline base_packet* init_packet(int pcode, int area, const data_entry &key);
+    //aysnchronous to ineract with ds.
+    inline base_packet* init_packet(int pcode, int area, const tair_dataentry_set &mkey_set);
+    //the implementation of the aysnchronous operation (remove, hide).
+    int do_process_with_key(int pcode, int area, const data_entry &key, TAIRCALLBACKFUNC pfunc, void *parg);
+    //the implementation of the aysnchronous operation (removes, hides).
+    int do_process_with_multi_keys(int pcode, int area,
+        const tair_dataentry_set &key, key_code_map_t *key_code_map,
+        TAIRCALLBACKFUNC_EX pfunc, void *parg);
+
   private:
     bool inited;
     bool is_stop;
@@ -422,6 +454,7 @@ namespace tair {
   private:
     typedef BlockQueueEx<wait_object* > CAsyncCallerQueue;
     CAsyncCallerQueue  m_return_object_queue;
+  private:
     pthread_rwlock_t m_init_mutex;
     //__gun_cxx::hash<template> does not support the type `uint64_t.
     //using __gun_cxx::hash<int>, it also work well.

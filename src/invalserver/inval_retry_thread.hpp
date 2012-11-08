@@ -14,6 +14,7 @@
 #include "inval_processor.hpp"
 #include "inval_request_storage.hpp"
 #include "inval_stat_helper.hpp"
+#include <queue>
 
 #ifndef PACKET_GROUP_NAME
 #define PACKET_GROUP_NAME(ipacket, hpacket) \
@@ -21,6 +22,7 @@
 #endif
 
 namespace tair {
+  class request_inval_packet_wrapper;
   class InvalRetryThread: public tbsys::CDefaultRunnable {
   public:
     InvalRetryThread();
@@ -31,7 +33,7 @@ namespace tair {
 
     void stop();
     void run(tbsys::CThread *thread, void *arg);
-    void add_packet(base_packet *packet, int index);
+    void add_packet(request_inval_packet_wrapper *wrapper, int index);
     int retry_queue_size(int index);
 
     static const int RETRY_COUNT = 3;
@@ -40,7 +42,7 @@ namespace tair {
     InvalLoader *invalid_loader;
     RequestProcessor *processor;
     tbsys::CThreadCond queue_cond[RETRY_COUNT];
-    tbnet::PacketQueue retry_queue[RETRY_COUNT];
+    std::queue<request_inval_packet_wrapper*> retry_queue[RETRY_COUNT];
 
     inval_request_storage * request_storage; //from inval server
   };

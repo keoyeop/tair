@@ -7,6 +7,7 @@ client_timeout=500
 log_level=warn
 ignore_zero_area=0
 dev_name=eth0
+data_dir=data
 log_file=logs/inval.log
 pid_file=logs/inval.pid
 config_server_cm3=10.232.12.141:5198

@@ -18,55 +18,60 @@
 #define TAIR_PACKET_INVAL_PACKET_HPP
 #include "get_packet.hpp"
 namespace tair {
-    class request_invalid: public request_get {
-    public:
-        request_invalid(): request_get() {
-            group_name[0] = '\0';
-            setPCode(TAIR_REQ_INVAL_PACKET);
-            is_sync = SYNC_INVALID;
-        }
+  class request_invalid: public request_get {
+  public:
+    request_invalid(): request_get() {
+      group_name[0] = '\0';
+      setPCode(TAIR_REQ_INVAL_PACKET);
+      is_sync = SYNC_INVALID;
+    }
 
-        request_invalid(request_invalid &packet): request_get(packet) {
-            set_group_name(packet.group_name);
-            setPCode(TAIR_REQ_INVAL_PACKET);
-            is_sync = SYNC_INVALID;
-        }
+    request_invalid(request_invalid &packet): request_get(packet) {
+      set_group_name(packet.group_name);
+      setPCode(TAIR_REQ_INVAL_PACKET);
+      is_sync = SYNC_INVALID;
+    }
 
-        void set_group_name(const char *groupname) {
-            if (groupname != NULL) {
-                strncpy(group_name, groupname, MAXLEN_GROUP_NAME);
-            }
-        }
+    void set_group_name(const char *groupname) {
+      if (groupname != NULL) {
+        strncpy(group_name, groupname, MAXLEN_GROUP_NAME);
+      }
+    }
 
-        bool encode(tbnet::DataBuffer *output) {
-            if (request_get::encode(output) == false) {
-                return false;
-            }
-            output->writeString(group_name);
-            output->writeInt32(is_sync);
-            return true;
-        }
+    inline const char *get_group_name()
+    {
+      return group_name;
+    }
 
-        bool decode(tbnet::DataBuffer *input, tbnet::PacketHeader *header) {
-            if (request_get::decode(input, header) == false) {
-                return false;
-            }
-            char *p = group_name;
-            input->readString(p, MAXLEN_GROUP_NAME);
-            group_name[MAXLEN_GROUP_NAME-1] = '\0';
-            is_sync = input->readInt32();
+    bool encode(tbnet::DataBuffer *output) {
+      if (request_get::encode(output) == false) {
+        return false;
+      }
+      output->writeString(group_name);
+      output->writeInt32(is_sync);
+      return true;
+    }
 
-            return true;
-        }
+    bool decode(tbnet::DataBuffer *input, tbnet::PacketHeader *header) {
+      if (request_get::decode(input, header) == false) {
+        return false;
+      }
+      char *p = group_name;
+      input->readString(p, MAXLEN_GROUP_NAME);
+      group_name[MAXLEN_GROUP_NAME-1] = '\0';
+      is_sync = input->readInt32();
 
-        void set_sync(uint32_t is_sync) {
-          this->is_sync = is_sync;
-        }
+      return true;
+    }
 
-    public:
-        enum { MAXLEN_GROUP_NAME = 64 };
-        char group_name[MAXLEN_GROUP_NAME];
-        uint32_t is_sync;
-    };
+    void set_sync(uint32_t is_sync) {
+      this->is_sync = is_sync;
+    }
+
+  public:
+    enum { MAXLEN_GROUP_NAME = 64 };
+    char group_name[MAXLEN_GROUP_NAME];
+    uint32_t is_sync;
+  };
 }
 #endif

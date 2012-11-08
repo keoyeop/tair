@@ -51,7 +51,6 @@ namespace tair {
       }
 
       bp = (base_packet*)async_queue.pop();
-      log_debug("async_queue.size: %d", async_queue.size());
       queue_cond.unlock();
       int pc = bp->getPCode();
 
@@ -59,57 +58,37 @@ namespace tair {
         case TAIR_REQ_INVAL_PACKET:
           {
             request_invalid *req = (request_invalid*) bp;
-            request_invalid *post_req = NULL;
-            processor->process(req, post_req);
+            request_inval_packet_wrapper *wrapper = new request_inval_packet_wrapper(req, retry_thread, request_storage);
+            processor->process((request_invalid*)req, wrapper);
             TAIR_INVAL_STAT.statistcs(inval_stat_helper::INVALID, std::string(req->group_name),
                 req->area, inval_area_stat::FIRST_EXEC);
-            if (post_req != NULL) {
-              log_error("async invalid failed, add packet to RetryThread %d", 0);
-              retry_thread->add_packet(post_req, 0);
-            }
-            delete req;
             break;
           }
         case TAIR_REQ_HIDE_BY_PROXY_PACKET:
           {
             request_hide_by_proxy *req = (request_hide_by_proxy*) bp;
-            request_hide_by_proxy *post_req = NULL;
-            processor->process(req, post_req);
+            request_inval_packet_wrapper *wrapper = new request_inval_packet_wrapper(req, retry_thread, request_storage);
+            processor->process((request_hide_by_proxy*)req, wrapper);
             TAIR_INVAL_STAT.statistcs(inval_stat_helper::HIDE, std::string(req->group_name),
                 req->area, inval_area_stat::FIRST_EXEC);
-            if (post_req != NULL) {
-              log_error("async hide failed, add packet to RetryThread %d", 0);
-              retry_thread->add_packet(post_req, 0);
-            }
-            delete req;
             break;
           }
         case TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET:
           {
             request_prefix_hides_by_proxy *req = (request_prefix_hides_by_proxy*) bp;
-            request_prefix_hides_by_proxy *post_req = NULL;
-            processor->process(req, post_req);
+            request_inval_packet_wrapper *wrapper = new request_inval_packet_ex_wrapper(req, retry_thread, request_storage);
+            processor->process((request_prefix_hides_by_proxy*)req, (request_inval_packet_ex_wrapper*)wrapper);
             TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_HIDE, std::string(req->group_name),
                 req->area, inval_area_stat::FIRST_EXEC);
-            if (post_req != NULL) {
-              log_error("async prefix hides failed, add packet to RetryThread %d", 0);
-              retry_thread->add_packet(post_req, 0);
-            }
-            delete req;
             break;
           }
         case TAIR_REQ_PREFIX_INVALIDS_PACKET:
           {
             request_prefix_invalids *req = (request_prefix_invalids*) bp;
-            request_prefix_invalids *post_req = NULL;
-            processor->process(req, post_req);
+            request_inval_packet_wrapper *wrapper = new request_inval_packet_ex_wrapper(req, retry_thread, request_storage);
+            processor->process((request_prefix_invalids*)req, (request_inval_packet_ex_wrapper*)wrapper);
             TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_INVALID, std::string(req->group_name),
                 req->area, inval_area_stat::FIRST_EXEC);
-            if (post_req != NULL) {
-              log_error("async prefix invalids failed, add packet to RetryThread %d", 0);
-              retry_thread->add_packet(post_req, 0);
-            }
-            delete req;
             break;
           }
         case TAIR_REQ_RETRY_ALL_PACKET:
@@ -130,11 +109,16 @@ namespace tair {
     //~ clear the queue when stopped.
     queue_cond.lock();
     while (async_queue.size() > 0) {
-      delete async_queue.pop();
+      //here, we will write the packes to the `request_storage.
+      base_packet *packet = (base_packet*)async_queue.pop();
+      if (packet != NULL) {
+        request_storage->write_request(packet);
+      }
     }
     queue_cond.unlock();
     log_warn("AsyncTaskThread %d is stopped", index);
   }
+
   int AsyncTaskThread::do_retry_all_request(request_retry_all* req) {
     int limit_size = (int) (MAX_QUEUE_SIZE * safety_ratio); // safe
     int async_queue_size = async_queue.size();
@@ -150,7 +134,10 @@ namespace tair {
       log_debug("left  %d packet(s), vector size :%d", left_packet_count, packet_vector.size());
       //push packet to the async_task_queue.
       for (int i = 0; i < packet_vector.size(); ++i) {
-        base_packet *req = packet_vector[i];
+        //typedef request_invalid request_inval_packet.
+        //request_invalid, request_prefix_invalids, request_hide_by_proxy, and
+        //request_prefix_hides_by_proxy are the subclass of request_invalid.
+        request_inval_packet *req = (request_inval_packet*)packet_vector[i];
         if (req != NULL) {
           //if failed to push the packet to the task queue,
           //the packet `req was pushed into local storage `request_storage by add_packet(function).

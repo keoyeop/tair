@@ -1,5 +1,5 @@
 #include "inval_server.hpp"
-
+#include "inval_request_packet_wrapper.hpp"
 namespace tair {
   InvalServer::InvalServer() : processor(&invalid_loader) {
     _stop = false;
@@ -9,10 +9,6 @@ namespace tair {
   }
 
   InvalServer::~InvalServer() {
-    if(request_storage != NULL) {
-      delete request_storage;
-      request_storage = NULL;
-    }
   }
 
   void InvalServer::start() {
@@ -22,7 +18,7 @@ namespace tair {
     }
 
     //~ start the thread to save the request packets.
-    request_storage->start();
+    request_storage.start();
     //~ start thread that retrieves the group infos.
     invalid_loader.start();
     //~ start the retry threads.
@@ -61,7 +57,7 @@ namespace tair {
     retry_thread.wait();
     async_thread.wait();
     TAIR_INVAL_STAT.wait();
-    request_storage->wait();
+    request_storage.wait();
     transport.wait();
 
     destroy();
@@ -83,7 +79,7 @@ namespace tair {
       log_warn("stopping invalid_loader");
       TAIR_INVAL_STAT.stop();
       log_warn("stopping stat_helper");
-      request_storage->stop();
+      request_storage.stop();
       log_warn("stopping request_storage");
     }
   }
@@ -122,11 +118,9 @@ namespace tair {
           if (req != NULL) {
             if (req->is_sync == SYNC_INVALID) {
               ret = do_invalid(req);
+              send_ret = false;
             } else if (req->is_sync == ASYNC_INVALID) {
-              request_invalid *async_packet = new request_invalid();
-              async_packet->swap(*req);
-              async_packet->set_group_name(req->group_name);
-              ret = async_thread.add_packet(async_packet) ?
+              ret = async_thread.add_packet(req) ?
                 TAIR_RETURN_SUCCESS : TAIR_RETURN_QUEUE_OVERFLOWED;
             }
           } else {
@@ -141,11 +135,9 @@ namespace tair {
           if (req != NULL) {
             if (req->is_sync == SYNC_INVALID) {
               ret = do_hide(req);
+              send_ret = false;
             } else if (req->is_sync == ASYNC_INVALID) {
-              request_hide_by_proxy *async_packet = new request_hide_by_proxy();
-              async_packet->swap(*req);
-              async_packet->set_group_name(req->group_name);
-              ret = async_thread.add_packet(async_packet) ?
+              ret = async_thread.add_packet(req) ?
                 TAIR_RETURN_SUCCESS : TAIR_RETURN_QUEUE_OVERFLOWED;
             }
           } else {
@@ -160,11 +152,9 @@ namespace tair {
           if (req != NULL) {
             if (req->is_sync == SYNC_INVALID) {
               ret = do_prefix_hides(req);
+              send_ret = false;
             } else if (req->is_sync == ASYNC_INVALID) {
-              request_prefix_hides_by_proxy *async_packet = new request_prefix_hides_by_proxy();
-              async_packet->swap(*req);
-              async_packet->set_group_name(req->group_name);
-              ret = async_thread.add_packet(async_packet) ?
+              ret = async_thread.add_packet(req) ?
                 TAIR_RETURN_SUCCESS : TAIR_RETURN_QUEUE_OVERFLOWED;
             }
           } else {
@@ -179,11 +169,9 @@ namespace tair {
           if (req != NULL) {
             if (req->is_sync == SYNC_INVALID) {
               ret = do_prefix_invalids(req);
+              send_ret = false;
             } else if (req->is_sync == ASYNC_INVALID) {
-              request_prefix_invalids *async_packet = new request_prefix_invalids();
-              async_packet->swap(*req);
-              async_packet->set_group_name(req->group_name);
-              ret = async_thread.add_packet(async_packet) ?
+              ret = async_thread.add_packet(req) ?
                 TAIR_RETURN_SUCCESS : TAIR_RETURN_QUEUE_OVERFLOWED;
             }
           } else {
@@ -215,8 +203,9 @@ namespace tair {
           response_inval_stat *resp = new response_inval_stat();
           if (req != NULL) {
             ret = do_request_stat(req, resp);
-            if (ret == TAIR_RETURN_SUCCESS)
+            if (ret != TAIR_RETURN_SUCCESS) {
               send_ret = false;
+            }
           }
           else {
             log_error("[FATAL ERROR] the request should be request_stat.");
@@ -226,10 +215,9 @@ namespace tair {
         }
       case TAIR_REQ_RETRY_ALL_PACKET:
         {
-          request_retry_all *retry_all = dynamic_cast<request_retry_all*>(bp);
-          if (retry_all != NULL) {
-            request_retry_all *async_retry_all = new request_retry_all(*retry_all);
-            ret = async_thread.add_packet(async_retry_all) ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED ;
+          request_retry_all *req = dynamic_cast<request_retry_all*>(bp);
+          if (req != NULL) {
+            ret = async_thread.add_packet(req) ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED ;
           }
           else {
             log_error("[FATAL ERROR] packet could not be casted to request_retry_all packet.");
@@ -260,11 +248,11 @@ namespace tair {
         }
     }
     //~ set and send the general return_packet.
+    // if packet->is_sync == SYNC_INVALID, send the return_packet.
     if (send_ret && bp->get_direction() == DIRECTION_RECEIVE) {
       tair_packet_factory::set_return_packet(bp, ret, msg, 0);
     }
     //~ do not let 'tbnet' delete this 'packet'
-    if (bp) delete bp;
     return false;
   }
 
@@ -273,14 +261,10 @@ namespace tair {
     if (ignore_zero_area && req->area == 0) {
       log_info("ignoring packet of area 0");
     } else {
-      request_invalid *post_req = NULL;
-      ret = processor.process(req, post_req);
+      request_inval_packet_wrapper *wrapper = new request_inval_packet_wrapper(req, &retry_thread, &request_storage);
+      ret = processor.process((request_invalid*)req, wrapper);
       TAIR_INVAL_STAT.statistcs(inval_stat_helper::INVALID,
           std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
-      if (post_req != NULL) {
-        log_error("add invalid packet to RetryThread 0");
-        retry_thread.add_packet(post_req, 0);
-      }
     }
     return ret;
   }
@@ -290,14 +274,10 @@ namespace tair {
     if (ignore_zero_area && req->area == 0) {
       log_info("ignoring packet of area 0");
     } else {
-      request_hide_by_proxy *post_req = NULL;
-      ret = processor.process(req, post_req);
+      request_inval_packet_wrapper *wrapper = new request_inval_packet_wrapper(req, &retry_thread, &request_storage);
+      ret = processor.process((request_hide_by_proxy*)req, wrapper);
       TAIR_INVAL_STAT.statistcs(inval_stat_helper::HIDE,
           std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
-      if (post_req != NULL) {
-        log_error("add hide packet to RetryThread 0");
-        retry_thread.add_packet(post_req, 0);
-      }
     }
     return ret;
   }
@@ -307,14 +287,10 @@ namespace tair {
     if (ignore_zero_area && req->area == 0) {
       log_info("ignoring packet of area 0");
     } else {
-      request_prefix_hides_by_proxy *post_req = NULL;
-      ret = processor.process(req, post_req);
+      request_inval_packet_ex_wrapper *wrapper = new request_inval_packet_ex_wrapper(req, &retry_thread, &request_storage);
+      ret = processor.process((request_prefix_hides_by_proxy*)req, wrapper);
       TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_HIDE,
           std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
-      if (post_req != NULL) {
-        log_error("add prefix hides packet to RetryThread 0");
-        retry_thread.add_packet(post_req, 0);
-      }
     }
     return ret;
   }
@@ -324,14 +300,10 @@ namespace tair {
     if (ignore_zero_area && req->area == 0) {
       log_info("ignoring packet of area 0");
     } else {
-      request_prefix_invalids *post_req = NULL;
-      ret = processor.process(req, post_req);
+      request_inval_packet_ex_wrapper *wrapper = new request_inval_packet_ex_wrapper(req, &retry_thread, &request_storage);
+      ret = processor.process((request_prefix_invalids*)req, wrapper);
       TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_INVALID,
           std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
-      if (post_req != NULL) {
-        log_error("add prefix invalids packet to RetryThread 0");
-        retry_thread.add_packet(post_req, 0);
-      }
     }
     return ret;
   }
@@ -412,8 +384,8 @@ namespace tair {
   void InvalServer::construct_debug_infos(std::vector<std::string>& infos)
   {
     infos.clear();
-    int32_t packet_count = request_storage->get_packet_count();
-    int32_t packet_count_on_disk = request_storage->get_packet_count_on_disk();
+    int32_t packet_count = request_storage.get_packet_count();
+    int32_t packet_count_on_disk = request_storage.get_packet_count_on_disk();
     char buffer[256];
     memset(buffer,'\0', 256);
     sprintf(buffer, "packet_count=%8d", packet_count);
@@ -425,16 +397,16 @@ namespace tair {
     sprintf(buffer, "packet_count_in_queue=%8d", packet_count - packet_count_on_disk);
     infos.push_back(buffer);
     memset(buffer, '\0', 256);
-    sprintf(buffer, "task_queue_size=%8d", task_queue_thread.size());
+    sprintf(buffer, "task_queue_size=%8d", (int)task_queue_thread.size());
     infos.push_back(buffer);
     memset(buffer, '\0', 256);
-    sprintf(buffer, "memory_queue_max_size=%8d", request_storage->get_queue_max_size());
+    sprintf(buffer, "memory_queue_max_size=%8d", request_storage.get_queue_max_size());
     infos.push_back(buffer);
     memset(buffer, '\0', 256);
-    sprintf(buffer, "read_threshold=%8d", request_storage->get_read_threshold());
+    sprintf(buffer, "read_threshold=%8d", request_storage.get_read_threshold());
     infos.push_back(buffer);
     memset(buffer, '\0', 256);
-    sprintf(buffer, "write_threshold=%8d", request_storage->get_write_threshold());
+    sprintf(buffer, "write_threshold=%8d", request_storage.get_write_threshold());
     infos.push_back(buffer);
     for (int i = 0; i < InvalRetryThread::RETRY_COUNT; ++i) {
       memset(buffer, '\0', 256);
@@ -460,7 +432,7 @@ namespace tair {
           char * key = "TEST_KEY";
           invalid->add_key(key, strlen(key));
           if (invalid != NULL) {
-            request_storage->write_request(invalid);
+            request_storage.write_request(invalid);
           }
         }
       }
@@ -495,7 +467,6 @@ namespace tair {
     util::local_server_ip::ip = tbsys::CNetUtil::ipToAddr(ip, port);
     log_info("address: %s", tbsys::CNetUtil::addrToString(util::local_server_ip::ip).c_str());
 
-    request_storage = new inval_request_storage();
     const char *data_dir = TBSYS_CONFIG.getString(INVALSERVER_SECTION, TAIR_INVAL_DATA_DIR,
         TAIR_INVAL_DEFAULT_DATA_DIR);
     log_info("invalid server data path: %s", data_dir);
@@ -504,16 +475,16 @@ namespace tair {
     const int cached_packet_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_INVAL_CACHED_PACKET_COUNT,
         TAIR_INVAL_DEFAULT_CACHED_PACKET_COUNT);
     log_info("invalid server cached packet's count: %d", cached_packet_count);
-    request_storage->setThreadParameter(data_dir, queue_name, 0.2, 0.8, cached_packet_count, &packet_factory);
+    request_storage.setThreadParameter(data_dir, queue_name, 0.2, 0.8, cached_packet_count, &packet_factory);
     //~ set packet factory for packet streamer.
     streamer.setPacketFactory(&packet_factory);
     int thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_PROCESS_THREAD_COUNT, 4);
     //~ set the number of threads to handle the requests.
     task_queue_thread.setThreadParameter(thread_count, this, NULL);
-    retry_thread.setThreadParameter(&invalid_loader, &processor, request_storage);
+    retry_thread.setThreadParameter(&invalid_loader, &processor, &request_storage);
     thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, "async_thread_num", 8);
     async_thread.setThreadParameter(&invalid_loader, &retry_thread,
-        &processor, thread_count, request_storage);
+        &processor, thread_count, &request_storage);
     sync_task_thread_count = thread_count;
     async_task_thread_count = thread_count;
     return true;

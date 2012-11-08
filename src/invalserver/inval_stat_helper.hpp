@@ -1,5 +1,5 @@
 /*
- * (C) 2007-2010 Alibaba Group Holding Limited
+ * (C) 2007-2012 Alibaba Group Holding Limited
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -10,16 +10,13 @@
  * Version: $Id: inval_stat_helper.hpp 28 2012-08-17 05:18:09Z fengmao.pj@taobao.com $
  *
  * Authors:
- *   ruohai <ruohai@taobao.com>
- *     - initial release
+ *   fengmao <fengmao.pj@taobao.com>
  *
  */
 #ifndef INVAL_STAT_HELPER_H
 #define INVAL_STAT_HELPER_H
 
 #include <zlib.h>
-
-
 #include <vector>
 #include <string>
 
@@ -32,7 +29,7 @@ namespace tair {
   class inval_stat_helper : public tbsys::CDefaultRunnable {
   public:
     //inval_stat_helper needs nessary parameters(group names) to start working.
-    //it will wait(sleep) until abaining the parameters.
+    //it will wait(sleep) until obaining the parameters.
     //the variable 'work_now' = WORK or WAIT.
     enum { WORK = 0, WAIT = 1 };
 
@@ -63,8 +60,9 @@ namespace tair {
         const std::string& group_name,
         const uint32_t area,
         const uint32_t op_type);
+
     //get group name
-    std::string get_group_name(const int index)
+    inline std::string get_group_name(const int index)
     {
       if (index < 0 || index >= (int)group_names.size()) {
         return std::string("bad index");

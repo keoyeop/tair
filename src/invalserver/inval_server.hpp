@@ -25,6 +25,7 @@
 #include "inval_stat_packet.hpp"
 #include "inval_request_storage.hpp"
 #include "op_cmd_packet.hpp"
+#include "inval_request_packet_wrapper.hpp"
 namespace tair {
   class InvalServer: public tbnet::IServerAdapter, public tbnet::IPacketQueueHandler {
   public:
@@ -51,6 +52,7 @@ namespace tair {
         std::string& group_name, int32_t& area, int32_t& add_request_storage);
     void construct_debug_infos(std::vector<std::string>& infos);
   private:
+    inline void set_packet_reference_count(tbnet::Packet *packet);
     bool _stop;
     bool ignore_zero_area;
 
@@ -65,7 +67,7 @@ namespace tair {
     AsyncTaskThread async_thread;
 
     //local storage for request packet.
-    inval_request_storage *request_storage;
+    inval_request_storage request_storage;
     //for debug info
     int sync_task_thread_count;
     int async_task_thread_count;

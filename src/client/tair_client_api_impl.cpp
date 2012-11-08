@@ -1046,9 +1046,42 @@ FAIL:
     return mget_impl(area, keys, data, 0);
   }
 
-  int tair_client_impl::remove(int area, const data_entry &key,TAIRCALLBACKFUNC pfunc,void * arg)
+  base_packet* tair_client_impl::init_packet(int pcode, int area, const tair_dataentry_set &mkey_set)
   {
 
+    base_packet *packet = NULL;
+    if (pcode == TAIR_REQ_PREFIX_REMOVES_PACKET) {
+      packet = new request_prefix_removes(mkey_set, area);
+    }
+    else {
+      packet = new request_prefix_hides(mkey_set, area);
+    }
+    return packet;
+  }
+
+  base_packet* tair_client_impl::init_packet(int pcode, int area, const data_entry &key)
+  {
+    base_packet *packet = (base_packet*)packet_factory->createPacket(pcode);
+    if (pcode == TAIR_REQ_REMOVE_PACKET) {
+      request_remove *req = (request_remove*) packet;
+      req->area = area;
+      req->add_key(const_cast<data_entry*>(&key), true);
+      req->server_flag = key.server_flag;
+    }
+    else if(pcode == TAIR_REQ_HIDE_PACKET) {
+      request_hide *req = (request_hide*) packet;
+      req->area = area;
+      req->add_key(key.get_data(), key.get_size(), key.get_prefix_size()); //~ prefix_hide may call this method
+    }
+    else {
+      log_error("[FATAL ERROR] init_packet, unknown pcode: %d", pcode);
+    }
+    return packet;
+  }
+
+  int tair_client_impl::do_process_with_key(int pcode, int area,
+      const data_entry &key, TAIRCALLBACKFUNC pfunc, void *parg)
+  {
     if( area < 0 || area >= TAIR_MAX_AREA_COUNT){
       return TAIR_RETURN_INVALID_ARGUMENT;
     }
@@ -1060,54 +1093,45 @@ FAIL:
     vector<uint64_t> server_list;
     if ( !get_server_id(key, server_list)) {
       TBSYS_LOG(DEBUG, "can not find serverId, return false");
-      return -1;
+      return TAIR_RETURN_NONE_DATASERVER;
     }
 
+    int ret = TAIR_RETURN_SUCCESS;
+    wait_object *cwo = this_wait_object_manager->create_wait_object(pcode, pfunc, parg);
+    base_packet *packet = init_packet(pcode, area, key);
 
-    wait_object *cwo = this_wait_object_manager->create_wait_object(TAIR_REQ_REMOVE_PACKET,pfunc,arg);
-    request_remove *packet = new request_remove();
-    packet->area = area;
-    packet->add_key(const_cast<data_entry*>(&key), true);
-    packet->server_flag = key.server_flag;
-    base_packet *tpacket = 0;
-    response_return *resp  = 0;
+    base_packet *tpacket = NULL;
+    response_return *resp = NULL;
 
-    int ret = TAIR_RETURN_SEND_FAILED;
-    if( (ret = send_request(server_list[0],packet,cwo->get_id())) < 0){
-
+    ret = send_request(server_list[0], packet, cwo->get_id());
+    if (ret < 0) {
+      //release the packet, the following phases will not be executed.
       delete packet;
-      goto FAIL;
     }
+
     //if async callback,return it.
-    if(pfunc) return 0;
-
-    if( (ret = get_response(cwo,1,tpacket)) < 0){
-      goto FAIL;
-    }
-    if ( tpacket->getPCode() != TAIR_RESP_RETURN_PACKET ) {
-      goto FAIL;
+    if (ret >= 0 && pfunc != NULL) {
+      return TAIR_RETURN_SUCCESS;
     }
 
-    resp = (response_return*)tpacket;
-    new_config_version = resp->config_version;
-    if ( (ret = resp->get_code()) < 0) {
-      if(ret == TAIR_RETURN_SERVER_CAN_NOT_WORK){
+    if (ret >= 0) {
+      ret = get_response(cwo, 1, tpacket);
+    }
+
+    if (ret >= 0 && tpacket->getPCode() == TAIR_RESP_RETURN_PACKET ) {
+      resp = (response_return*)tpacket;
+      new_config_version = resp->config_version;
+      ret = resp->get_code();
+      if (ret < 0 && ret == TAIR_RETURN_SERVER_CAN_NOT_WORK) {
         send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
       }
-      goto FAIL;
     }
-
-
-    this_wait_object_manager->destroy_wait_object(cwo);
-
-    return ret;
-FAIL:
 
     this_wait_object_manager->destroy_wait_object(cwo);
     return ret;
   }
 
-  int tair_client_impl::invalidate(int area, const data_entry &key, const char *groupname)
+  int tair_client_impl::invalidate(int area, const data_entry &key, const char *groupname, bool is_sync)
   {
     if (groupname == NULL) {
       return TAIR_RETURN_INVALID_ARGUMENT;
@@ -1124,13 +1148,14 @@ FAIL:
       TBSYS_LOG(ERROR, "invalidate server list is empty.");
       return TAIR_RETURN_FAILED;
     }
-    static hash_map<uint64_t, int, __gnu_cxx::hash<int> > fail_count_map;
+    //static hash_map<uint64_t, int, __gnu_cxx::hash<int> > fail_count_map;
 
 
     wait_object *cwo = this_wait_object_manager->create_wait_object();
     request_invalid *req = new request_invalid();
     req->set_group_name(groupname);
     req->area = area;
+    req->is_sync = is_sync ? SYNC_INVALID : ASYNC_INVALID;
     req->add_key(key.get_data(), key.get_size());
 
     int ret_code = TAIR_RETURN_SUCCESS;
@@ -1188,9 +1213,9 @@ FAIL:
     return ret_code;
   }
 
-  int tair_client_impl::invalidate(int area, const data_entry &key)
+  int tair_client_impl::invalidate(int area, const data_entry &key, bool is_sync)
   {
-    return invalidate(area, key, group_name.c_str());
+    return invalidate(area, key, group_name.c_str(), is_sync);
   }
 
   int tair_client_impl::hide(int area, const data_entry &key)
@@ -1325,6 +1350,70 @@ FAIL:
     merge_key(pkey, skey, mkey);
 
     return hide(area, mkey);
+  }
+
+  /**
+   * hide with multiple merged key
+   * should only be called by invalid server
+   */
+  int tair_client_impl::do_process_with_multi_keys(int pcode, int area,
+      const tair_dataentry_set &mkey_set,
+      key_code_map_t *key_code_map,
+      TAIRCALLBACKFUNC_EX pfunc, void *parg)
+  {
+    if ( area < 0 || area >= TAIR_MAX_AREA_COUNT) {
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
+
+    if (mkey_set.empty()) {
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
+
+    if (pfunc == NULL && key_code_map == NULL) {
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
+
+    base_packet *packet = init_packet(pcode, area, mkey_set);
+
+    vector<uint64_t> server_list;
+    data_entry *mkey = *(mkey_set.begin());
+    if (!get_server_id(*mkey, server_list)) {
+      TBSYS_LOG(WARN, "no dataserver available");
+      delete packet;
+      return TAIR_RETURN_NONE_DATASERVER;
+    }
+
+    wait_object *cwo = this_wait_object_manager->create_wait_object(pcode, pfunc, parg);
+    base_packet *tpacket = NULL;
+    response_mreturn *resp = NULL;
+
+    int ret = send_request(server_list[0], packet, cwo->get_id());
+    if (ret < 0) {
+      //release the packet, the following phases will not be executed.
+      delete packet;
+    }
+    if (ret >= 0 && pfunc != NULL) {
+      return TAIR_RETURN_SUCCESS;
+    }
+
+    if (ret >= 0) {
+      ret = get_response(cwo, 1, tpacket);
+    }
+
+    if (ret >= 0 && (resp = dynamic_cast<response_mreturn*>(tpacket)) != NULL) {
+      ret = resp->get_code();
+    }
+    else {
+      ret = TAIR_RETURN_FAILED;
+    }
+
+    if (ret >= 0 && ret != TAIR_RETURN_SUCCESS && resp->key_code_map != NULL) {
+      key_code_map->clear();
+      resp->key_code_map->swap(*key_code_map);
+    }
+
+    this_wait_object_manager->destroy_wait_object(cwo);
+    return ret;
   }
 
   /**
@@ -2605,13 +2694,13 @@ FAIL:
   }
 
   //removed the data with prefix key by invalid server.
-  int tair_client_impl::prefix_invalidate(int area, const data_entry &key)
+  int tair_client_impl::prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, bool is_sync)
   {
-    return prefix_invalidate(area, key, group_name.c_str());
+    return prefix_invalidate(area, pkey, skey, group_name.c_str(), is_sync);
   }
 
   //removed the data with prefix key by invalid server.
-  int tair_client_impl::prefix_invalidate(int area, const data_entry &key, const char *groupname)
+  int tair_client_impl::prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync)
   {
     if (groupname == NULL) {
       return TAIR_RETURN_INVALID_ARGUMENT;
@@ -2619,28 +2708,31 @@ FAIL:
     if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
       return TAIR_RETURN_INVALID_ARGUMENT;
     }
-    if (!key_entry_check(key)) {
+    if (!key_entry_check(pkey) || !key_entry_check(skey)) {
       return TAIR_RETURN_ITEMSIZE_ERROR;
     }
     if (invalid_server_list.size() == 0) {
       TBSYS_LOG(ERROR, "invalidate server list is empty.");
       return TAIR_RETURN_FAILED;
     }
+    data_entry mkey;
+    merge_key(pkey, skey, mkey);
     //create the request packet
     request_prefix_invalids *req = new request_prefix_invalids();
     req->set_group_name(groupname);
     req->area = area;
-    req->add_key(key.get_data(), key.get_size());
+    req->is_sync = is_sync ? SYNC_INVALID : ASYNC_INVALID;
+    req->add_key(mkey.get_data(), mkey.get_size());
     //interact with invalid server(s)
     return do_interaction_with_is(req, 0);
   }
 
-  int tair_client_impl::prefix_hide_by_proxy(int area, const data_entry &key)
+  int tair_client_impl::prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, bool is_sync)
   {
-    return prefix_hide_by_proxy(area, key, group_name.c_str());
+    return prefix_hide_by_proxy(area, pkey, skey, group_name.c_str(), is_sync);
   }
 
-  int tair_client_impl::prefix_hide_by_proxy(int area, const data_entry &key, const char *groupname)
+  int tair_client_impl::prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync)
   {
     if (groupname == NULL) {
       return TAIR_RETURN_INVALID_ARGUMENT;
@@ -2648,30 +2740,33 @@ FAIL:
     if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
       return TAIR_RETURN_INVALID_ARGUMENT;
     }
-    if (!key_entry_check(key)) {
+    if (!key_entry_check(pkey) || !key_entry_check(skey)) {
       return TAIR_RETURN_ITEMSIZE_ERROR;
     }
     if (invalid_server_list.size() == 0) {
       TBSYS_LOG(ERROR, "invalidate server list is empty.");
       return TAIR_RETURN_FAILED;
     }
+    data_entry mkey;
+    merge_key(pkey, skey, mkey);
     //create the request packet.
     request_prefix_hides_by_proxy *req = new request_prefix_hides_by_proxy();
     req->set_group_name(groupname);
     req->area = area;
-    req->add_key(key.get_data(), key.get_size());
+    req->is_sync = is_sync ? SYNC_INVALID : ASYNC_INVALID;
+    req->add_key(mkey.get_data(), mkey.get_size());
 
     //interact with invalid server(s)
     return do_interaction_with_is(req, 0);
   }
 
   //hide the key by invalid server.
-  int tair_client_impl::hide_by_proxy(int area, const data_entry &key)
+  int tair_client_impl::hide_by_proxy(int area, const data_entry &key, bool is_sync)
   {
-    return hide_by_proxy(area, key, group_name.c_str());
+    return hide_by_proxy(area, key, group_name.c_str(), is_sync);
   }
 
-  int tair_client_impl::hide_by_proxy(int area, const data_entry &key, const char *groupname)
+  int tair_client_impl::hide_by_proxy(int area, const data_entry &key, const char *groupname, bool is_sync)
   {
     if (groupname == NULL) {
       return TAIR_RETURN_INVALID_ARGUMENT;
@@ -2690,6 +2785,7 @@ FAIL:
     request_hide_by_proxy *req = new request_hide_by_proxy();
     req->set_group_name(groupname);
     req->area = area;
+    req->is_sync = is_sync ? SYNC_INVALID : ASYNC_INVALID;
     req->add_key(key.get_data(), key.get_size());
     //interact with invlaid server(s)
     return do_interaction_with_is(req, 0);
@@ -3603,24 +3699,43 @@ OUT:
     //now check the response code.
     int _cmd= tpacket->getPCode() ;
     int ret;
-    response_return *resp =  NULL;
     switch (_cmd)
     {
       case TAIR_RESP_RETURN_PACKET:
-        resp =  (response_return*)tpacket;
-        new_config_version = resp->config_version;
-        ret = resp->get_code();
-        if (ret != TAIR_RETURN_SUCCESS)
         {
-          if(ret == TAIR_RETURN_SERVER_CAN_NOT_WORK || ret == TAIR_RETURN_WRITE_NOT_ON_MASTER)
+          response_return *resp_return =  NULL;
+          resp_return =  (response_return*)tpacket;
+          new_config_version = resp_return->config_version;
+          ret = resp_return->get_code();
+          if (ret != TAIR_RETURN_SUCCESS)
           {
-            //update server table immediately
-            send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
+            if(ret == TAIR_RETURN_SERVER_CAN_NOT_WORK || ret == TAIR_RETURN_WRITE_NOT_ON_MASTER)
+            {
+              //update server table immediately
+              send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
+            }
           }
+          return cwo->do_async_response(ret);
         }
-        return cwo->do_async_response(ret);
-        break;
+      case TAIR_RESP_MRETURN_PACKET:
+        {
+          wait_object_ex *cwo_ex = (wait_object_ex*)cwo;
+          response_mreturn *resp_mreturn = NULL;
+          resp_mreturn =  (response_mreturn*)tpacket;
+          new_config_version = resp_mreturn->config_version;
+          ret = resp_mreturn->get_code();
+          if (ret != TAIR_RETURN_SUCCESS)
+          {
+            if(ret == TAIR_RETURN_SERVER_CAN_NOT_WORK || ret == TAIR_RETURN_WRITE_NOT_ON_MASTER)
+            {
+              //update server table immediately
+              send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
+            }
+          }
+          return cwo_ex->do_async_response(ret, resp_mreturn->key_code_map);
+        }
       default:
+        log_error("unknown pcode: %d\n", _cmd);
         break;
     }
     return 0;

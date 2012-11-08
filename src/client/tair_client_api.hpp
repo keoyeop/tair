@@ -152,7 +152,7 @@ namespace tair {
      *
      * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
      */
-    int invalidate(int area, const data_entry &key, const char *groupname);
+    int invalidate(int area, const data_entry &key, const char *groupname, bool is_sync = true);
 
     /**
      * @brief delete data from tair cluster
@@ -162,7 +162,7 @@ namespace tair {
      *
      * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
      */
-    int invalidate(int area, const data_entry &key);
+    int invalidate(int area, const data_entry &key, bool is_sync = true);
 
     /**
      * @brief delete data with prefix key from tair cluster
@@ -173,17 +173,18 @@ namespace tair {
      *
      * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
      */
-    int prefix_invalidate(int area, const data_entry &key, const char *groupname);
+    int prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync = true);
 
     /**
      * @brief delete data with prefix key from tair cluster
      *
      * @param area    namespace
-     * @param key     key
+     * @param pkey     key
+     * @param skey     key
      *
      * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
      */
-    int prefix_invalidate(int area, const data_entry &key);
+    int prefix_invalidate(int area, const data_entry &key, const data_entry &skey, bool is_sync = true);
 
     /**
      * @brief hide data
@@ -194,7 +195,7 @@ namespace tair {
      *
      * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
      */
-    int hide_by_proxy(int area, const data_entry &key, const char* groupname);
+    int hide_by_proxy(int area, const data_entry &key, const char* groupname, bool is_sync = true);
 
     /**
      * @brief hide data
@@ -204,7 +205,7 @@ namespace tair {
      *
      * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
      */
-    int hide_by_proxy(int area, const data_entry &key);
+    int hide_by_proxy(int area, const data_entry &key, bool is_sync = true);
 
     /**
      * @brief hide data with prefix key
@@ -215,7 +216,7 @@ namespace tair {
      *
      * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
      */
-    int prefix_hide_by_proxy(int area, const data_entry &key, const char *groupname);
+    int prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync = true);
 
     /**
      * @brief hide data with prefix key
@@ -225,7 +226,7 @@ namespace tair {
      *
      * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
      */
-    int prefix_hide_by_proxy(int area, const data_entry &key);
+    int prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, bool is_sync = true);
 
     /**
      * @brief to hide one item

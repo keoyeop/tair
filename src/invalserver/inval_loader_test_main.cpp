@@ -6,7 +6,7 @@
 #include "inval_loader_test.hpp"
 
 
-tair::InvalLoader* invalid_loader = NULL;
+tair::inval_loader_test* invalid_loader = NULL;
 uint64_t tair::util::local_server_ip::ip = 0;
 //~ signal handler
 void sig_handler(int sig) {

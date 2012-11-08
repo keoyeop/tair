@@ -18,7 +18,7 @@ namespace tair {
     }
   }
 
-  std::vector<tair_client_api*>* InvalLoader::get_client_list(const char *groupname) {
+  std::vector<tair_client_impl*>* InvalLoader::get_client_list(const char *groupname) {
     if (groupname == NULL) {
       log_error("groupname is NULL!");
       return NULL;
@@ -68,6 +68,17 @@ namespace tair {
         cluster_without_groupnames.erase(it++);
       }
     }
+    //here, we got group names
+    if (group_names.size() > 0) {
+      //set group names again.
+      if (TAIR_INVAL_STAT.setThreadParameter(group_names) == false) {
+        log_error("[FATAL ERROR], failed to add group names to inval_stat_helper.");
+      }
+      // for debug info
+      for (int i = 0; i < group_names.size(); ++i) {
+        log_debug("add group name: %s", group_names[i].c_str());
+      }
+    }
   }
   void InvalLoader::build_connections()
   {
@@ -88,7 +99,7 @@ namespace tair {
             slave = gc->slave;
             group_name = gc->group_name;
             //restartup
-            tair_client_api * client = new tair_client_api();
+            tair_client_impl * client = new tair_client_impl();
             if (client->startup(tbsys::CNetUtil::addrToString(master).c_str(),
                   tbsys::CNetUtil::addrToString(slave).c_str(),
                   group_name.c_str()) == true) {
@@ -98,7 +109,7 @@ namespace tair {
                   tbsys::CNetUtil::addrToString(slave).c_str(),
                   group_name.c_str());
               disconnected_client_map_markup(master, group_name);
-              //add instance tair_client_api to list.
+              //add instance tair_client_impl to list.
               log_info("timeout of clients set to %dms.", timeout);
               client->set_timeout(timeout);
               client_list.push_back(client);
@@ -141,7 +152,7 @@ namespace tair {
         build_connections();
       }
       for (int i = 0; i < client_list.size(); i++) {
-        client_list[i]->add_count(0, key, 1, &value);
+       // client_list[i]->add_count(0, key, 1, &value);
         log_debug("client: %d, 'invalid_server_counter': %d", i, value);
         if (_stop) {
           break;
@@ -270,6 +281,7 @@ namespace tair {
       std::vector<const char*> strList = TBSYS_CONFIG.getStringList(INVALSERVER_SECTION, key);
       for (size_t j = 0; j < strList.size(); ++j) {
         uint64_t id = tbsys::CNetUtil::strToAddr(strList[j], defaultPort);
+        log_info("got configserver: %s", tbsys::CNetUtil::addrToString(id).c_str());
         if (id == 0) {
           continue;
         }
@@ -313,7 +325,7 @@ namespace tair {
           if (it == group_names.end()) {
             group_names.push_back(spid->group_name_list[i]);
           }
-          tair_client_api * client = new tair_client_api();
+          tair_client_impl * client = new tair_client_impl();
           if (client->startup(tbsys::CNetUtil::addrToString(spid->id1).c_str(),
                 tbsys::CNetUtil::addrToString(spid->id2).c_str(),
                 (spid->group_name_list[i]).c_str()) == false) {

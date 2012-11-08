@@ -27,9 +27,21 @@ namespace tair {
     }
 
     request_prefix_removes(request_prefix_removes &rhs) : request_remove(rhs) {
-        setPCode(TAIR_REQ_PREFIX_REMOVES_PACKET);
-        packet_id = rhs.packet_id;
+      setPCode(TAIR_REQ_PREFIX_REMOVES_PACKET);
+      packet_id = rhs.packet_id;
     }
+
+    request_prefix_removes(const tair_dataentry_set &mkey_set, const int area) {
+      setPCode(TAIR_REQ_PREFIX_REMOVES_PACKET);
+      tair_dataentry_set::const_iterator itr = mkey_set.begin();
+      while (itr != mkey_set.end()) {
+        this->add_key(*itr, true);
+        ++itr;
+      }
+      this->area = area;
+      packet_id = 0;
+    }
+
 
     bool encode(tbnet::DataBuffer *output) {
       if (!request_remove::encode(output)) {

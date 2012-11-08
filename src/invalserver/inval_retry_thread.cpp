@@ -1,5 +1,5 @@
 #include "inval_retry_thread.hpp"
-
+#include "inval_request_packet_wrapper.hpp"
 namespace tair {
   InvalRetryThread::InvalRetryThread() {
     invalid_loader = NULL;
@@ -33,12 +33,12 @@ namespace tair {
     log_warn("RetryThread %d starts.", index);
 
     tbsys::CThreadCond *cur_cond = &(queue_cond[index]);
-    tbnet::PacketQueue *cur_queue = &(retry_queue[index]);
+    std::queue<request_inval_packet_wrapper*> *cur_queue = &(retry_queue[index]);
 
     int delay_time = index * 3 + 1;
 
     while (!_stop) {
-      base_packet *bp = NULL;
+      request_inval_packet_wrapper *wrapper = NULL;
       cur_cond->lock();
       //~ wait until request is available, or stopped.
       while (!_stop && cur_queue->size() == 0) {
@@ -49,13 +49,13 @@ namespace tair {
         break;
       }
 
-      bp = (base_packet*) cur_queue->pop();
+      wrapper = cur_queue->front();
+      cur_queue->pop();
       cur_cond->unlock();
-      int pc = bp->getPCode();
+      int pc = wrapper->packet->getPCode();
 
-      int towait = bp->request_time + delay_time - time(NULL);
+      int towait = wrapper->packet->request_time + delay_time - time(NULL);
       if (towait > 0) {
-        log_debug("wait for %d seconds to retry in RetryThread %d.", towait, index);
         TAIR_SLEEP(_stop, towait);
         if (_stop)
           break;
@@ -64,108 +64,36 @@ namespace tair {
       switch (pc) {
         case TAIR_REQ_INVAL_PACKET:
           {
-            request_invalid *req = (request_invalid*) bp;
-            request_invalid *post_req = NULL;
-            processor->process(req, post_req);
-            TAIR_INVAL_STAT.statistcs(inval_stat_helper::INVALID, std::string(req->group_name),
-                req->area, inval_area_stat::RETRY_EXEC);
-            if (post_req != NULL) {
-              if (index < RETRY_COUNT - 1) {
-                log_error("add invalid packet to RetryThread %d", index + 1);
-                add_packet(post_req, index + 1);
-              } else {
-                log_error("invalid RetryFailedFinally, add the packet to the request_storage.");
-                //simply write the request packet to request_storage,
-                //and this operation is always successful.
-                request_storage->write_request((base_packet*) post_req);
-                TAIR_INVAL_STAT.statistcs(inval_stat_helper::INVALID, std::string(req->group_name),
-                    req->area, inval_area_stat::FINALLY_EXEC);
-                post_req = NULL;
-              }
-            }
-            else {
-              log_error("invalid success in RetryThread %d", index);
-            }
-            delete req;
+            processor->process((request_invalid*)wrapper->packet, (request_inval_packet_wrapper*)wrapper);
+            TAIR_INVAL_STAT.statistcs(inval_stat_helper::INVALID, std::string(wrapper->packet->group_name),
+                wrapper->packet->area, inval_area_stat::RETRY_EXEC);
             break;
           }
         case TAIR_REQ_HIDE_BY_PROXY_PACKET:
           {
-            request_hide_by_proxy *req = (request_hide_by_proxy*) bp;
-            request_hide_by_proxy *post_req = NULL;
-            processor->process(req, post_req);
-            TAIR_INVAL_STAT.statistcs(inval_stat_helper::HIDE, std::string(req->group_name),
-                req->area, inval_area_stat::RETRY_EXEC);
-            if (post_req != NULL) {
-              if (index < RETRY_COUNT - 1) {
-                log_error("add hide packet to RetryThread %d", index + 1);
-                add_packet(post_req, index + 1);
-              }
-              else {
-                log_error("prefix hides RetryFailedFinally, write the request packet to `request_storage");
-                //simply write the request packet to request_storage,
-                //and request_storage will free the packet.
-                request_storage->write_request(post_req);
-                TAIR_INVAL_STAT.statistcs(inval_stat_helper::HIDE, std::string(req->group_name),
-                    req->area, inval_area_stat::FINALLY_EXEC);
-              }
-            }
-            else {
-              log_error("hide success in RetryThread %d", index);
-            }
-            delete req;
+            processor->process((request_hide_by_proxy*)wrapper->packet, (request_inval_packet_wrapper*)wrapper);
+            TAIR_INVAL_STAT.statistcs(inval_stat_helper::HIDE, std::string(wrapper->packet->group_name),
+                wrapper->packet->area, inval_area_stat::RETRY_EXEC);
             break;
           }
         case TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET:
           {
-            request_prefix_hides_by_proxy *req = (request_prefix_hides_by_proxy*) bp;
-            request_prefix_hides_by_proxy *post_req = NULL;
-            processor->process(req, post_req);
-            TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_HIDE, std::string(req->group_name),
-                req->area, inval_area_stat::RETRY_EXEC);
-            if (post_req != NULL) {
-              if (index < RETRY_COUNT - 1) {
-                log_error("add prefix hides packet to RetryThread %d", index + 1);
-                add_packet(post_req, index + 1);
-              } else {
-                log_error("prefix hides RetryFailedFinally, write the request packet to local storage `request_storage");
-                request_storage->write_request(post_req);
-                TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_HIDE, std::string(req->group_name),
-                    req->area, inval_area_stat::FINALLY_EXEC);
-              }
-            } else {
-              log_error("prefix hides success in RetryThread %d", index);
-            }
-            delete req;
+            processor->process((request_prefix_hides_by_proxy*)wrapper->packet, (request_inval_packet_ex_wrapper*)wrapper);
+            TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_HIDE, std::string(wrapper->packet->group_name),
+                wrapper->packet->area, inval_area_stat::RETRY_EXEC);
             break;
           }
         case TAIR_REQ_PREFIX_INVALIDS_PACKET:
           {
-            request_prefix_invalids *req = (request_prefix_invalids*) bp;
-            request_prefix_invalids *post_req = NULL;
-            processor->process(req, post_req);
-            TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_INVALID, std::string(req->group_name),
-                req->area, inval_area_stat::RETRY_EXEC);
-            if (post_req != NULL) {
-              if (index < RETRY_COUNT - 1) {
-                log_error("add prefix invalids packet to RetryThread %d", index + 1);
-                add_packet(post_req, index + 1);
-              } else {
-                log_error("prefix hides RetryFailedFinally, write the request packet to local storage `request_storage");
-                request_storage->write_request(post_req);
-                TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_INVALID, std::string(req->group_name),
-                    req->area, inval_area_stat::FINALLY_EXEC);
-              }
-            } else {
-              log_error("prefix invalids success in RetryThread %d", index);
-            }
-            delete req;
+            processor->process((request_prefix_invalids*)wrapper->packet, (request_inval_packet_ex_wrapper*)wrapper);
+            TAIR_INVAL_STAT.statistcs(inval_stat_helper::PREFIX_INVALID, std::string(wrapper->packet->group_name),
+                wrapper->packet->area, inval_area_stat::RETRY_EXEC);
             break;
           }
         default:
           {
             log_error("unknown packet with code %d", pc);
-            delete bp;
+            wrapper->release_packet();
             break;
           }
       }
@@ -173,30 +101,44 @@ namespace tair {
     //~ clear the queue when stopped.
     cur_cond->lock();
     while (cur_queue->size() > 0) {
-      delete cur_queue->pop();
+      //write to request_storage
+      request_inval_packet_wrapper *wrapper = cur_queue->front();
+      cur_queue->pop();
+      if (wrapper != NULL && wrapper->packet != NULL) {
+        wrapper->set_failed_flag(request_inval_packet_wrapper::FAILED_STORAGE_QUEUE);
+        request_storage->write_request((base_packet*)wrapper->packet);
+      }
     }
     cur_cond->unlock();
     log_warn("RetryThread %d is stopped", index);
   }
 
-  void InvalRetryThread::add_packet(base_packet *packet, int index) {
+  void InvalRetryThread::add_packet(request_inval_packet_wrapper *wrapper, int index) {
     if (index < 0 || index > RETRY_COUNT - 1 || _stop == true) {
       log_error("add_packet failed: index: %d, _stop: %d", index, _stop);
-      delete packet;
+      if (wrapper != NULL && wrapper->packet != NULL) {
+        wrapper->set_failed_flag(request_inval_packet_wrapper::FAILED_STORAGE_QUEUE);
+        request_storage->write_request((base_packet*)wrapper->packet);
+      }
     }
     queue_cond[index].lock();
     if (retry_queue[index].size() >= MAX_QUEUE_SIZE) {
       queue_cond[index].unlock();
-      log_error("[FATAL ERROR] Retry Queue %d has overflowed, packet is dropped.", index);
-      delete packet;
+      log_error("[ERROR] Retry Queue %d has overflowed, packet is pushed into request_storage.", index);
+      if (wrapper != NULL && wrapper->packet != NULL) {
+        wrapper->set_failed_flag(request_inval_packet_wrapper::FAILED_STORAGE_QUEUE);
+        request_storage->write_request((base_packet*)wrapper->packet);
+      }
+      //here, will not release the wrapper.
       return ;
     }
-    log_error("add packet to RetryThread %d", index);
-    packet->request_time = time(NULL);
-    retry_queue[index].push(packet);
+    log_debug("add packet to RetryThread %d", index);
+    wrapper->packet->request_time = time(NULL);
+    retry_queue[index].push(wrapper);
     queue_cond[index].unlock();
     queue_cond[index].signal();
   }
+
   int InvalRetryThread::retry_queue_size(const int index) {
     int size = 0;
     if (index < 0 || index >= RETRY_COUNT || _stop == true) {

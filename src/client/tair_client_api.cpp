@@ -210,14 +210,14 @@ namespace tair {
     return ret;
   }
 
-  int tair_client_api::invalidate( int area, const data_entry &key, const char *groupname)
+  int tair_client_api::invalidate( int area, const data_entry &key, const char *groupname, bool is_sync)
   {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->invalidate(area, key, groupname);
+    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->invalidate(area, key, groupname, is_sync);
   }
 
-  int tair_client_api::invalidate(int area, const data_entry &key)
+  int tair_client_api::invalidate(int area, const data_entry &key, bool is_sync)
   {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->invalidate(area, key);
+    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->invalidate(area, key, is_sync);
   }
 
   int tair_client_api::hide(int area, const data_entry &key)
@@ -639,34 +639,34 @@ namespace tair {
     }
   }
 
-  int tair_client_api::prefix_invalidate(int area, const data_entry &key, const char *groupname)
+  int tair_client_api::prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync)
   {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_invalidate(area, key, groupname);
+    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_invalidate(area, pkey, skey, groupname, is_sync);
   }
 
-  int tair_client_api::prefix_invalidate(int area, const data_entry &key)
+  int tair_client_api::prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, bool is_sync)
   {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_invalidate(area, key);
+    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_invalidate(area, pkey, skey, is_sync);
   }
 
-  int tair_client_api::hide_by_proxy(int area, const data_entry &key, const char *groupname)
+  int tair_client_api::hide_by_proxy(int area, const data_entry &key, const char *groupname, bool is_sync)
   {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->hide_by_proxy(area, key, groupname);
+    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->hide_by_proxy(area, key, groupname, is_sync);
   }
 
-  int tair_client_api::hide_by_proxy(int area, const data_entry &key)
+  int tair_client_api::hide_by_proxy(int area, const data_entry &key, bool is_sync)
   {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->hide_by_proxy(area, key);
+    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->hide_by_proxy(area, key, is_sync);
   }
 
-  int tair_client_api::prefix_hide_by_proxy(int area, const data_entry &key, const char *groupname)
+  int tair_client_api::prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync)
   {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_hide_by_proxy(area, key, groupname);
+    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_hide_by_proxy(area, pkey, skey, groupname, is_sync);
   }
 
-  int tair_client_api::prefix_hide_by_proxy(int area, const data_entry &key)
+  int tair_client_api::prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, bool is_sync)
   {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_hide_by_proxy(area, key);
+    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_hide_by_proxy(area, pkey, skey, is_sync);
   }
 
   int tair_client_api::retry_all()

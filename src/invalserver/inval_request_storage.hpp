@@ -1,3 +1,17 @@
+/*
+ * (C) 2007-2012 Alibaba Group Holding Limited
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ *
+ * Version: $Id: inval_request_storage.hpp 28 2012-08-17 05:18:09Z fengmao.pj@taobao.com $
+ *
+ * Authors:
+ *   fengmao <fengmao.pj@taobao.com>
+ *
+ */
 #ifndef INVAL_REQUEST_STORAGE_H
 #define INVAL_REQUEST_STORAGE_H
 
@@ -66,6 +80,7 @@ namespace tair {
     int max_cached_packet_count;
     static const uint32_t DATA_BUFFER_SIZE = 8192;//8k
     static const uint32_t DATA_PACKET_MIN_SIZE = 7;
+    //the thread that writes/reads packet to/from the disk, should not hold the lock for a long time.
 
     //if queue's size > write_disk_threshold * max_cached_packet_count, write data to the file.
     float write_disk_threshold;

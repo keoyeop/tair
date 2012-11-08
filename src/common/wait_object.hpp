@@ -27,12 +27,14 @@ using namespace __gnu_cxx;
 
 namespace tair {
    namespace common {
-      typedef int tbnet_pcode_type;
-      const tbnet_pcode_type null_pcode = -1;
+     typedef int tbnet_pcode_type;
+     const tbnet_pcode_type null_pcode = -1;
 
 
-      class wait_object {
-      public:
+     typedef void (*TAIRCALLBACKFUNC)(int retcode, void* parg);
+     typedef void (*TAIRCALLBACKFUNC_EX)(int recode, const key_code_map_t *key_code_map, void *parg);
+     class wait_object {
+     public:
          friend class wait_object_manager;
          wait_object()
           {
@@ -56,7 +58,7 @@ namespace tair {
            m_args=parg;
            m_cmd=_cmd;
          }
-         ~wait_object()
+         virtual ~wait_object()
          {
             tbsys::CThreadGuard guard(&mutex);
             if (resp_list != NULL) {
@@ -136,7 +138,7 @@ namespace tair {
             resp = NULL;
             resp_list = NULL;
          }
-         bool is_async() { return NULL!=m_callback_func; }
+         virtual bool is_async() { return NULL!=m_callback_func; }
          int do_async_response(int error_code)
          {
            if(m_callback_func)
@@ -146,7 +148,7 @@ namespace tair {
            return 0;
          }
           int get_cmd(){return m_cmd;}
-      private:
+      protected:
          int id;
          void init(){
             done_count = 0;
@@ -174,11 +176,48 @@ namespace tair {
          vector<base_packet*> *resp_list;
          tbsys::CThreadCond cond;
          int done_count;
-       private: //below is callback function
-         void (*m_callback_func)(int retcode, void* parg);
+       protected: //below is callback function
+         TAIRCALLBACKFUNC m_callback_func;
+         //void (*m_callback_func)(int retcode, void* parg);
          void* m_args;
          int m_cmd;
       };
+      class wait_object_ex : public wait_object
+     {
+     public:
+       friend class wait_object_manager;
+       wait_object_ex() : wait_object(), callback_func(NULL)
+       {
+       }
+       wait_object_ex(const tbnet_pcode_type& except) : wait_object(except), callback_func(NULL)
+       {
+       }
+       wait_object_ex(const set<tbnet_pcode_type> &except_set) : wait_object(except_set), callback_func(NULL)
+       {
+       }
+       wait_object_ex(int cmd, TAIRCALLBACKFUNC_EX func, void *parg)
+       {
+         init();
+         wait_object::m_callback_func = NULL;
+         m_args = parg;
+         m_cmd = cmd;
+         this->callback_func = func;
+       }
+       ~wait_object_ex()
+       {
+       }
+       bool is_async() { return NULL != callback_func;}
+       int do_async_response(int error_code, const key_code_map_t *key_code_map)
+       {
+         if (callback_func != NULL) {
+           callback_func(error_code, key_code_map, m_args);
+         }
+         return 0;
+       }
+
+     protected:
+       TAIRCALLBACKFUNC_EX callback_func;
+     };
 
       class wait_object_manager {
       public:
@@ -228,6 +267,14 @@ namespace tair {
          wait_object* create_wait_object(int cmd,void (*_pfunc)(int retcode, void* parg),void *parg,int timeout=0)
          {
            wait_object *cwo = new wait_object(cmd,_pfunc,parg);
+           add_new_wait_object(cwo);
+           return cwo;
+         }
+
+         wait_object* create_wait_object(int cmd, void (*_pfunc)(int retcode, const key_code_map_t *key_code_map,
+               void *parg), void *parg, int timeout = 0)
+         {
+           wait_object *cwo = new wait_object_ex(cmd, _pfunc, parg);
            add_new_wait_object(cwo);
            return cwo;
          }

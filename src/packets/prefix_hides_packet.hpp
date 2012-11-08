@@ -30,6 +30,16 @@ namespace tair {
       setPCode(TAIR_REQ_PREFIX_HIDES_PACKET);
     }
 
+    request_prefix_hides(const tair_dataentry_set &mkey_set, const int area) {
+      setPCode(TAIR_REQ_PREFIX_HIDES_PACKET);
+      tair_dataentry_set::const_iterator itr = mkey_set.begin();
+      while (itr != mkey_set.end()) {
+        this->add_key(*itr, true);
+        ++itr;
+      }
+      this->area = area;
+    }
+
     bool encode(tbnet::DataBuffer *output) {
       if (!request_hide::encode(output)) {
         return false;
