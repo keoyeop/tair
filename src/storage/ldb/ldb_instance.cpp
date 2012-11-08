@@ -37,7 +37,7 @@ namespace tair
 
       LdbInstance::LdbInstance()
         : index_(0), db_version_care_(true), mutex_(NULL), db_(NULL), cache_(NULL),
-          scan_it_(NULL), scan_bucket_(-1), still_have_(true), gc_(this)
+          scan_it_(NULL), scan_bucket_(-1), still_have_(true)
       {
         db_path_[0] = '\0';
         stat_manager_ = new STAT_MANAGER_MAP();
@@ -47,7 +47,7 @@ namespace tair
                                storage::storage_manager* cache)
         : index_(index), db_version_care_(db_version_care), mutex_(NULL), db_(NULL),
           cache_(dynamic_cast<tair::mdb_manager*>(cache)),
-          scan_it_(NULL), scan_bucket_(-1), still_have_(true), gc_(this)
+          scan_it_(NULL), scan_bucket_(-1), still_have_(true)
       {
         if (cache_ != NULL)
         {
@@ -135,7 +135,7 @@ namespace tair
                 {
                   log_error("start bg task fail. destroy db");
                 }
-                else if (!(ret = gc_.start()))
+                else if (!(ret = gc_.start(this)))
                 {
                   log_error("start gc factory fail. destroy db");
                 }
@@ -223,7 +223,9 @@ namespace tair
         // no bucket exist. destory db
         if (stat_manager_->empty())
         {
-          destroy();
+          log_warn("ldb instance %d own none bucket now.", index_);
+          // This instance will not service any more, just not destroy now
+          // destroy();
         }
       }
 

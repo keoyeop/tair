@@ -165,11 +165,11 @@ namespace tair
       class LdbGcFactory
       {
       public:
-        LdbGcFactory(LdbInstance* db);
+        LdbGcFactory();
         ~LdbGcFactory();
         friend class BitcmpLdbComparatorImpl; // convient use
 
-        bool start();
+        bool start(LdbInstance* db);
         void stop();
         void destroy();
 

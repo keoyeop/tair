@@ -310,9 +310,8 @@ namespace tair
       }
 
 //////////////////////////////
-      LdbGcFactory::LdbGcFactory(LdbInstance* db) : db_(db), can_gc_(false)
+      LdbGcFactory::LdbGcFactory() : db_(NULL), can_gc_(false)
       {
-        assert(db_ != NULL);
         log_ = new GcLog();
       }
 
@@ -325,12 +324,14 @@ namespace tair
         }
       }
 
-      bool LdbGcFactory::start()
+      bool LdbGcFactory::start(LdbInstance* db)
       {
         tbsys::CWLockGuard guard(lock_);
+        db_ = db;
         bool ret = db_ != NULL && db_->db_path();
         if (!ret)
         {
+          db_ = NULL;
           log_error("start gc fail. db not init or db path not init");
         }
         else if (!(ret = log_->start(gc_log_name().c_str(), this)))
