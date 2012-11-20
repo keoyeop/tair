@@ -291,7 +291,7 @@ namespace tair
              {
                 data = m_true_data;
                 size = m_true_size;
-             } 
+             }
              else
              {
                 data = m_true_data+2;
@@ -320,9 +320,9 @@ namespace tair
 
        inline char *get_prefix() const
        {
-         if (prefix_size>0) 
+         if (prefix_size>0)
            return has_merged ? data+2 : data;
-         else 
+         else
            return NULL;
        }
 
@@ -399,6 +399,8 @@ namespace tair
          if (need_compress) {
            do_compress(output);
          } else
+#else
+         UNUSED(need_compress);
 #endif
          {
            data_meta.encode(output);
@@ -436,6 +438,8 @@ namespace tair
          if (need_decompress) {
            ret = do_decompress();
          }
+#else
+         UNUSED(need_decompress);
 #endif
          has_merged = temp_merged;
          area = _area;
@@ -529,7 +533,7 @@ namespace tair
      };
 
 
- 
+
       // we don't reserve dummy meta when record entry in some condition(remote synchronization, eg.),
       // while need some base info to operate it, here is entry tailer.
       // prefix_size and mtime matters now.

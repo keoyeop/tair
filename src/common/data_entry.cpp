@@ -95,8 +95,7 @@ namespace tair
           int tmp_size = size - TAIR_VALUE_HEADER_LENGTH;
           char *tmp_data = new char[tmp_size];
           memcpy(tmp_data, data + TAIR_VALUE_HEADER_LENGTH, tmp_size);
-          free_data();
-          set_data(tmp_data, tmp_size, false);
+          set_alloced_data(tmp_data, tmp_size);
         } else {
           log_debug("compressed data with header: %d", compress_header);
           // do the real compress
@@ -106,8 +105,7 @@ namespace tair
           int compress_ret = compressor::do_decompress(&dest, &dest_len, data + TAIR_VALUE_HEADER_LENGTH, src_len, type);
           // to check if the dest_len overflow
           if (0 == compress_ret) {
-            free_data();
-            set_data(dest, dest_len, false);
+            set_alloced_data(dest, dest_len);
             log_debug("decompress ok, len is %d", dest_len);
           } else {
             ret = false;
