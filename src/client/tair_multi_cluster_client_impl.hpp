@@ -48,6 +48,9 @@ namespace tair
 
     void set_timeout(int32_t timeout_ms);
     void set_update_interval(int32_t interval_ms);
+    void set_config_id(const char* config_id);
+    void set_dynamic_config(bool dynamic_config);
+
     uint32_t get_bucket_count() const;
     uint32_t get_copy_count() const;
 

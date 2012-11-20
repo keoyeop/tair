@@ -757,7 +757,7 @@ namespace tair
      inline void merge_key(const data_entry &pkey, const data_entry &skey, data_entry &mkey) {
        int pkey_size = pkey.get_size();
        int skey_size = skey.get_size();
-       char *buf = new char[pkey_size + skey_size];
+       char *buf = (char *)malloc(pkey_size + skey_size);
        memcpy(buf, pkey.get_data(), pkey_size);
        memcpy(buf + pkey_size, skey.get_data(), skey_size);
        mkey.set_alloced_data(buf, pkey_size + skey_size);

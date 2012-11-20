@@ -166,6 +166,16 @@ namespace tair
     updater_->set_interval(interval_ms);
   }
 
+  void tair_multi_cluster_client_impl::set_config_id(const char* config_id)
+  {
+
+  }
+
+  void tair_multi_cluster_client_impl::set_dynamic_config(bool dynamic_config)
+  {
+
+  }
+
   uint32_t tair_multi_cluster_client_impl::get_bucket_count() const
   {
     return updater_->get_master_cluster_handler()->get_client()->get_bucket_count();

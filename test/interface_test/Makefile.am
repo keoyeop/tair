@@ -21,7 +21,7 @@ LDADD= \
 base_source=interface_test_main.cpp interface_test_base.cpp interface_test_base.h
 
 source_list=${base_source} \
-			CTAIRCLIENTAPI_03_x_put_Test.cpp \
+#			CTAIRCLIENTAPI_03_x_put_Test.cpp \
 			CTAIRCLIENTAPI_03_x_put_oterfunction_Test.cpp \
 			CTAIRCLIENTAPI_04_x_get_Test.cpp \
 			CTAIRCLIENTAPI_05_x_remove_Test.cpp \
