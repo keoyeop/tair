@@ -132,7 +132,7 @@ namespace tair {
 
       void do_dump(set<dump_meta_info> dump_meta_infos);
 
-      int get_meta(int area, data_entry &key, item_meta_info &meta);
+      int get_meta(int area, data_entry &key, item_meta_info &meta, int bucket = 0);
 
       plugin::plugins_manager plugins_manager;
       tair::storage::storage_manager *get_storage_manager() { return storage_mgr; }

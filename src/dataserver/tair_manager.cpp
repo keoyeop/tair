@@ -192,7 +192,7 @@
           data_entry value;
           int version = key->data_meta.version;
           item_meta_info meta;
-          int ret = get_meta(request->area, *key, meta);
+          int ret = get_meta(request->area, *key, meta, bucket_number);
           if (version != 0  && ret == TAIR_RETURN_SUCCESS && version != meta.version) {
             log_warn("version not match, old: %d, new: %d", meta.version, version);
             rc = TAIR_RETURN_VERSION_ERROR;
@@ -1350,7 +1350,7 @@
 
     }
 
-    int tair_manager::get_meta(int area, data_entry &key, item_meta_info &meta)
+    int tair_manager::get_meta(int area, data_entry &key, item_meta_info &meta, int bucket)
     {
       bool has_merged = key.has_merged;
       if (!has_merged) {
@@ -1358,18 +1358,21 @@
       }
 
       int rc = storage_mgr->get_meta(key, meta);
-      if (!has_merged) {
-        key.decode_area();
-      }
       if (rc != TAIR_RETURN_NOT_SUPPORTED) {
+        if (!has_merged) {
+          key.decode_area();
+        }
         return rc;
       }
       //~ following would be expensive
       data_entry data;
       item_meta_info kmeta = key.data_meta;
-      rc = storage_mgr->get(area, key, data);
+      rc = storage_mgr->get(bucket, key, data);
       meta = key.data_meta;
       key.data_meta = kmeta;
+      if (!has_merged) {
+        key.decode_area();
+      }
 
       return rc;
     }
