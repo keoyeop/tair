@@ -1,5 +1,5 @@
 SUBDIRS=interface_test unit_test statistics_test retry_all_test
-AM_CPPFLAGS= @BOOST_CPPFLAGS@ -I$(TBLIB_ROOT)/include/tbsys \
+AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 			 -I$(TBLIB_ROOT)/include/tbnet \
 			 -I${top_srcdir}/src/common \
 			 -I${top_srcdir}/src/packets \
@@ -10,8 +10,7 @@ AM_CPPFLAGS= @BOOST_CPPFLAGS@ -I$(TBLIB_ROOT)/include/tbsys \
 			 -I${top_srcdir}/src/client \
        -I${top_srcdir}/src  \
        -I${top_srcdir}/src/storage/kdb/kyotocabinet \
-       -I${top_srcdir}/test \
-       ${BOOST_CPPFLAGS}
+       -I${top_srcdir}/test
 
 LDADD= \
 	  $(top_builddir)/src/client/.libs/libtairclientapi.a \
@@ -22,7 +21,7 @@ LDADD= \
 	  $(TBLIB_ROOT)/lib/libtbnet.a \
 	  $(TBLIB_ROOT)/lib/libtbsys.a 
 
-AM_LDFLAGS=-lpthread -lz ${BOOST_LDFLAGS} @BOOST_THREAD_LIB@
+AM_LDFLAGS=-lpthread -lz
 
 #bin_PROGRAMS=get
 #get_SOURCES=get.cpp

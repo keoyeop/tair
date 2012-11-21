@@ -25,7 +25,6 @@
 #include "stat_info.hpp"
 #include "stat_helper.hpp"
 
-#include <boost/thread/mutex.hpp>
 namespace tair {
 
 //#define AREA(x) ((x) > TAIR_MAX_AREA_COUNT ? (TAIR_MAX_AREA_COUNT) : (x) )
@@ -144,8 +143,8 @@ namespace tair {
     mem_pool *this_mem_pool;
     mem_cache *cache;
     cache_hash_map *hashmap;
-    boost::mutex mem_locker;
 
+    tbsys::CThreadMutex mem_locker;
     //int m_hash_index; //is used to scan
     uint32_t last_traversal_time;        //record the last time of traversal
     uint32_t last_balance_time;

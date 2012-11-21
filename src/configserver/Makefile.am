@@ -2,10 +2,9 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     -I$(TBLIB_ROOT)/include/tbnet \
 	     -I${top_srcdir}/src/common \
 	     -I${top_srcdir}/src/storage \
-	     -I${top_srcdir}/src/packets \
-	     @BOOST_CPPFLAGS@
+	     -I${top_srcdir}/src/packets
 
-AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB} \
+AM_LDFLAGS= -rdynamic ${GCOV_LIB} \
       -lz -lrt -lpthread \
       -ldl
 

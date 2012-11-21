@@ -25,8 +25,6 @@
 #include <map>
 #include <set>
 
-#include <boost/dynamic_bitset.hpp>
-
 namespace tair {
 
    typedef __gnu_cxx::hash_map<int, std::vector<uint64_t>, __gnu_cxx::hash<int> > bucket_server_map;
@@ -42,7 +40,7 @@ namespace tair {
       std::vector<uint64_t> get_slaves(int bucket_number, bool is_migrating = false) ;
       uint64_t get_migrate_target(int bucket_number) ;
 
-      void init_migrate_done_set(boost::dynamic_bitset<> &migrate_done_set, const std::vector<uint64_t> &current_state_table);
+      void init_migrate_done_set(tair::util::dynamic_bitset &migrate_done_set, const std::vector<uint64_t> &current_state_table);
 
       /////////////////////////////
       void do_update_table(uint64_t *new_server_table, size_t size, uint32_t table_version, uint32_t copy_count, uint32_t bucket_count);

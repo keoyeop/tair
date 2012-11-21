@@ -8,8 +8,7 @@ AM_CPPFLAGS= -fPIC -I${top_srcdir}/src \
             -I${top_srcdir}/src/packets \
             -I${top_srcdir}/src/client \
             -I${top_srcdir}/src/dataserver \
-	    -I${top_srcdir}/src/plugin \
-	    ${BOOST_CPPFLAGS}
+	    -I${top_srcdir}/src/plugin
 
 if WITH_COMPRESS
 COMPRESS_LDFLAGS= -lsnappy
@@ -22,7 +21,7 @@ LDADD=$(top_srcdir)/src/client/.libs/libtairclientapi.a \
 	  $(COMPRESS_LDFLAGS) \
 		-lz
 
-AM_LDFLAGS=-lpthread -lz -lrt ${BOOST_LDFLAGS} @BOOST_THREAD_LIB@  ${GCOV_LIB}
+AM_LDFLAGS=-lpthread -lz -lrt ${GCOV_LIB}
 
 sbin_PROGRAMS=dump_transfer
 

@@ -1,16 +1,14 @@
 AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     -I$(TBLIB_ROOT)/include/tbnet \
-	     -I${top_srcdir}/src/storage \
-	     @BOOST_CPPFLAGS@
+	     -I${top_srcdir}/src/storage
 
 if WITH_COMPRESS
 COMPRESS_CPPFLAGS= compressor.hpp snappy_compressor.hpp
 endif
 
-AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB} \
+AM_LDFLAGS= -rdynamic ${GCOV_LIB} \
       -lz -lrt -lpthread \
-      -ldl\
-      @BOOST_THREAD_LIB@
+      -ldl
 
 LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
       $(TBLIB_ROOT)/lib/libtbsys.a

@@ -26,7 +26,6 @@
 #include "define.hpp"
 #include "mdb_factory.hpp"
 #include "fdb_manager.hpp"
-#include "item_manager.hpp"
 #include "duplicate_manager.hpp"
 #include "dup_sync_manager.hpp"
 #include "remote_sync_manager.hpp"
@@ -1151,108 +1150,6 @@
       return ret;
    }
 
-#ifndef NOT_FIXED_ITEM_FUNC
-#define  NOT_FIXED_ITEM_FUNC return TAIR_RETURN_SERVER_CAN_NOT_WORK;
-#endif
-
-   int tair_manager::add_items(int area,
-                               data_entry& key,
-                               data_entry& value,
-                               int max_count, int expire_time/* = 0*/)
-   {
-      if (status != STATUS_CAN_WORK) {
-        return TAIR_RETURN_SERVER_CAN_NOT_WORK;
-      }
-      if (key.get_size() >= TAIR_MAX_KEY_SIZE || key.get_size() < 1) {
-        return TAIR_RETURN_ITEMSIZE_ERROR;
-      }
-
-      if (value.get_size() >= TAIR_MAX_DATA_SIZE || value.get_size() < 1) {
-        return TAIR_RETURN_ITEMSIZE_ERROR;
-      }
-
-      if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
-        return TAIR_RETURN_INVALID_ARGUMENT;
-      }
-
-      tbsys::CThreadGuard guard(&item_mutex[get_mutex_index(key)]);
-      return json::item_manager::add_items(this,area,key,value,max_count,expire_time);
-    }
-
-
-    int tair_manager::get_items(int area,
-        data_entry& key,
-        int offset, int count, data_entry& value /*out*/,
-        int type /*=ELEMENT_TYPE_INVALID*/)
-    {
-      if (status != STATUS_CAN_WORK) {
-        return TAIR_RETURN_SERVER_CAN_NOT_WORK;
-      }
-      if (key.get_size() >= TAIR_MAX_KEY_SIZE || key.get_size() < 1) {
-        return TAIR_RETURN_ITEMSIZE_ERROR;
-      }
-
-      if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
-        return TAIR_RETURN_INVALID_ARGUMENT;
-      }
-      return json::item_manager::get_items(this,area,key,offset,count,value,type);
-    }
-
-    int tair_manager::get_item_count(int area, data_entry& key)
-    {
-      if (status != STATUS_CAN_WORK) {
-        return TAIR_RETURN_SERVER_CAN_NOT_WORK;
-      }
-      if (key.get_size() >= TAIR_MAX_KEY_SIZE || key.get_size() < 1) {
-        return TAIR_RETURN_ITEMSIZE_ERROR;
-      }
-
-      if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
-        return TAIR_RETURN_INVALID_ARGUMENT;
-      }
-      return json::item_manager::get_item_count(this,area,key);
-    }
-
-    int tair_manager::remove_items(int area,
-        data_entry& key, int offset, int count)
-    {
-      if (status != STATUS_CAN_WORK) {
-        return TAIR_RETURN_SERVER_CAN_NOT_WORK;
-      }
-      if (key.get_size() >= TAIR_MAX_KEY_SIZE || key.get_size() < 1) {
-        return TAIR_RETURN_ITEMSIZE_ERROR;
-      }
-
-      if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
-        return TAIR_RETURN_INVALID_ARGUMENT;
-      }
-
-      //tbsys::CThreadGuard guard(&removeItemsMutex[getMutexIndex(key)]);
-      tbsys::CThreadGuard guard(&item_mutex[get_mutex_index(key)]);
-      return json::item_manager::remove_items(this,area,key,offset,count);
-    }
-
-    int tair_manager::get_and_remove(int area,
-        data_entry& key,
-        int offset, int count, data_entry& value /*out*/,
-        int type /*=ELEMENT_TYPE_INVALID*/)
-    {
-      if (status != STATUS_CAN_WORK) {
-        return TAIR_RETURN_SERVER_CAN_NOT_WORK;
-      }
-      if (key.get_size() >= TAIR_MAX_KEY_SIZE || key.get_size() < 1) {
-        return TAIR_RETURN_ITEMSIZE_ERROR;
-      }
-
-      if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
-        return TAIR_RETURN_INVALID_ARGUMENT;
-      }
-      //tbsys::CThreadGuard guard(&getAndRemoveItemsMutex[getMutexIndex(key)]);
-      tbsys::CThreadGuard guard(&item_mutex[get_mutex_index(key)]);
-      return json::item_manager::get_and_remove(this,area,key,offset,count,value,type);
-    }
-
-
     int tair_manager::lock(int area, LockType lock_type, data_entry &key, base_packet *request, int heart_version)
     {
       if (status != STATUS_CAN_WORK) {
@@ -1631,11 +1528,9 @@
 
     void tair_manager::get_proxying_buckets(vector<uint32_t> &buckets)
     {
-      if (migrate_done_set.any()) {
-        for (uint32_t i=0; i<migrate_done_set.size(); ++i) {
-          if (migrate_done_set.test(i))
-            buckets.push_back(i);
-        }
+      for (uint32_t i=0; i<migrate_done_set.size(); ++i) {
+        if (migrate_done_set.test(i))
+          buckets.push_back(i);
       }
     }
 

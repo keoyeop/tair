@@ -364,38 +364,6 @@ namespace tair {
             if (ret == TAIR_RETURN_SUCCESS) send_return = false;
             break;
          }
-         case TAIR_REQ_ADDITEMS_PACKET:
-         {
-            request_add_items *dpacket = (request_add_items *)(packet);
-            ret = req_processor->process(dpacket, send_return);
-            break;
-         }
-         case TAIR_REQ_GETITEMS_PACKET:
-         {
-            request_get_items *dpacket = (request_get_items *)(packet);
-            ret = req_processor->process(dpacket, send_return);
-            if (ret == TAIR_RETURN_SUCCESS) send_return = false;
-            break;
-         }
-         case TAIR_REQ_REMOVEITEMS_PACKET:
-         {
-            request_remove_items *dpacket = (request_remove_items *)(packet);
-            ret = req_processor->process(dpacket, send_return);
-            break;
-         }
-         case TAIR_REQ_GETANDREMOVEITEMS_PACKET:
-         {
-            request_get_and_remove_items *dpacket = (request_get_and_remove_items *)(packet);
-            ret = req_processor->process(dpacket, send_return);
-            if (ret == TAIR_RETURN_SUCCESS) send_return = false;
-            break;
-         }
-         case TAIR_REQ_GETITEMSCOUNT_PACKET:
-         {
-            request_get_items_count *dpacket = (request_get_items_count *)(packet);
-            ret = req_processor->process(dpacket,send_return);
-            break;
-         }
          case TAIR_REQ_MUPDATE_PACKET:
          {
             request_mupdate *mpacket = (request_mupdate *)(packet);

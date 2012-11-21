@@ -1,4 +1,4 @@
-AM_CPPFLAGS= @BOOST_CPPFLAGS@ -I$(TBLIB_ROOT)/include/tbsys \
+AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 			 -I$(TBLIB_ROOT)/include/tbnet \
 			 -I${top_srcdir}/src/common \
 			 -I${top_srcdir}/src/packets \
@@ -38,7 +38,7 @@ source_list=${base_source} \
 			CTAIRCLIENTAPI_17_x_mget_Test.cpp \
 			CTAIRCLIENTAPI_18_x_range_Test.cpp
 
-AM_LDFLAGS=-lpthread -lgtest  -lz -lrt ${BOOST_LDFLAGS} ${GCOV_LIB}  @BOOST_THREAD_LIB@
+AM_LDFLAGS=-lpthread -lgtest  -lz -lrt ${GCOV_LIB}
 
 sbin_PROGRAMS=interface_test kdb_test_stat kdb_test_manager kdb_test_bucket kdb_test_kyotocabinet
 

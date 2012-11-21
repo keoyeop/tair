@@ -246,6 +246,66 @@ namespace tair
        }
      };
 
+     // avoid boost::dynamic_bitset use, implement a simple dynamic_bit by std::vector<bool> (stl_bvector)
+     class dynamic_bitset {
+     public:
+       dynamic_bitset() {}
+       explicit dynamic_bitset(size_t n) : set_(n, false) {}
+       dynamic_bitset(const dynamic_bitset& bs) : set_(bs.set_) {}
+       ~dynamic_bitset() {}
+
+       void reset()
+       {
+         for (size_t i = 0; i < set_.size(); ++i) {
+           set_[i] = false;
+         }
+       }
+       void set(size_t pos, bool val = true)
+       {
+         if (pos < set_.size()) {
+           set_[pos] = val;
+         }   
+       }
+       bool test(size_t pos) const
+       {
+         return pos < set_.size() ? set_[pos] : false;
+       }
+       bool all() const
+       {
+         for (size_t i = 0; i < set_.size(); ++i) {
+           if (!set_[i]) {
+             return false;
+           }
+         }
+         return true;
+       }
+       bool any() const
+       {
+         for (size_t i = 0; i < set_.size(); ++i) {
+           if (set_[i]) {
+             return true;
+           }
+         }
+         return false;
+       }
+       // reserve original bit flag
+       void resize(size_t new_size)
+       {
+         size_t old_size = set_.size();
+         set_.resize(new_size);
+         for (size_t i = old_size; i < set_.size(); ++i) {
+           set_[i] = false;
+         }
+       }
+       size_t size() const
+       {
+         return set_.size();
+       }
+
+     private:
+       std::vector<bool> set_;
+     };
+
    }
 
 }

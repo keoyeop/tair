@@ -23,7 +23,6 @@
 #include "remove_packet.hpp"
 #include "inc_dec_packet.hpp"
 #include "duplicate_packet.hpp"
-#include "items_packet.hpp"
 #include "mupdate_packet.hpp"
 #include "lock_packet.hpp"
 #include "hide_packet.hpp"
@@ -55,11 +54,6 @@ namespace tair {
     int process(request_mput *request, bool &send_return);
     int process(request_inc_dec *request, bool &send_return);
     int process(request_duplicate *request, bool &send_return);
-    int process(request_add_items *request, bool &send_return);
-    int process(request_get_items *request, bool &send_return);
-    int process(request_remove_items *request, bool &send_return);
-    int process(request_get_and_remove_items *request, bool &send_return);
-    int process(request_get_items_count *request,bool &send_return);
     int process(request_mupdate *request,bool &send_return);
     int process(request_lock* request, bool &send_return);
     int process(request_prefix_puts* request, bool &send_return);

@@ -14,14 +14,11 @@
  */
 #include "tair_client.hpp"
 #include "define.hpp"
-#include "item_manager.hpp"
 #include "util.hpp"
 #include "dump_data_info.hpp"
 #include "query_info_packet.hpp"
 
 namespace tair {
-
-   using namespace json;
 
    tair_client::tair_client()
    {

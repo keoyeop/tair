@@ -28,7 +28,6 @@
 #include "group_names_packet.hpp"
 #include "heartbeat_packet.hpp"
 #include "inc_dec_packet.hpp"
-#include "items_packet.hpp"
 #include "migrate_finish_packet.hpp"
 #include "mupdate_packet.hpp"
 #include "ping_packet.hpp"
@@ -169,24 +168,6 @@
           break;
         case TAIR_REQ_MIG_FINISH_PACKET:
           packet = new request_migrate_finish();
-          break;
-        case TAIR_REQ_ADDITEMS_PACKET:
-          packet = new request_add_items();
-          break;
-        case TAIR_REQ_GETITEMS_PACKET:
-          packet = new request_get_items();
-          break;
-        case TAIR_REQ_REMOVEITEMS_PACKET:
-          packet = new request_remove_items();
-          break;
-        case TAIR_REQ_GETANDREMOVEITEMS_PACKET:
-          packet = new request_get_and_remove_items();
-          break;
-        case TAIR_REQ_GETITEMSCOUNT_PACKET:
-          packet = new request_get_items_count();
-          break;
-        case TAIR_RESP_GETITEMS_PACKET:
-          packet = new response_get_items();
           break;
         case TAIR_REQ_DATASERVER_CTRL_PACKET:
           packet = new request_data_server_ctrl();

@@ -236,7 +236,7 @@ namespace tair {
       }
    }
 
-   void table_manager::init_migrate_done_set(boost::dynamic_bitset<> &migrate_done_set, const vector<uint64_t> &current_state_table)
+   void table_manager::init_migrate_done_set(tair::util::dynamic_bitset &migrate_done_set, const vector<uint64_t> &current_state_table)
    {
       tair::common::CScopedRwLock __scoped_lock(&m_mutex,false);
       int bucket_number = 0;

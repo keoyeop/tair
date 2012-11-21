@@ -4,10 +4,9 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     -I${top_srcdir}/src/common \
 	     -I${top_srcdir}/src/packets \
 	     -I${top_srcdir}/src/plugin \
-	     -I${top_srcdir}/src/client \
-	     @BOOST_CPPFLAGS@
+	     -I${top_srcdir}/src/client
 
-AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB}
+AM_LDFLAGS= -rdynamic  ${GCOV_LIB}
 
 if WITH_COMPRESS
 COMPRESS_LDFLAGS= -lsnappy
@@ -20,9 +19,7 @@ LDADD=$(top_builddir)/src/packets/libtair_packets.a \
 		$(TBLIB_ROOT)/lib/libtbsys.a \
 		-lz -lrt -lpthread \
 		$(COMPRESS_LDFLAGS) \
-		-ldl \
-		@BOOST_THREAD_LIB@
-
+		-ldl
 
 sbin_PROGRAMS=inval_server
 

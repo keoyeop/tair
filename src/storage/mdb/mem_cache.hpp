@@ -21,7 +21,6 @@
 #include <vector>
 #include <map>
 #include <cassert>
-#include <boost/cast.hpp>
 #include "data_dumpper.hpp"
 #include "mem_pool.hpp"
 #include "tblog.h"

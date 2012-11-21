@@ -1,35 +1,5 @@
 /* src/storage/ldb/snappy/config.h.in.  Generated from configure.ac by autoheader.  */
 
-/* define if the Boost library is available */
-#undef HAVE_BOOST
-
-/* define if the Boost::Date_Time library is available */
-#undef HAVE_BOOST_DATE_TIME
-
-/* define if the Boost::FILESYSTEM library is available */
-#undef HAVE_BOOST_FILESYSTEM
-
-/* define if the Boost::IOStreams library is available */
-#undef HAVE_BOOST_IOSTREAMS
-
-/* define if the Boost::PROGRAM_OPTIONS library is available */
-#undef HAVE_BOOST_PROGRAM_OPTIONS
-
-/* define if the Boost::Regex library is available */
-#undef HAVE_BOOST_REGEX
-
-/* define if the Boost::Serialization library is available */
-#undef HAVE_BOOST_SERIALIZATION
-
-/* define if the Boost::Signals library is available */
-#undef HAVE_BOOST_SIGNALS
-
-/* define if the Boost::THREAD library is available */
-#undef HAVE_BOOST_THREAD
-
-/* define if the Boost::Unit_test_framework library is available */
-#undef HAVE_BOOST_UNIT_TEST_FRAMEWORK
-
 /* Define to 1 if the compiler supports __builtin_ctz and friends. */
 #undef HAVE_BUILTIN_CTZ
 

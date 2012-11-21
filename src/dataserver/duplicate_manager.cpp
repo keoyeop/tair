@@ -25,7 +25,7 @@ namespace tair{
    void bucket_waiting_queue::push(request_duplicate_packet& p_packet, uint64_t server_id)
    {
       tbsys::CThreadGuard guard(&mutex);
-      if (p_packet == NULL) return;
+      if (p_packet == 0) return;
       p_packet->packet_id = atomic_add_return(1, &packet_id_creater);
       packets_queue[server_id].push(p_packet);
       return;
@@ -188,7 +188,7 @@ namespace tair{
       }
 
       if (des_server_ids.empty()) return 0;
-      bucket_waiting_queue::request_duplicate_packet tmp_packet(new request_duplicate());
+      bucket_waiting_queue::request_duplicate_packet tmp_packet(new bucket_waiting_queue::request_duplicate_ptr());
       tmp_packet->area = area;
       tmp_packet->key = *key;
       tmp_packet->key.server_flag = TAIR_SERVERFLAG_DUPLICATE;

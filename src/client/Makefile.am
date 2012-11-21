@@ -8,8 +8,7 @@ AM_CPPFLAGS= -fPIC -I${top_srcdir}/src \
             -I${top_srcdir}/src/packets \
             -I${top_srcdir}/src/dataserver \
             -I${top_srcdir}/src/statserver/include \
-	    -I${top_srcdir}/src/plugin \
-	    ${BOOST_CPPFLAGS}
+	    -I${top_srcdir}/src/plugin
 
 LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
       $(TBLIB_ROOT)/lib/libtbsys.a
@@ -37,7 +36,7 @@ if WITH_COMPRESS
 COMPRESS_LDFLAGS= -lsnappy
 endif
 
-AM_LDFLAGS=-lpthread -lz -lrt ${BOOST_LDFLAGS} @BOOST_THREAD_LIB@  ${GCOV_LIB} ${READLINE_LDFLAGS} ${COMPRESS_LDFLAGS}
+AM_LDFLAGS=-lpthread -lz -lrt ${GCOV_LIB} ${READLINE_LDFLAGS} ${COMPRESS_LDFLAGS}
 
 lib_LTLIBRARIES=libtairclientapi.la libtairclientapi_c.la libtairclientapi_impl.la
 sbin_PROGRAMS=tairclient keycleantool

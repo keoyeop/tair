@@ -19,7 +19,6 @@
 
 #include <tbsys.h>
 #include <tbnet.h>
-#include <boost/dynamic_bitset.hpp>
 #include "define.hpp"
 #include "dump_data_info.hpp"
 #include "util.hpp"
@@ -91,27 +90,7 @@ namespace tair {
       int direct_remove(data_entry &key);
 
       int get_range(int32_t area, data_entry &key_start, data_entry &key_end, int offset, int limit, int type, std::vector<data_entry*> &result, bool &has_next);
-
-      int add_items(int area,
-                    data_entry& key,
-                    data_entry& value,
-                    int max_count, int expire_time = 0);
-
-      int get_items(int area,
-                    data_entry& key,
-                    int offset, int count, data_entry& value /*out*/,
-                    int type = ELEMENT_TYPE_INVALID);
-
-      int get_item_count(int area, data_entry& key);
-
-      int remove_items(int area, data_entry& key, int offset, int count);
-
-      int get_and_remove(int area,
-                         data_entry& key,
-                         int offset, int count, data_entry& value /*out*/,
-                         int type = ELEMENT_TYPE_INVALID);
-
-     int lock(int area, LockType lock_type, data_entry& key, base_packet *request = NULL, int heart_version = 0);
+      int lock(int area, LockType lock_type, data_entry& key, base_packet *request = NULL, int heart_version = 0);
 
       bool is_migrating();
       bool should_proxy(data_entry &key, uint64_t &targetServerId);
@@ -164,7 +143,7 @@ namespace tair {
       table_manager *table_mgr;
       base_duplicator *duplicator;
       migrate_manager *migrate_mgr;
-      boost::dynamic_bitset<> migrate_done_set;
+      tair::util::dynamic_bitset migrate_done_set;
       update_log *migrate_log;
       tair::storage::dump_manager *dump_mgr;
       RemoteSyncManager *remote_sync_mgr;

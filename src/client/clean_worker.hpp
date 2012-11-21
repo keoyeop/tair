@@ -16,7 +16,6 @@
 #include "tair_client_api_impl.hpp"
 
 #include "define.hpp"
-#include "item_manager.hpp"
 #include "util.hpp"
 #include "dump_data_info.hpp"
 #include "query_info_packet.hpp"

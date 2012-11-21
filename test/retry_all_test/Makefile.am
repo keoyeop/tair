@@ -8,10 +8,9 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     -I${top_srcdir}/src/storage \
 	     -I${top_srcdir}/src/statserver \
 	     -I${top_srcdir}/src/statserver/include \
-	     -I${top_srcdir}/src/dataserver \
-	     @BOOST_CPPFLAGS@
+	     -I${top_srcdir}/src/dataserver
 
-AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB}
+AM_LDFLAGS= -rdynamic ${GCOV_LIB}
 
 if WITH_COMPRESS
 COMPRESS_LDFLAGS= -lsnappy
@@ -25,10 +24,7 @@ LDADD=$(top_builddir)/src/packets/libtair_packets.a \
 		$(top_builddir)/src/common/libtair_common.a \
 		-lz -lrt -lpthread \
 		$(COMPRESS_LDFLAGS) \
-		-ldl \
-		@BOOST_THREAD_LIB@
-
-
+		-ldl
 
 noinst_PROGRAMS=retry_all_test
 retry_all_test_SOURCES=retry_all_test.cpp

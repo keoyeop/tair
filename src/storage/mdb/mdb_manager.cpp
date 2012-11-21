@@ -20,7 +20,6 @@
 #include <errno.h>
 #include <iostream>
 #include <list>
-#include <boost/cast.hpp>
 
 #include "mem_pool.hpp"
 #include "mem_cache.hpp"
@@ -33,8 +32,6 @@
 
 using namespace tair;
 using namespace std;
-using namespace boost;
-
 
 namespace tair {
 
@@ -110,19 +107,19 @@ namespace tair {
   int mdb_manager::put(int bucket_num, data_entry & key, data_entry & value,
                        bool version_care, int expire_time)
   {
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     return do_put(key, value, version_care, expire_time);
   }
 
   int mdb_manager::get(int bucket_num, data_entry & key, data_entry & value, bool with_stat)
   {
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     return do_get(key, value, with_stat);
   }
 
   int mdb_manager::remove(int bucket_num, data_entry & key, bool version_care)
   {
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     return do_remove(key, version_care);
   }
 
@@ -133,7 +130,7 @@ namespace tair {
 
     uint32_t crrnt_time = static_cast<uint32_t> (time(NULL));
     PROFILER_BEGIN("mdb lock");
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     PROFILER_END();
     PROFILER_BEGIN("hashmap find");
     mdb_item *it = hashmap->find(key, key_len);
@@ -203,7 +200,7 @@ namespace tair {
     TBSYS_LOG(DEBUG, "start get: area:%d,key size:%d", KEY_AREA(key), key_len);
 
     PROFILER_BEGIN("mdb lock");
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     PROFILER_END();
     mdb_item *it = 0;
     int ret = TAIR_RETURN_DATA_NOT_EXIST;
@@ -240,7 +237,7 @@ namespace tair {
   {
     TBSYS_LOG(DEBUG, "start remove: key size :%d", key_len);
     PROFILER_BEGIN("mdb lock");
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     PROFILER_END();
     bool ret = raw_remove_if_exists(key, key_len);
     //++m_stat.removeCount;
@@ -315,13 +312,13 @@ namespace tair {
   int mdb_manager::add_count(int bucket_num,data_entry &key, int count, int init_value,
             bool allow_negative,int expire_time,int &result_value)
   {
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     return do_add_count(key, count,init_value,allow_negative,expire_time,result_value);
   }
 
   bool mdb_manager::lookup(int bucket_num, data_entry &key)
   {
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     return do_lookup(key);
   }
 
@@ -384,7 +381,7 @@ namespace tair {
       }
     }else{
       assert(area >= 0 && area < TAIR_MAX_AREA_COUNT);
-      boost::mutex::scoped_lock guard(mem_locker);
+      tbsys::CThreadGuard guard(&mem_locker);
       TBSYS_LOG(DEBUG,"clear all the items in the area =%u",area);
       cache->set_area_timestamp(area, static_cast<uint32_t> (time(NULL)));
     }
@@ -401,7 +398,7 @@ namespace tair {
   {
     bool ret = true;
 
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     uint64_t item_head = 0;
     while(true) {
       if(info.hash_index < 0
@@ -501,7 +498,7 @@ namespace tair {
         it = 0;
       }
       else if(version_care && version != 0
-              && it->version != numeric_cast<uint32_t> (version)) {
+              && it->version != static_cast<uint32_t> (version)) {
         TBSYS_LOG(WARN, "it->version(%hu) != version(%hu)", it->version,
                   key.get_version());
         return TAIR_RETURN_VERSION_ERROR;
@@ -739,7 +736,7 @@ namespace tair {
 
   int mdb_manager::get_meta(data_entry &key, item_meta_info &meta)
   {
-    boost::mutex::scoped_lock guard(mem_locker);
+    tbsys::CThreadGuard guard(&mem_locker);
     int ret = TAIR_RETURN_DATA_NOT_EXIST;
     mdb_item *it = NULL;
     bool expired = false;
@@ -770,7 +767,7 @@ namespace tair {
     for(int hash_index = 0; hash_index < hashmap->get_bucket_size();
         ++hash_index) {
 
-      boost::mutex::scoped_lock guard(mem_locker);
+      tbsys::CThreadGuard guard(&mem_locker);
       {
         uint64_t *hash_head = hashmap->get_hashmap() + hash_index;
         uint64_t item_head = *hash_head;
@@ -889,7 +886,7 @@ namespace tair {
   {
     for(int i = 0; i < hashmap->get_bucket_size(); ++i) {
       {
-        boost::mutex::scoped_lock guard(mem_locker);
+        tbsys::CThreadGuard guard(&mem_locker);
         uint64_t *hash_head = hashmap->get_hashmap() + i;
         uint64_t item_head = *hash_head;
 
@@ -911,7 +908,7 @@ namespace tair {
     int64_t release_space = 0;
     for(int i = 0; i < hashmap->get_bucket_size(); ++i) {
       {
-        boost::mutex::scoped_lock guard(mem_locker);
+        tbsys::CThreadGuard guard(&mem_locker);
         uint64_t *hash_head = hashmap->get_hashmap() + i;
         uint64_t item_head = *hash_head;
         uint32_t crrnt_time = static_cast<uint32_t> (time(NULL));
@@ -950,7 +947,7 @@ namespace tair {
             it->second);
         for(int i = 0; i < -it->second; ++i) {
           {
-            boost::mutex::scoped_lock guard(mem_locker);
+            tbsys::CThreadGuard guard(&mem_locker);
             if(cache->free_page(it->first) != 0) {
               TBSYS_LOG(WARN, "free page failed");
               break;
@@ -1033,7 +1030,7 @@ namespace tair {
       if(area_stat[i]->data_size > area_stat[i]->quota) {        //exceed
         {
 
-          boost::mutex::scoped_lock guard(mem_locker);
+          tbsys::CThreadGuard guard(&mem_locker);
           if(area_stat[i]->data_size > area_stat[i]->quota) {
             cache->keep_area_quota(i,
                 area_stat[i]->data_size -

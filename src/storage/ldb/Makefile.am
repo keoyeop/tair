@@ -21,7 +21,7 @@ ldb_rsync_CPPFLAGS=${AM_CPPFLAGS} -I${top_srcdir}/src/packets -I${top_srcdir}/sr
 ldb_rsync_LDADD=libldb.a ./libleveldb.a ./libsnappy.a  ${top_builddir}/src/storage/mdb/.libs/libmdb.a \
 		${top_builddir}/src/client/.libs/libtairclientapi.a\
 		${top_builddir}/src/common/libtair_common.a $(TBLIB_ROOT)/lib/libtbnet.a $(TBLIB_ROOT)/lib/libtbsys.a\
-		${BOOST_LDFLAGS} @BOOST_THREAD_LIB@ -lpthread -lz -lrt
+		-lpthread -lz -lrt
 
 ##############################
 # leveldb && snappy

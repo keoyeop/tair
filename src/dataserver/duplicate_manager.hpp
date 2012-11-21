@@ -15,9 +15,10 @@
 #ifndef DUPLICATE_MANAGER_H
 #define DUPLICATE_MANAGER_H
 #include <tbsys.h>
+#include <Shared.h>
+#include <Handle.h>
 #include <tbnet.h>
 #include "table_manager.hpp"
-#include "boost/shared_ptr.hpp"
 #include "duplicate_base.hpp"
 #include "duplicate_packet.hpp"
 #include "packet_streamer.hpp"
@@ -29,7 +30,12 @@ namespace tair {
    class duplicate_sender_manager;
    class bucket_waiting_queue {
    public:
-      typedef boost::shared_ptr<request_duplicate> request_duplicate_packet;
+     class request_duplicate_ptr : public request_duplicate, public tbutil::Shared {
+     public:
+       virtual ~request_duplicate_ptr() {}
+     };
+
+      typedef tbutil::Handle<request_duplicate_ptr> request_duplicate_packet;
       typedef queue<request_duplicate_packet> packets_queue_type;
 
       bucket_waiting_queue(duplicate_sender_manager* psm, uint32_t bucket_number);

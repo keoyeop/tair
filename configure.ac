@@ -5,7 +5,6 @@ AC_PROG_CXX
 AC_LANG([C++])
 AC_PROG_LIBTOOL
 
-m4_include([ax_boost.m4])
 m4_include([tcmalloc.m4])
 
 dnl attain svn info url, depending on `svn(1.4.2) info`'s output format.
@@ -21,10 +20,10 @@ AC_ARG_WITH([release],
 			   [use optimize (default is NO)]),
 			   [
 			    if test "$withval" = "yes"; then
-				    CXXFLAGS="-g -O2 -finline-functions -fno-strict-aliasing -Wall -DBOOST_SPIRIT_THREADSAFE -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNDEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""
+				    CXXFLAGS="-g -O2 -finline-functions -fno-strict-aliasing -Wall -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNDEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""
 			    fi
 			    ],
-			    [CXXFLAGS="-g -Wall -DBOOST_SPIRIT_THREADSAFE -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE  -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DTAIR_DEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""]
+			    [CXXFLAGS="-g -Wall -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE  -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DTAIR_DEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""]
 			    )
 GCOV_LIB=
 AC_SUBST(GCOV_LIB)
@@ -110,7 +109,6 @@ AS_IF([test x$with_ldb = xyes],
   [AC_MSG_NOTICE([ without ldb ])])
 
 AM_CONDITIONAL([WITH_LDB],[test x$with_ldb = xyes])
-AX_BOOST([1.30.0],,exit 1)
 AC_CHECK_LIB(readline, readline,
              [
               CXXFLAGS="${CXXFLAGS} -DHAVE_LIBREADLINE"

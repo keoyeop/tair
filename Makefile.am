@@ -18,7 +18,6 @@ EXTRA_DIST=bootstrap.sh \
 TMP_DIR:=/tmp/tair-tmp.$(shell echo $$$$)
 #PREFIX:=$(shell [ x$(PREFIX) = x ] && PREFIX=/home/admin/tair && echo "$${PREFIX}")
 PREFIX:=$(shell [ x$(PREFIX) = x ] && PREFIX=/usr/local/tair-$(VERSION) && echo "$${PREFIX}")
-BOOST_DIR:=$(shell [ x$(BOOST_DIR) = x ] && BOOST_DIR=/usr && echo "$${BOOST_DIR}")
 rpms: dist-gzip packages/tair.spec
 	mkdir -p $(TMP_DIR)
 	mkdir -p $(TMP_DIR)/BUILD
@@ -27,14 +26,12 @@ rpms: dist-gzip packages/tair.spec
 	mkdir -p $(TMP_DIR)/SRPMS
 	cp tair-${VERSION}.tar.gz $(TMP_DIR)/SOURCES
 	echo $(PREFIX)
-	echo $(BOOST_DIR)
 	cd $(TMP_DIR)/BUILD; \
 	tar xfz $(TMP_DIR)/SOURCES/tair-${VERSION}.tar.gz \
 		tair-$(VERSION)/packages/tair.spec
 	rpmbuild --define "_topdir $(TMP_DIR)" \
 		 --define "NAME $(PACKAGE)" \
 		 --define "VERSION $(VERSION)" \
-		 --define "BOOST_DIR $(BOOST_DIR)" \
 		 --define "_prefix $(PREFIX)" \
 		-ba $(TMP_DIR)/BUILD/tair-$(VERSION)/packages/tair.spec
 	find $(TMP_DIR)/RPMS/ -name "*.rpm" -exec mv '{}' . \;

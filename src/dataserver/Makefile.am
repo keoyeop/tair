@@ -26,10 +26,9 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 	     $(KDB_CPPFLAGS) \
 	     $(LDB_CPPFLAGS) \
 	     -I${top_srcdir}/src/plugin \
-	     -I${top_srcdir}/src/client\
-	     @BOOST_CPPFLAGS@
+	     -I${top_srcdir}/src/client
 
-AM_LDFLAGS= -rdynamic $(BOOST_LDFLAGS)  ${GCOV_LIB} ${TCMALLOC_LDFLAGS}
+AM_LDFLAGS= -rdynamic ${GCOV_LIB} ${TCMALLOC_LDFLAGS}
 
 LDADD=$(top_builddir)/src/client/.libs/libtairclientapi.a \
       $(top_builddir)/src/storage/mdb/.libs/libmdb.a \
@@ -45,16 +44,15 @@ LDADD=$(top_builddir)/src/client/.libs/libtairclientapi.a \
       $(TBLIB_ROOT)/lib/libtbnet.a \
       $(TBLIB_ROOT)/lib/libtbsys.a \
       -lz -lrt -lpthread \
-      -ldl \
-      @BOOST_THREAD_LIB@
+      -ldl
 
 
 sbin_PROGRAMS=tair_server repair_rsync
 
-include_HEADERS=item_manager.hpp tair_manager.hpp table_manager.hpp duplicate_manager.hpp duplicate_base.hpp \
-		update_log.hpp tinyjson.hpp
+include_HEADERS=tair_manager.hpp table_manager.hpp duplicate_manager.hpp duplicate_base.hpp \
+		update_log.hpp
 
-tair_server_SOURCES=duplicate_manager.cpp item_manager.cpp stat_processor.cpp request_processor.cpp tair_manager.cpp update_log.cpp \
+tair_server_SOURCES=duplicate_manager.cpp stat_processor.cpp request_processor.cpp tair_manager.cpp update_log.cpp \
 		    heartbeat_thread.cpp migrate_manager.cpp table_manager.cpp tair_server.cpp \
 		    $(top_builddir)/src/common/stat_helper.cpp \
 		    $(top_builddir)/src/common/scoped_wrlock.hpp	\
@@ -68,13 +66,11 @@ tair_server_SOURCES=duplicate_manager.cpp item_manager.cpp stat_processor.cpp re
 		    dup_sync_manager.hpp \
 		    duplicate_manager.hpp	\
 		    heartbeat_thread.hpp	\
-		    item_manager.hpp	\
 		    migrate_manager.hpp	\
 		    request_processor.hpp	\
 		    table_manager.hpp	\
 		    tair_manager.hpp	\
 		    tair_server.hpp	\
-		    tinyjson.hpp	\
 		    update_log.hpp \
 		    prefix_locker.hpp \
 		    stat_processor.h remote_sync_manager.hpp remote_sync_manager.cpp
