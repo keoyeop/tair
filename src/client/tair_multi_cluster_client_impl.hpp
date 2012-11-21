@@ -33,21 +33,18 @@ namespace tair
     void close();
 
     int get(int area, const data_entry& key, data_entry*& data);
-    int put(int area, const data_entry& key, const data_entry& data, int expire, int version, bool fill_cache = true);
-    int remove(int area, const data_entry& key);
+    int put(int area, const data_entry& key, const data_entry& data, int expire, int version, bool fill_cache = true,
+            TAIRCALLBACKFUNC pfunc = NULL, void* arg = NULL);
+    int remove(int area, const data_entry& key, TAIRCALLBACKFUNC pfunc = NULL, void* arg = NULL);
     int incr(int area, const data_entry& key, int count, int* ret_count, int init_value = 0, int expire = 0);
     int decr(int area, const data_entry& key, int count, int* ret_count, int init_value = 0, int expire = 0);
     int add_count(int area, const data_entry& key, int count, int* ret_count,
                   int init_value = 0, int expire_time = 0);
-    int mget(int area, vector<data_entry *> &keys, tair_keyvalue_map& data);
+    int mget(int area, const vector<data_entry *> &keys, tair_keyvalue_map& data);
     int mput(int area, const tair_client_kv_map& kvs, int& fail_request, bool compress)
     { return TAIR_RETURN_NOT_SUPPORTED; }
-    int mdelete(int area, vector<data_entry *> &keys)
+    int mdelete(int area, const vector<data_entry *> &keys)
     { return TAIR_RETURN_NOT_SUPPORTED; }
-
-    int op_cmd_to_cs(ServerCmdType cmd, std::vector<std::string>* params, std::vector<std::string>* ret_values);
-    int op_cmd_to_ds(ServerCmdType cmd, const char* group, std::vector<std::string>* params,
-                     std::vector<std::string>* ret_values, const char* dest_server_addr = NULL);
 
     void set_timeout(int32_t timeout_ms);
     void set_update_interval(int32_t interval_ms);

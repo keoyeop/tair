@@ -60,7 +60,7 @@ namespace tair
   tair_multi_cluster_client_impl::tair_multi_cluster_client_impl()
   {
     updater_ = new cluster_info_updater();
-    handler_mgr_ = new bucket_shard_cluster_handler_manager(updater_, MAP_SHARDING_TYPE);
+    handler_mgr_ = new bucket_shard_cluster_handler_manager(updater_, MAP_SHARDING_TYPE); // default map sharding
   }
 
   tair_multi_cluster_client_impl::~tair_multi_cluster_client_impl()
@@ -104,17 +104,17 @@ namespace tair
   }
 
   int tair_multi_cluster_client_impl::put(int area, const data_entry& key, const data_entry& data,
-                                         int expire, int version, bool fill_cache)
+                                          int expire, int version, bool fill_cache, TAIRCALLBACKFUNC pfunc, void* arg)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    ALL_CLUSTER_HANDLER_OP(ret, key, put(area, key, data, expire, version, fill_cache));
+    ALL_CLUSTER_HANDLER_OP(ret, key, put(area, key, data, expire, version, fill_cache, pfunc, arg));
     return ret;
   }
 
-  int tair_multi_cluster_client_impl::remove(int area, const data_entry& key)
+  int tair_multi_cluster_client_impl::remove(int area, const data_entry& key, TAIRCALLBACKFUNC pfunc, void* arg)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    ALL_CLUSTER_HANDLER_OP(ret, key, remove(area, key));
+    ALL_CLUSTER_HANDLER_OP(ret, key, remove(area, key, pfunc, arg));
     return ret;
   }
 
@@ -142,7 +142,7 @@ namespace tair
     return ret;
   }
 
-  int tair_multi_cluster_client_impl::mget(int area, vector<data_entry *> &keys, tair_keyvalue_map& data)
+  int tair_multi_cluster_client_impl::mget(int area, const vector<data_entry *> &keys, tair_keyvalue_map& data)
   {
     int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
     if (keys.empty() || keys[0] == NULL)
@@ -174,39 +174,6 @@ namespace tair
   uint32_t tair_multi_cluster_client_impl::get_copy_count() const
   {
     return updater_->get_master_cluster_handler()->get_client()->get_copy_count();
-  }
-
-  int tair_multi_cluster_client_impl::op_cmd_to_cs(ServerCmdType cmd, std::vector<std::string>* params,
-                                                   std::vector<std::string>* ret_values)
-  {
-    return updater_->get_master_cluster_handler()->get_client()->op_cmd_to_cs(cmd, params, ret_values);
-  }
-
-  int tair_multi_cluster_client_impl::op_cmd_to_ds(ServerCmdType cmd, const char* group, std::vector<std::string>* params,
-                                                   std::vector<std::string>* ret_values, const char* dest_server_addr)
-  {
-    int ret = TAIR_RETURN_SERVER_CAN_NOT_WORK;
-    const cluster_info& info = updater_->get_master_cluster_handler()->get_cluster_info();
-    cluster_info cmd_info(info.master_cs_addr_, info.slave_cs_addr_, group);
-    // try servicing cluster first
-    ONE_CLUSTER_HANDLER_OP(ret, cmd_info, op_cmd_to_ds(cmd, group, params, ret_values, dest_server_addr));
-    // this cluster(group) is not in service.
-    // handle this op manually
-    if (TAIR_RETURN_SERVER_CAN_NOT_WORK == ret)
-    {
-      cluster_handler handler;
-      handler.init(cmd_info);
-      if (!handler.start())
-      {
-        log_error("op cmd to group startup fail");
-        ret = TAIR_RETURN_FAILED;
-      }
-      else
-      {
-        ret = handler.get_client()->op_cmd_to_ds(cmd, group, params, ret_values, dest_server_addr);
-      }
-    }
-    return ret;
   }
 
   void tair_multi_cluster_client_impl::close()
