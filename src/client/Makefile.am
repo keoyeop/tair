@@ -36,13 +36,13 @@ if WITH_COMPRESS
 COMPRESS_LDFLAGS= -lsnappy
 endif
 
-AM_LDFLAGS=-lpthread -lz -lrt ${GCOV_LIB} ${READLINE_LDFLAGS} ${COMPRESS_LDFLAGS}
+AM_LDFLAGS=-lpthread -lz -lrt ${GCOV_LIB} ${COMPRESS_LDFLAGS}
 
 lib_LTLIBRARIES=libtairclientapi.la libtairclientapi_c.la libtairclientapi_impl.la
 sbin_PROGRAMS=tairclient keycleantool
 
 tairclient_SOURCES=tair_client.cpp
-tairclient_LDADD=libtairclientapi.la  ${LDADD}
+tairclient_LDADD=libtairclientapi.la ${READLINE_LDFLAGS} ${LDADD}
 tairclient_LDFLAGS= -static
 
 keycleantool_SOURCES=tair_key_clean.cpp del_job.hpp nonblock_queue.hpp clean_worker.hpp config_loader.hpp
