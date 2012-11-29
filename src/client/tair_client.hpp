@@ -80,7 +80,9 @@ namespace tair {
       void do_cmd_hide(VSTRING &params);
       void do_cmd_get_hidden(VSTRING &params);
       void do_cmd_prefix_get(VSTRING &params);
+      void do_cmd_prefix_gets(VSTRING &params);
       void do_cmd_prefix_put(VSTRING &params);
+      void do_cmd_prefix_puts(VSTRING &params);
       void do_cmd_prefix_remove(VSTRING &params);
       void do_cmd_prefix_removes(VSTRING &params);
       void do_cmd_prefix_get_hidden(VSTRING &params);

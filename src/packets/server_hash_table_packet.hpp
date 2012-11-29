@@ -71,13 +71,13 @@ namespace tair{
          unsigned long src_len = hash_table_size;
          server_list = (uint64_t*)malloc(dest_len);
          memset(server_list, 0, dest_len);
-         log_info("uncompress server list, data size: %d", src_len);
+         log_info("uncompress server list, data size: %lu", src_len);
          if (uncompress((Bytef*)server_list, &dest_len, (const Bytef*)hash_table_data, src_len) != Z_OK) {
             log_warn("uncompress error");
             ::free(server_list);
             server_list = NULL;
          } else {
-            log_debug("uncompress successed dest_len=%d",dest_len);
+            log_debug("uncompress successed dest_len=%lu",dest_len);
             server_list_count = (dest_len / sizeof(uint64_t));
          }
          return server_list;

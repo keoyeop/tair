@@ -101,6 +101,7 @@ namespace tair {
       nsuccess = input->readInt32();
       if (nsuccess > 0) {
         key_value_map = new tair_keyvalue_map;
+        extra_code_map = new key_code_map_t;
         for (uint32_t i = 0; i < nsuccess; ++i) {
           data_entry *key = new data_entry;
           key->decode(input);
@@ -187,9 +188,37 @@ namespace tair {
       ++nfailed;
     }
 
+    virtual size_t size() {
+      size_t sz = 0;
+      if (pkey != NULL) {
+        sz += pkey->encoded_size();
+      }
+      if (key_value_map != NULL) {
+        tair_keyvalue_map::const_iterator itr = key_value_map->begin();
+        while (itr != key_value_map->end()) {
+          sz += itr->first->encoded_size() + itr->second->encoded_size();
+          ++itr;
+        }
+      }
+      if (key_code_map != NULL) {
+        key_code_map_t::const_iterator itr = key_code_map->begin();
+        while (itr != key_code_map->end()) {
+          sz += itr->first->encoded_size() + sizeof(itr->second);
+          ++itr;
+        }
+      }
+      if (extra_code_map != NULL) {
+        key_code_map_t::const_iterator itr = extra_code_map->begin();
+        while (itr != extra_code_map->end()) {
+          sz += itr->first->encoded_size() + sizeof(itr->second);
+          ++itr;
+        }
+      }
+    }
+
   public:
     typedef __gnu_cxx::hash_map<data_entry*, int,
-            data_entry_hash, data_entry_equal_to> key_code_map_t;
+            tair::common::data_entry_hash, tair::common::data_entry_equal_to> key_code_map_t;
     uint32_t config_version;
     int code;
     uint32_t nsuccess;

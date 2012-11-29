@@ -282,7 +282,6 @@ namespace tair {
                data_entry *data = it->second;
                key->encode(output);
                data->encode(output);
-
             }
             int pkc = 0;
             if (proxyed_key_list != NULL)

@@ -57,6 +57,7 @@ namespace tair {
   using namespace std;
   using namespace __gnu_cxx;
   using namespace tair::common;
+  namespace common { struct key_value_pack_t; }
 
   class operation_record;
   extern typedef vector<operation_record *> tair_operc_vector;
@@ -157,9 +158,17 @@ namespace tair {
     int get_hidden(int area, const data_entry &key, data_entry *&value);
 
     int prefix_get(int area, const data_entry &pkey, const data_entry &skey, data_entry *&value);
+    
+    int prefix_gets(int area, const data_entry &pkey, const tair_dataentry_set &skey_set,
+        tair_keyvalue_map &result_map, key_code_map_t &failed_map);
+    int prefix_gets(int area, const data_entry &pkey, const tair_dataentry_vector &skeys,
+        tair_keyvalue_map &result_map, key_code_map_t &failed_map);
 
     int prefix_put(int area, const data_entry &pkey, const data_entry &skey,
         const data_entry &value, int expire, int version);
+
+    int prefix_puts(int area, const data_entry &pkey,
+        const vector<key_value_pack_t*> &skey_value_packs, key_code_map_t &failed_map);
 
     int prefix_hide(int area, const data_entry &pkey, const data_entry &skey);
 
@@ -335,7 +344,6 @@ namespace tair {
         base_packet *tpacket = NULL;
         do {
           if ((ret = send_request(server_id, req, cwo->get_id())) != TAIR_RETURN_SUCCESS) {
-            delete req;
             break;
           }
           if ((ret = get_response(cwo, 1, tpacket)) < 0) {
@@ -343,6 +351,7 @@ namespace tair {
           }
           resp = dynamic_cast<Response*>(tpacket);
           if (resp == NULL) {
+            log_error("dynamic_cast failed");
             ret = TAIR_RETURN_FAILED;
             break;
           }

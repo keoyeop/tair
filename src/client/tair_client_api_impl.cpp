@@ -53,6 +53,9 @@
 #include "prefix_invalids_packet.hpp"
 #include "mupdate_packet.hpp"
 #include "inval_stat.hpp"
+#include "prefix_gets_packet.hpp"
+#include "key_value_pack.hpp"
+#include "prefix_puts_packet.hpp"
 
 namespace tair {
 
@@ -1195,7 +1198,7 @@ FAIL:
         response_return *resp = dynamic_cast<response_return*>(tpacket);
         if (resp != NULL) {
           if ((ret_code = resp->get_code()) != TAIR_RETURN_SUCCESS) {
-            TBSYS_LOG(ERROR, "invalidate failure, ret_code: %", ret_code);
+            TBSYS_LOG(ERROR, "invalidate failure, ret_code: %d", ret_code);
           } else {
             fail_count_map[server_id] = 0;
           }
@@ -1294,6 +1297,7 @@ FAIL:
 
     wait_object *cwo = this_wait_object_manager->create_wait_object();
     int ret = do_request(req, resp, cwo, server_list[0]);
+    if (ret == TAIR_RETURN_SEND_FAILED) delete req;
     if (resp != NULL) {
       new_config_version = resp->config_version;
       value = resp->data;
@@ -1321,6 +1325,75 @@ FAIL:
     return get(area, mkey, value);
   }
 
+  int tair_client_impl::prefix_gets(int area, const data_entry &pkey, const tair_dataentry_set &skeys_set,
+      tair_keyvalue_map &result_map, key_code_map_t &failed_map) {
+    tair_dataentry_vector skeys(skeys_set.size());
+    copy(skeys_set.begin(), skeys_set.end(), skeys.begin());
+    return prefix_gets(area, pkey, skeys, result_map, failed_map);
+  }
+
+  /*
+   * you should better ensure that keys in `skeys' are not duplicated,
+   * or use the overrided one with `tair_dataentry_set'
+   */
+  int tair_client_impl::prefix_gets(int area, const data_entry &pkey, const tair_dataentry_vector &skeys,
+      tair_keyvalue_map &result_map, key_code_map_t &failed_map) {
+    if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
+    if (!key_entry_check(pkey)) {
+      return TAIR_RETURN_ITEMSIZE_ERROR;
+    }
+
+    int ret = TAIR_RETURN_SUCCESS;
+
+    vector<uint64_t> ds;
+    if (!get_server_id(pkey, ds)) {
+      log_error("no dataserver available");
+      ret = TAIR_RETURN_SEND_FAILED;
+      return ret;
+    }
+
+    bool query_slave = true;
+    for (size_t i = 0; i < ds.size() && query_slave; ++i) {
+      request_prefix_gets *req = new request_prefix_gets;
+      response_prefix_gets *resp = NULL;
+      req->area = area;
+      tair_dataentry_vector::const_iterator itr = skeys.begin();
+      while (itr != skeys.end()) {
+        data_entry *skey = *itr;
+        data_entry *mkey = new data_entry();
+        merge_key(pkey, *skey, *mkey);
+        if (!key_entry_check(*mkey)) {
+          delete mkey;
+          ret = TAIR_RETURN_ITEMSIZE_ERROR;
+          break;
+        }
+        req->add_key(mkey);
+        ++itr;
+      }
+      if (ret != TAIR_RETURN_SUCCESS) {
+        delete req;
+        break;
+      }
+      wait_object *cwo = this_wait_object_manager->create_wait_object();
+      ret = do_request(req, resp, cwo, ds[i]);
+      if (ret == TAIR_RETURN_SEND_FAILED) delete req;
+      if (ret != TAIR_RETURN_SEND_FAILED && ret != TAIR_RETURN_TIMEOUT && resp != NULL) {
+        if (resp->key_value_map != NULL) {
+          resp->key_value_map->swap(result_map);
+        }
+        if (resp->key_code_map != NULL) {
+          resp->key_code_map->swap(failed_map);
+        }
+        query_slave = false;
+      }
+      this_wait_object_manager->destroy_wait_object(cwo);
+    }
+
+    return ret;
+  }
+
   int tair_client_impl::prefix_put(int area, const data_entry &pkey, const data_entry &skey,
       const data_entry &value, int expire, int version)
   {
@@ -1335,6 +1408,63 @@ FAIL:
     merge_key(pkey, skey, mkey);
 
     return put(area, mkey, value, expire, version);
+  }
+
+  int tair_client_impl::prefix_puts(int area, const data_entry &pkey,
+      const vector<key_value_pack_t*> &skey_value_packs, key_code_map_t &failed_map) {
+    if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
+    if (!key_entry_check(pkey)) {
+      return TAIR_RETURN_ITEMSIZE_ERROR;
+    }
+
+    request_prefix_puts *req = new request_prefix_puts;
+    response_mreturn *resp = NULL;
+    req->set_pkey(const_cast<data_entry*>(&pkey), true);
+    req->area = area;
+    int ret = TAIR_RETURN_SUCCESS;
+    do {
+      vector<key_value_pack_t*>::const_iterator itr = skey_value_packs.begin();
+      data_entry *mkey = NULL;
+      while (itr != skey_value_packs.end()) {
+        key_value_pack_t *pack = *itr;
+        data_entry *skey = pack->key;
+        data_entry *value = pack->value;
+        mkey = new data_entry;
+        merge_key(pkey, *skey, *mkey);
+        if (!key_entry_check(*mkey) || !data_entry_check(*value)) {
+          delete mkey;
+          ret = TAIR_RETURN_ITEMSIZE_ERROR;
+          break;
+        }
+        mkey->data_meta.version = pack->version;
+        mkey->data_meta.edate = pack->expire;
+        req->add_key_value(mkey, new data_entry(*value));
+        ++itr;
+      }
+      if (ret != TAIR_RETURN_SUCCESS) {
+        delete req;
+        break;
+      }
+
+      vector<uint64_t> ds;
+      if (!get_server_id(*mkey, ds)) {
+        delete req;
+        log_error("no dataserver available");
+        ret = TAIR_RETURN_SEND_FAILED;
+        break;
+      }
+
+      wait_object *cwo = this_wait_object_manager->create_wait_object();
+      ret = do_request(req, resp, cwo, ds[0]);
+      if (resp != NULL && resp->key_code_map != NULL) {
+        resp->key_code_map->swap(failed_map);
+      }
+      if (ret == TAIR_RETURN_SEND_FAILED) delete req;
+      this_wait_object_manager->destroy_wait_object(cwo);
+    } while (false);
+    return ret;
   }
 
   int tair_client_impl::prefix_hide(int area, const data_entry &pkey, const data_entry &skey)
@@ -1457,6 +1587,7 @@ FAIL:
         key_code_map.clear();
         resp->key_code_map->swap(key_code_map);
       }
+      if (ret == TAIR_RETURN_SEND_FAILED) delete req;
       this_wait_object_manager->destroy_wait_object(cwo);
     } while (false);
     return ret;
@@ -1511,6 +1642,7 @@ FAIL:
         key_code_map.clear();
         resp->key_code_map->swap(key_code_map);
       }
+      if (ret == TAIR_RETURN_SEND_FAILED) delete req;
       this_wait_object_manager->destroy_wait_object(cwo);
     } while (false);
     return ret;
@@ -1578,6 +1710,7 @@ FAIL:
 
       wait_object *cwo = this_wait_object_manager->create_wait_object();
       ret = do_request(req, resp, cwo, server_list[0]);
+      if (ret == TAIR_RETURN_SEND_FAILED) delete req;
       if (resp == NULL) {
         this_wait_object_manager->destroy_wait_object(cwo);
         break;
@@ -1720,11 +1853,8 @@ FAIL:
 
       wait_object *cwo = this_wait_object_manager->create_wait_object();
       ret = do_request(req, resp, cwo, server_list[0]);
-      if (resp == NULL) {
-        this_wait_object_manager->destroy_wait_object(cwo);
-        break;
-      }
-      if (ret != TAIR_RETURN_SUCCESS && resp->key_code_map != NULL) {
+      if (ret == TAIR_RETURN_SEND_FAILED) delete req;
+      if (resp != NULL && resp->key_code_map != NULL) {
         key_code_map.clear();
         resp->key_code_map->swap(key_code_map);
       }

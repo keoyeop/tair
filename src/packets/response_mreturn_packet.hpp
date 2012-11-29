@@ -127,6 +127,22 @@ namespace tair {
       std::swap(key_count, rhs.key_count);
       std::swap(key_code_map, rhs.key_code_map);
     }
+
+    //@override
+    virtual size_t size() {
+      size_t sz = 0;
+      if (msg[0]) {
+        sz += strlen(msg);
+      }
+      if (key_code_map != NULL) {
+        key_code_map_t::const_iterator itr = key_code_map->begin();
+        while (itr != key_code_map->end()) {
+          sz += itr->first->encoded_size() + sizeof(itr->second);
+          ++itr;
+        }
+      }
+      return sz;
+    }
   public:
     int code;
     uint32_t config_version;

@@ -202,7 +202,7 @@ namespace tair{
     int64_t file_size = file_->get_file_size();
     if (file_size <= 0)
     {
-      log_debug("get log file size=%d, ignore",file_size);
+      log_debug("get log file size=%lu, ignore",file_size);
       count = 0;
     }
     else

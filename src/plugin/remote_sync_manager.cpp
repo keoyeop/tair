@@ -216,7 +216,7 @@ namespace tair{
        }
        else
        {
-         log_error("response:pkg %d response with %d.failed=%d,log it",prsp->pkg_id,error_code,prsp->failed);
+         log_error("response:pkg %lu response with %d.failed=%d,log it",prsp->pkg_id,error_code,prsp->failed);
          do_invalid_key(prsp->pkey);
        }
      }else

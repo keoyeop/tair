@@ -17,6 +17,7 @@
 #include "util.hpp"
 #include "dump_data_info.hpp"
 #include "query_info_packet.hpp"
+#include "key_value_pack.hpp"
 
 namespace tair {
 
@@ -51,7 +52,9 @@ namespace tair {
       cmd_map["hide"] = &tair_client::do_cmd_hide;
       cmd_map["gethidden"] = &tair_client::do_cmd_get_hidden;
       cmd_map["pput"] = &tair_client::do_cmd_prefix_put;
+      cmd_map["pputs"] = &tair_client::do_cmd_prefix_puts;
       cmd_map["pget"] = &tair_client::do_cmd_prefix_get;
+      cmd_map["pgets"] = &tair_client::do_cmd_prefix_gets;
       cmd_map["premove"] = &tair_client::do_cmd_prefix_remove;
       cmd_map["premoves"] = &tair_client::do_cmd_prefix_removes;
       cmd_map["pgethidden"] = &tair_client::do_cmd_prefix_get_hidden;
@@ -472,6 +475,18 @@ namespace tair {
             "------------------------------------------------\n"
             "SYNOPSIS: pget [area] pkey skey\n"
             "DESCRIPTION: to get one item with prefix\n");
+      }
+      if (cmd == NULL || strcmp(cmd, "pgets") == 0) {
+        fprintf(stderr,
+            "------------------------------------------------\n"
+            "SYNOPSIS: pgets area pkey skey1 skey2...skeyn\n"
+            "DESCRIPTION: to get multiple items with prefix\n");
+      }
+      if (cmd == NULL || strcmp(cmd, "pputs") == 0) {
+        fprintf(stderr,
+            "------------------------------------------------\n"
+            "SYNOPSIS: pputs area pkey skey1 value1 skey2 value2...skeyn valuen\n"
+            "DESCRIPTION: to put multiple items with prefix\n");
       }
       if (cmd == NULL || strcmp(cmd, "premove") == 0) {
         fprintf(stderr,
@@ -1150,6 +1165,39 @@ namespace tair {
      }
    }
 
+   void tair_client::do_cmd_prefix_puts(VSTRING &params) {
+     if (params.size() < 4 || (params.size() & 0x1) != 0) {
+       print_help("pputs");
+       return ;
+     }
+
+     int area = 0;
+     area = atoi(params[0]);
+     data_entry pkey(params[1], strlen(params[1])+1, false);
+     vector<key_value_pack_t*> packs;
+     packs.reserve((params.size() - 2)>>1);
+     for (size_t i = 2; i < params.size(); i += 2) {
+       key_value_pack_t *pack = new key_value_pack_t;
+       data_entry *skey = new data_entry(params[i], strlen(params[i])+1, false);
+       data_entry *value = new data_entry(params[i+1], strlen(params[i+1])+1, false);
+       pack->key = skey;
+       pack->value = value;
+       packs.push_back(pack);
+     }
+
+     key_code_map_t failed_map;
+     int ret = client_helper.prefix_puts(area, pkey, packs, failed_map);
+     fprintf(stderr, "%d: %s\n", ret, client_helper.get_error_msg(ret));
+     if (!failed_map.empty()) {
+       key_code_map_t::iterator itr = failed_map.begin();
+       while (itr != failed_map.end()) {
+         fprintf(stderr, "skey: %s, code: %d, msg: %s\n",
+             itr->first->get_data(), itr->second, client_helper.get_error_msg(itr->second));
+         ++itr;
+       }
+     }
+   }
+
    void tair_client::do_cmd_prefix_get(VSTRING &params)
    {
      int area = 0;
@@ -1184,6 +1232,50 @@ namespace tair {
        delete value;
      } else {
        fprintf(stderr, "failed with %d: %s\n", ret, client_helper.get_error_msg(ret));
+     }
+   }
+
+   void tair_client::do_cmd_prefix_gets(VSTRING &params) {
+     if (params.size() < 3) {
+       print_help("pgets");
+       return ;
+     }
+     int area = 0;
+     data_entry pkey(params[1], strlen(params[1])+1, false);
+     tair_dataentry_set skeys;
+
+     area = atoi(params[0]);
+     for (size_t i = 2; i < params.size(); ++i) {
+       data_entry *skey = new data_entry(params[i], strlen(params[i])+1, false);
+       if (!skeys.insert(skey).second) {
+         delete skey;
+       }
+     }
+
+     tair_keyvalue_map result_map;
+     key_code_map_t failed_map;
+
+     int ret = client_helper.prefix_gets(area, pkey, skeys, result_map, failed_map);
+     fprintf(stderr, "%d: %s\n", ret, client_helper.get_error_msg(ret));
+
+     if (!result_map.empty()) {
+       tair_keyvalue_map::iterator itr = result_map.begin();
+       while (itr != result_map.end()) {
+         data_entry *skey = itr->first;
+         data_entry *value = itr->second;
+         fprintf(stderr, "skey: %s, value: %s\n", skey->get_data(), value->get_data());
+         ++itr;
+       }
+       defree(result_map);
+     }
+     if (!failed_map.empty()) {
+       key_code_map_t::iterator itr = failed_map.begin();
+       while (itr != failed_map.end()) {
+         fprintf(stderr, "skey: %s, err_code: %d, err_msg: %s\n",
+             itr->first->get_data(), itr->second, client_helper.get_error_msg(itr->second));
+         ++itr;
+       }
+       defree(failed_map);
      }
    }
 

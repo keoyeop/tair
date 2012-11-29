@@ -51,7 +51,7 @@ namespace tair {
           if(data) {
             msync(data, size, MS_SYNC);        // make sure synced
             munmap(data, size);
-            log_debug("mmap unmapped, size is: [%d]", size);
+            log_debug("mmap unmapped, size is: [%lu]", size);
             data = NULL;
             size = 0;
             fd = -1;
@@ -100,7 +100,7 @@ namespace tair {
             return false;
           }
 
-          log_info("mmap file successed, maped size is: [%d]", size);
+          log_info("mmap file successed, maped size is: [%lu]", size);
 
           return true;
         }
@@ -113,7 +113,7 @@ namespace tair {
           }
 
           if(size == max_size) {
-            log_info("already mapped max size, currSize: [%u], maxSize: [%u]",
+            log_info("already mapped max size, currSize: [%lu], maxSize: [%lu]",
                      size, max_size);
             return false;
           }
@@ -134,11 +134,11 @@ namespace tair {
             return false;
           }
           else {
-            log_info("remap success, oldSize: [%u], newSize: [%u]", size,
+            log_info("remap success, oldSize: [%lu], newSize: [%lu]", size,
                      new_size);
           }
 
-          log_info("mremap successed, new size: [%d]", new_size);
+          log_info("mremap successed, new size: [%lu]", new_size);
           data = new_map_data;
           size = new_size;
           return true;

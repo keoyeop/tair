@@ -24,6 +24,7 @@ namespace tair {
     request_prefix_puts() {
       setPCode(TAIR_REQ_PREFIX_PUTS_PACKET);
       area = 0;
+      server_flag = 0;
       key_count = 0;
       packet_id = 0;
       pkey = NULL;
@@ -138,19 +139,53 @@ namespace tair {
       pkey = new data_entry(key, size);
     }
 
-    void set_pkey(data_entry *key) {
+    void set_pkey(data_entry *key, bool copy = false) {
       if (pkey != NULL) {
         delete pkey;
       }
-      pkey = key;
+      if (copy) {
+        pkey = new data_entry(*key);
+      } else {
+        pkey = key;
+      }
     }
 
-    void add_key_value(data_entry *key, data_entry *value) {
+    void add_key_value(data_entry *key, data_entry *value, bool copy = false) {
       if (kvmap == NULL) {
         kvmap = new tair_keyvalue_map();
       }
-      kvmap->insert(make_pair(key, value));
-      ++key_count;
+      if (copy) {
+        key = new data_entry(*key);
+        value = new data_entry(*value);
+      }
+      if (!kvmap->insert(make_pair(key, value)).second) {
+        if (copy) {
+          delete key;
+          delete value;
+        }
+      } else {
+        ++key_count;
+      }
+    }
+
+    //@override
+    virtual size_t size() {
+      size_t sz = 0;
+      if (pkey != NULL) {
+        sz += pkey->encoded_size();
+      }
+      if (kvmap != NULL) {
+        tair_keyvalue_map::const_iterator itr = kvmap->begin();
+        while (itr != kvmap->end()) {
+          sz += itr->first->encoded_size() + itr->second->encoded_size();
+          ++itr;
+        }
+      }
+      return sz;
+    }
+    //@override
+    virtual uint16_t ns() {
+      return area;
     }
 
   public:
