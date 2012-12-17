@@ -689,7 +689,7 @@
           //log it
           if (migrate_log != NULL && need_do_migrate_log(bucket_number)) {
             PROFILER_BEGIN("do migrate log");
-            migrate_log->log(SN_PUT, key, old_value, bucket_number);
+            migrate_log->log(SN_PUT, mkey, old_value, bucket_number);
             PROFILER_END();
           }
         }
