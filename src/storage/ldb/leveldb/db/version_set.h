@@ -185,6 +185,9 @@ class VersionSet {
   // Recover the last saved descriptor from persistent storage.
   Status Recover(const char* manifest = NULL);
 
+  // Restart manifest
+  Status Restart() { pending_restart_manifest_ = true; return Status::OK(); }
+
   // when recover over, maybe some backupversion should be loaded to db.
   // backupversion is used to maintain some version(snapshot).
   Status LoadBackupVersion();
@@ -349,6 +352,9 @@ class VersionSet {
   // just next MaybeScheduleCompaction()), so we need limit compaction for a specified time.
   uint64_t first_limited_compact_time_;
   int32_t current_max_level_;
+
+  // pending restart manifest
+  bool pending_restart_manifest_;
 
   // Opened lazily
   WritableFile* descriptor_file_;

@@ -618,12 +618,12 @@ class PosixEnv : public Env {
   }
 
   virtual Status NewLogger(const std::string& fname, Logger** result) {
-    FILE* f = fopen(fname.c_str(), "w");
+    FILE* f = fopen(fname.c_str(), "a");
     if (f == NULL) {
       *result = NULL;
       return IOError(fname, errno);
     } else {
-      *result = new PosixLogger(f, &PosixEnv::gettid);
+      *result = new PosixLogger(f, &PosixEnv::gettid, fname.c_str());
       return Status::OK();
     }
   }
@@ -638,6 +638,12 @@ class PosixEnv : public Env {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return static_cast<uint32_t>(tv.tv_sec);
+  }
+
+  virtual uint32_t TodayStart() {
+    uint32_t now = this->NowSecs();
+    tzset();
+    return (now - (now - timezone) % 86400);
   }
 
   virtual void SleepForMicroseconds(int micros) {

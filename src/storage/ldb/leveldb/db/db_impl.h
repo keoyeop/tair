@@ -150,6 +150,9 @@ class DBImpl : public DB {
   void BackgroundCompactionSelfLevel();
   Status DoCompactionWorkSelfLevel(CompactionState* compact);
 
+  // rotate stuff 
+  Status MaybeRotate();
+
   // Constant after construction
   Env* const env_;
   const InternalKeyComparator internal_comparator_;
@@ -229,6 +232,10 @@ class DBImpl : public DB {
 
   // Have we encountered a background error in paranoid mode?
   Status bg_error_;
+
+  // rotate stuff
+  // today_start_s
+  uint32_t today_start_;
 
   // Per level compaction stats.  stats_[level] stores the stats for
   // compactions that produced data for the specified "level".

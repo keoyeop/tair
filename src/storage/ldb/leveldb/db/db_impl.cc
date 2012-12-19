@@ -100,8 +100,10 @@ Options SanitizeOptions(const std::string& dbname,
   if (result.info_log == NULL) {
     // Open a log file in the same directory as the db
     src.env->CreateDir(dbname);  // In case it does not exist
-    src.env->RenameFile(InfoLogFileName(dbname), OldInfoLogFileName(dbname));
     Status s = src.env->NewLogger(InfoLogFileName(dbname), &result.info_log);
+    if (s.ok()) {
+      s = result.info_log->Rotate();
+    }
     if (!s.ok()) {
       // No place suitable for logging
       result.info_log = NULL;
@@ -144,7 +146,8 @@ DBImpl::DBImpl(const Options& options, const std::string& dbname)
       // @@
       has_limited_delete_obsolete_file_count_(0),
       bg_compaction_scheduled_(false),
-      manual_compaction_(NULL) {
+      manual_compaction_(NULL),
+      today_start_(env_->TodayStart()) {
   mem_->Ref();
   has_imm_.Release_Store(NULL);
 
@@ -274,6 +277,7 @@ void DBImpl::DeleteObsoleteFiles() {
         case kCurrentFile:
         case kDBLockFile:
         case kInfoLogFile:
+        case kBucketLogFile:
           keep = true;
           break;
       }
@@ -779,7 +783,7 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
 
   // control max memtable count now.
   int retry = 0;
-  while (bucket_map_.size() + imm_list_count_ >= kMaxMemTableCount && retry++ < kRetryCount) {
+  while (bucket_map_.size() + imm_list_count_ >= static_cast<uint32_t>(kMaxMemTableCount) && retry++ < kRetryCount) {
     // too many memtable now. try evict some
     int evict_count = 0;
     BucketUpdate* evicted_bu = NULL;
@@ -1354,6 +1358,8 @@ void DBImpl::BackgroundCompaction() {
     // Mark it as done
     manual_compaction_ = NULL;
   }
+
+  MaybeRotate();
 }
 
 void DBImpl::CleanupCompaction(CompactionState* compact) {
@@ -1463,6 +1469,28 @@ Status DBImpl::InstallCompactionResults(CompactionState* compact, bool uppen_lev
   PROFILER_BEGIN("lAa+");
   Status s = versions_->LogAndApply(compact->compaction->edit(), &mutex_);
   PROFILER_END();
+  return s;
+}
+
+Status DBImpl::MaybeRotate() {
+  static const uint32_t DAY_S = 86400;
+  Status s;
+  uint32_t now = env_->NowSecs();
+  if (now - today_start_ > DAY_S) {
+    // rotate log
+    if (options_.info_log != NULL) {
+      s = options_.info_log->Rotate(true);
+      if (!s.ok()) {
+        Log(options_.info_log, "rotate info log fail: %s", s.ToString().c_str());
+      }
+    }
+
+    // retart versionset manifest
+    s = versions_->Restart();
+
+    // reset timeline
+    today_start_ = env_->TodayStart();
+  }
   return s;
 }
 

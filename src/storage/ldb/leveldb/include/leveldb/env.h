@@ -164,6 +164,9 @@ class Env {
   // useful for computing deltas of time.
   virtual uint32_t NowSecs() = 0;
 
+  // Return today start seconds since some fixed point in time.
+  virtual uint32_t TodayStart() = 0;
+
   // Sleep/delay the thread for the perscribed number of micro-seconds.
   virtual void SleepForMicroseconds(int micros) = 0;
 
@@ -254,6 +257,10 @@ class Logger {
 
   // Write an entry to the log file with the specified format.
   virtual void Logv(const char* format, va_list ap) = 0;
+
+  // Rotate log. We may check current logfile's mtime to determine whether
+  // it should be rotated. If force is true, then this log MUST be rotated.
+  virtual Status Rotate(bool force = false) = 0;
 
  private:
   // No copying allowed

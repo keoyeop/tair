@@ -426,7 +426,6 @@ void Version::Unref() {
   assert(this != &vset_->dummy_versions_);
   assert((int32_t)refs_.Get() >= 1);
   if (refs_.Dec() == 0) {
-    Log(vset_->options_->info_log, "del %d %p", refs_.Get(), this);
     delete this;
   }
 }
@@ -785,6 +784,7 @@ VersionSet::VersionSet(const std::string& dbname,
       has_limited_compact_count_(0),
       first_limited_compact_time_(0),
       current_max_level_(2*config::kNumLevels), // for first Recover()
+      pending_restart_manifest_(false),
       descriptor_file_(NULL),
       descriptor_log_(NULL),
       dummy_versions_(this),
@@ -851,18 +851,22 @@ Status VersionSet::LogAndApply(VersionEdit* edit, port::Mutex* mu) {
   // Initialize new descriptor log file if necessary by creating
   // a temporary file that contains a snapshot of the current version.
   std::string new_manifest_file;
+  WritableFile* new_descriptor_file = NULL;
+  log::Writer* new_descriptor_log = NULL;
+  uint64_t new_manifest_file_number = 0;
   Status s;
-  if (descriptor_log_ == NULL) {
+  if (descriptor_log_ == NULL || pending_restart_manifest_) { // we need restart a new manifest(descriptor)
     // No reason to unlock *mu here since we only hit this path in the
     // first call to LogAndApply (when opening the database).
-    assert(descriptor_file_ == NULL);
-    new_manifest_file = DescriptorFileName(dbname_, manifest_file_number_);
+    new_manifest_file_number = (descriptor_log_ == NULL) ? manifest_file_number_ : NewFileNumber();
+    Log(options_->info_log, "start new manifest, %d => %d", manifest_file_number_, new_manifest_file_number);
+    new_manifest_file = DescriptorFileName(dbname_, new_manifest_file_number);
     edit->SetNextFile(NextFileNumber());
-    s = env_->NewWritableFile(new_manifest_file, &descriptor_file_);
+    s = env_->NewWritableFile(new_manifest_file, &new_descriptor_file);
     if (s.ok()) {
       PROFILER_BEGIN("write snapshot+");
-      descriptor_log_ = new log::Writer(descriptor_file_);
-      s = WriteSnapshot(descriptor_log_);
+      new_descriptor_log = new log::Writer(new_descriptor_file);
+      s = WriteSnapshot(new_descriptor_log);
       PROFILER_END();
     }
   }
@@ -873,16 +877,20 @@ Status VersionSet::LogAndApply(VersionEdit* edit, port::Mutex* mu) {
     if (s.ok()) {
       std::string record;
       edit->EncodeTo(&record);
-      s = descriptor_log_->AddRecord(record);
+      s = (new_descriptor_log != NULL) ?
+        new_descriptor_log->AddRecord(record) :
+        descriptor_log_->AddRecord(record);
       if (s.ok()) {
-        s = descriptor_file_->Sync();
+        s = (new_descriptor_file != NULL) ?
+          new_descriptor_file->Sync() :
+          descriptor_file_->Sync();
       }
     }
 
     // If we just created a new descriptor file, install it by writing a
     // new CURRENT file that points to it.
     if (s.ok() && !new_manifest_file.empty()) {
-      s = SetCurrentFile(env_, dbname_, manifest_file_number_);
+      s = SetCurrentFile(env_, dbname_, new_manifest_file_number);
     }
     PROFILER_END();
   }
@@ -894,14 +902,30 @@ Status VersionSet::LogAndApply(VersionEdit* edit, port::Mutex* mu) {
     AppendVersion(v);
     log_number_ = edit->log_number_;
     prev_log_number_ = edit->prev_log_number_;
+    // restart manifest
+    if (!new_manifest_file.empty()) {
+      if (descriptor_log_ != NULL) {
+        delete descriptor_log_;
+      }
+      if (descriptor_file_ != NULL) {
+        delete descriptor_file_;
+      }
+      descriptor_log_ = new_descriptor_log;
+      descriptor_file_ = new_descriptor_file;
+      manifest_file_number_ = new_manifest_file_number;
+      pending_restart_manifest_ = false;
+    }
     mu->Unlock();
   } else {
     delete v;
+    // cleanup
     if (!new_manifest_file.empty()) {
-      delete descriptor_log_;
-      delete descriptor_file_;
-      descriptor_log_ = NULL;
-      descriptor_file_ = NULL;
+      if (new_descriptor_log != NULL) {
+        delete new_descriptor_log;
+      }
+      if (new_descriptor_file != NULL) {
+        delete new_descriptor_file;
+      }
       env_->DeleteFile(new_manifest_file);
     }
   }
