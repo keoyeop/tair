@@ -181,7 +181,7 @@ namespace tair {
          if (ret != Z_OK) {
             ::free(stats);
             stats = NULL;
-            log_error( "uncompress stat info failed, ret: %d");
+            log_error( "uncompress stat info failed, ret: %d", ret);
          } else {
             log_debug("uncompress successed");
          }

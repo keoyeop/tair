@@ -74,7 +74,7 @@ namespace tair {
         //with the cluster for the same reason, a network unreachable, the information such as master, slave
         //and group's name should be saved in the `disconnected_client_map.
         group_client_map disconnected_client_map;
-        inline void disconnected_client_map_insert(const uint64_t &master, const uint64_t &slave,
+        void disconnected_client_map_insert(const uint64_t &master, const uint64_t &slave,
             const std::string &group_name);
         //markup the item should be removed.
         inline void disconnected_client_map_markup(const uint64_t &master, const std::string &group_name);

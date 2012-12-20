@@ -580,7 +580,7 @@ namespace tair
           entry.data_meta.cdate = entry.data_meta.mdate = tailer_.mdate_;
         }
 
-        static bool need_entry_tailer(const common::data_entry& entry)
+        static bool need_entry_tailer(const common::data_entry&)
         {
           // return entry.get_prefix_size() > 0;
           // now, mtime need record all the time

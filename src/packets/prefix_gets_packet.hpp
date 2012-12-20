@@ -214,6 +214,7 @@ namespace tair {
           ++itr;
         }
       }
+      return sz;
     }
 
   public:

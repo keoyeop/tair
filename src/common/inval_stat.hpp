@@ -154,7 +154,7 @@ namespace tair {
 
     inline inval_area_stat & get_area_stat(const uint32_t index)
     {
-      if (index < 0 || index > TAIR_MAX_AREA_COUNT) {
+      if (index > TAIR_MAX_AREA_COUNT) {
         log_error("[FATAL ERROR] area must be in the range of [0, TAIR_MAX_AREA_COUNT]");
         return area_stat[0];
       }
