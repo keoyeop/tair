@@ -184,8 +184,13 @@ namespace tair {
             key_list->insert(this->key);
             this->key = NULL;
           }
-          key_list->insert(key);
-          ++key_count;
+          pair<tair_dataentry_set::iterator, bool> ret;
+          ret = key_list->insert(key);
+          if (ret.second) {
+            key_count ++;
+          } else {
+            delete key;
+          }
         }
       }
 
