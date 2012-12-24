@@ -61,6 +61,7 @@ namespace tair {
       };
 
       const static int mutex_array_size = 1000;
+      const static int LOCAL_MODE_BUCKET_COUNT = 1023;
 
    public:
       tair_manager();

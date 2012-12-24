@@ -160,6 +160,18 @@
       // if localmode, init the table with bucket_count = 1, force set the status to STATUS_CAN_WORK
       if(localmode) {
         table_mgr->set_table_for_localmode();
+        // init storage manager buckets
+        std::vector<int32_t> buckets;
+        for (int32_t i = 0; i < LOCAL_MODE_BUCKET_COUNT; ++i) {
+          buckets.push_back(i);
+        }
+        if (!storage_mgr->init_buckets(buckets)) {
+          log_error("localmode init buckets fail.");
+          status = STATUS_NOT_INITED;
+          return false;
+        }
+
+        log_warn("localmode init success, buckets: %d", LOCAL_MODE_BUCKET_COUNT);
         status = STATUS_CAN_WORK;
       }
 
@@ -1433,7 +1445,7 @@
         hashcode = tair::util::string_util::mur_mur_hash(key.get_data() + diff_size, key.get_prefix_size());
       }
       log_debug("hashcode: %u, bucket count: %d", hashcode, table_mgr->get_bucket_count());
-      return hashcode % (localmode ? 1023 : table_mgr->get_bucket_count());
+      return hashcode % (localmode ? LOCAL_MODE_BUCKET_COUNT : table_mgr->get_bucket_count());
     }
 
     bool tair_manager::should_write_local(int bucket_number, int server_flag, int op_flag, int &rc)
