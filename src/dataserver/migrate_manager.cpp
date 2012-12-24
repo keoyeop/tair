@@ -497,6 +497,13 @@ namespace tair {
 
    void migrate_manager::set_migrate_server_list(bucket_server_map migrate_server_list, uint32_t version)
    {
+      // in this case:
+      // 1. server A and B owns bucket 1
+      // 2. when server C joins in cluster, cs will rebuild table: server C and B owns bucket 1
+      // 3. when server A has migrated bucket 1 to server C, we touch group.conf. In server_table we see server C and A will own bucket 1.
+      // 4. if server C receive server_table before server A, C will migrate bucket 1 to server A. when A receive server_table, A will close bucket 1. no.. bucket 1 lost data;
+      // sleep heartbeat_time before migrate.
+      TAIR_SLEEP(_stop, 1);
       tbsys::CThreadGuard guard(&get_data_mutex);
       migrate_servers.swap(migrate_server_list);
       this->version = version;
