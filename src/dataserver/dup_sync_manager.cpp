@@ -396,6 +396,7 @@ namespace tair{
       case TAIR_REQ_REMOVE_PACKET:
       case TAIR_REQ_LOCK_PACKET:
       case TAIR_REQ_MPUT_PACKET:
+      case TAIR_REQ_EXPIRE_PACKET:
         log_debug("@@ dup sync return %d", pNode->pcode);
         rv = tair_packet_factory::set_return_packet(pNode->conn,pNode->chid,pNode->pcode,0,"",pNode->conf_version);
         break;

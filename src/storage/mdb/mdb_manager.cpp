@@ -541,7 +541,7 @@ namespace tair {
               it->version, key.get_version());
     if(expired > 0) {
       it->exptime =
-        static_cast<uint32_t> (expired) >
+        static_cast<uint32_t> (expired) >=
         crrnt_time ? expired : crrnt_time + expired;
     } else if (expired < 0) {
         it->exptime = old_expired < 0 ? 0 : old_expired;
