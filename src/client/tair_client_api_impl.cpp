@@ -2400,7 +2400,7 @@ FAIL:
     else{
       invalid_servers.clear();
       uint64_t id = 0;
-      for (int i = 0; i < invalid_server_list.size(); i++) {
+      for (size_t i = 0; i < invalid_server_list.size(); i++) {
         id = invalid_server_list[i];
         if (id != 0 && std::find(invalid_servers.begin(), invalid_servers.end(), id) == invalid_servers.end()) {
           invalid_servers.push_back(id);
@@ -2427,7 +2427,7 @@ FAIL:
     request_op_cmd *req = new request_op_cmd();
     int ret = TAIR_RETURN_SUCCESS;
     uint64_t server_id = invalid_server_id;
-    for (int i = 0; i < infos.size(); ++i) {
+    for (size_t i = 0; i < infos.size(); ++i) {
       req->add_param(infos[i].c_str());
     }
     // send request.
@@ -2459,7 +2459,7 @@ FAIL:
       ret = TAIR_RETURN_FAILED;
     }
     else {
-      for (int i = 0; i < invalid_servers.size(); i++) {
+      for (size_t i = 0; i < invalid_servers.size(); i++) {
         ret = retry_all(invalid_servers[i]);
         if (ret == TAIR_RETURN_SUCCESS) {
           counter++;
@@ -2471,7 +2471,7 @@ FAIL:
       ret = TAIR_RETURN_FAILED;
     }
     else {
-      ret = (counter == invalid_servers.size()) ? TAIR_RETURN_SUCCESS : TAIR_RETURN_PARTIAL_SUCCESS;
+      ret = (counter == (int)invalid_servers.size()) ? TAIR_RETURN_SUCCESS : TAIR_RETURN_PARTIAL_SUCCESS;
     }
     return ret;
   }
@@ -2626,7 +2626,7 @@ FAIL:
       ret = TAIR_RETURN_FAILED;
     }
     else {
-      for (int i = 0; i < inval_servers.size(); i++){
+      for (size_t i = 0; i < inval_servers.size(); i++){
         inval_stat_data_t* stat = NULL;
         ret = query_from_invalidserver(inval_servers[i], stat);
         if (ret == TAIR_RETURN_SUCCESS) {
@@ -2648,7 +2648,7 @@ FAIL:
       ret = TAIR_RETURN_FAILED;
     }
     else {
-      ret = (counter == inval_servers.size()) ? TAIR_RETURN_SUCCESS : TAIR_RETURN_PARTIAL_SUCCESS;
+      ret = (counter == (int)inval_servers.size()) ? TAIR_RETURN_SUCCESS : TAIR_RETURN_PARTIAL_SUCCESS;
     }
     return ret;
   }

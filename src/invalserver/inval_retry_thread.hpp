@@ -22,18 +22,17 @@
 #endif
 
 namespace tair {
-  class request_inval_packet_wrapper;
+  class PacketWrapper;
   class InvalRetryThread: public tbsys::CDefaultRunnable {
   public:
     InvalRetryThread();
     ~InvalRetryThread();
 
-    void setThreadParameter(InvalLoader *loader, RequestProcessor *processor,
-        inval_request_storage * requeststorage);
+    void setThreadParameter(InvalLoader *loader, RequestProcessor *processor, InvalRequestStorage * requeststorage);
 
     void stop();
     void run(tbsys::CThread *thread, void *arg);
-    void add_packet(request_inval_packet_wrapper *wrapper, int index);
+    void add_packet(PacketWrapper *wrapper, int index);
     int retry_queue_size(int index);
 
     static const int RETRY_COUNT = 3;
@@ -42,9 +41,9 @@ namespace tair {
     InvalLoader *invalid_loader;
     RequestProcessor *processor;
     tbsys::CThreadCond queue_cond[RETRY_COUNT];
-    std::queue<request_inval_packet_wrapper*> retry_queue[RETRY_COUNT];
+    std::queue<PacketWrapper*> retry_queue[RETRY_COUNT];
 
-    inval_request_storage * request_storage; //from inval server
+    InvalRequestStorage * request_storage; //from inval server
   };
 }
 #endif

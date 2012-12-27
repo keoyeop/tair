@@ -27,77 +27,67 @@
 #include <map>
 #include <utility>
 #include "inval_request_packet_wrapper.hpp"
-
 namespace tair {
-  class request_inval_packet_wrapper;
+  #define REQUEST_PROCESSOR tair::RequestProcessor::request_processor_instance
+  class InvalRetryThread;
+  class InvalRequestStorage;
+  class TairGroup;
   class RequestProcessor {
   public:
-    RequestProcessor(InvalLoader *invalid_loader);
+    RequestProcessor();
 
-    //callback function
-    static void client_callback_func(int rcode, void *args);
-    //callbcak function for operation with multi-keys
-    static void client_callback_func(int rcode, const key_code_map_t *key_code_map, void *args);
+    void setThreadParameters(const vector<TairGroup*> &groups, InvalRetryThread *retry_thread,
+        InvalRequestStorage *request_storage);
   public:
-    //invalid
-    inline int process(request_invalid *req, request_inval_packet_wrapper *wrapper)
-    {
-      log_debug("invalid server process, invalid, request packet's pcode: %d", req->getPCode());
-      return do_process(req, &tair_client_impl::remove, wrapper);
-    }
+    static RequestProcessor request_processor_instance;
+  public:
+    void process(PacketWrapper *wrapper);
 
-    //hide
-    inline int process(request_hide_by_proxy *req, request_inval_packet_wrapper *wrapper)
-    {
-      log_debug("invalid server process, hide, request packet's pcode: %d", req->getPCode());
-      return do_process(req, &tair_client_impl::hide, wrapper);
-    }
+    void process_callback(int rcode, PacketWrapper *wrapper);
 
-    //prefix_invalid
-    inline int process(request_prefix_invalids *req, request_inval_packet_ex_wrapper *wrapper)
-    {
-      log_debug("invalid server process, prefix_invalid, request packet's pcode: %d", req->getPCode());
-      return do_process(req, &tair_client_impl::removes, wrapper);
-    }
-
-    //prefix_hide
-    inline int process(request_prefix_hides_by_proxy *req, request_inval_packet_ex_wrapper *wrapper)
-    {
-      log_debug("invalid server process, prefix_hide, request packet's pcode: %d", req->getPCode());
-      return do_process(req, &tair_client_impl::hides, wrapper);
-    }
-
-
+    void end_request(PacketWrapper *wrapper);
   protected:
-    //if operation(such as hide, remove, hides and removes) failed, the request
-    //packet should be pushed into some queue.
-    static void do_rescue_failure(request_inval_packet_wrapper* wrapper);
+    void do_rescue_failure(PacketWrapper* wrapper);
 
-    //finish the work
-    static void do_process_ultimate(request_inval_packet_wrapper *wrapper, const int ret);
-    //process failed keys
-    static void do_process_failed_keys(request_inval_packet_wrapper *wrapper, const tair_dataentry_set &keys);
+    void send_return_packet(PacketWrapper *wrapper, const int ret);
 
     //defination of function type.
     typedef int (tair_client_impl::*PROCESS_RH_FUNC_T) (int area, const data_entry &key, TAIRCALLBACKFUNC pfunc, void *parg);
+
     //process invalid/hide operation
-    int do_process(request_invalid *req, PROCESS_RH_FUNC_T pproc, request_inval_packet_wrapper *wrapper);
+    void do_process(PROCESS_RH_FUNC_T pproc, SingleWrapper *wrapper);
 
     //defination of function type.
     typedef int (tair_client_impl::*PROCESS_RHS_FUNC_T) (int area, const tair_dataentry_set &key_set,
         key_code_map_t *key_code_map,
         TAIRCALLBACKFUNC_EX pfunc, void *parg);
-    //process prefix_invalid/prefix_hide operation
-    int do_process(request_invalid *req, PROCESS_RHS_FUNC_T pproc, request_inval_packet_ex_wrapper *wrapper);
 
+    //process prefix_invalids/prefix_hides operation
+    void do_process(PROCESS_RHS_FUNC_T pproc, MultiWrapper *wrapper);
   private:
-    //obtain the instances of client according to the group name.
-    InvalLoader *invalid_loader;
-
     static tair_packet_factory packet_factory;
 
     //mapping packet's pcode to the operation's name, such as INVALID, PREFIX_INVALID, HIDE, PREFIX_HIDE.
     static std::map<int, int> pcode_opname_map;
+
+    InvalRetryThread *retry_thread;
+    InvalRequestStorage *request_storage;
+
+    key_code_map_t failed_key_code_map;
   };
+
+  //callback function
+  inline void client_callback_with_single_key(int rcode, void *args)
+  {
+    PacketWrapper *wrapper = (PacketWrapper*)args;
+    REQUEST_PROCESSOR.process_callback(rcode, wrapper);
+  }
+
+  //callbcak function for operation with multi-keys
+  inline void client_callback_with_multi_keys(int rcode, const key_code_map_t *key_code_map, void *args)
+  {
+    PacketWrapper *wrapper = (PacketWrapper*)args;
+    REQUEST_PROCESSOR.process_callback(rcode, wrapper);
+  }
 }
 #endif

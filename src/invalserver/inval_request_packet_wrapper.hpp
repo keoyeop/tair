@@ -5,7 +5,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
- * packet code and base packet are defined here
+ * defination of the status of request, and parameter of the tair_client API's callback funcation.
  *
  * Version: $Id: inval_request_packet_wrapper.hpp 1173 2012-09-27 08:41:45Z fengmao $
  *
@@ -13,8 +13,8 @@
  *   fengmao <fengmao.pj@taobao.com>
  *
  */
-#ifndef TAIR_request_inval_packet_wrapper_H
-#define TAIR_request_inval_packet_wrapper_H
+#ifndef TAIR_request_inval_PacketWrapper_H
+#define TAIR_request_inval_PacketWrapper_H
 #include <tbsys.h>
 #include <tbnet.h>
 
@@ -25,125 +25,248 @@
 #include "prefix_hides_by_proxy_packet.hpp"
 #include "prefix_invalids_packet.hpp"
 namespace tair {
+  class TairGroup;
   //the class request_hide_by_proxy, request_hides_by_proxy,
   //request_prefix_invalids are the subclass of request_invalid.
   typedef request_invalid request_inval_packet;
-  class InvalRetryThread;
-  class inval_request_storage;
-  class request_inval_packet_wrapper
+
+  //the transition diagram of request's status
+  //(create wrapper, PREPARE_COMMIT) ==> (send request to ds, COMMITED_SUCCESS)
+  //                                 ==> (send request to ds, COMMITED_FAILED) ==> (push retry_thread's queue, RETRY_COMMIT) ==>
+  //(finally failed, CACHED_IN_STORAGE).
+  //definition of the status of request
+  enum
   {
-  public:
-    request_inval_packet_wrapper(request_inval_packet *packet, InvalRetryThread *retry_thread,
-        inval_request_storage *request_storage)
+    //init value of the request's status, that indicated the request was not processed by any group.
+    PREPARE_COMMIT = 0,
+    //request was processed success.
+    COMMITTED_SUCCESS = 1,
+    //request was processed failed
+    COMMITTED_FAILED = 2,
+    //after failed, retry to process the request
+    RETRY_COMMIT = 3,
+    //finally failed, cache the request to the memory, and write the request to the disk,
+    //while the count of cached packet will be greater than some amount.
+    CACHED_IN_STORAGE = 4
+  };
+
+  //reference counter, delay count and request status
+  struct SharedInfo
+  {
+    //when the value of `reference_count was equ. 0, the return packet whould be send to client, except retry request.
+    atomic_t reference_count;
+
+    //request was cached in the retry_thread's queue, when the related group was unhealthy.
+    atomic_t delay_count;
+
+    //the state of the request.
+    atomic_t request_status;
+
+    //record the retry times.
+    atomic_t retry_times;
+
+    //request packet.
+    request_inval_packet *packet;
+
+    SharedInfo(int init_reference_count, request_inval_packet *packet)
     {
+      atomic_set(&reference_count, init_reference_count);
+      atomic_set(&delay_count, 0);
+      atomic_set(&retry_times, 0);
+      atomic_set(&request_status, PREPARE_COMMIT);
       this->packet = packet;
-      this->retry = retry_thread;
-      this->request_storage = request_storage;
-      retry_times = 0;
-      set_reference_count(0);
-      reset_failed_flag();
-    }
-    ~request_inval_packet_wrapper()
-    {
-      //do not free the packet, which is deleted by request_processor.
     }
 
-    //FAILED: failed to send request packet to DS.
-    //FAILED_RETRY_QUEUE: the request packet, from the client, is in the retry_threads's queue.
-    //FAILED_STORAGE_QUEUE: the request packet, from the client, is in the request_storage's queue.
-    //SUCCESS: all operation needed were successfully executed.
-    enum {FAILED = 0, FAILED_RETRY_QUEUE = 1, FAILED_STORAGE_QUEUE = 2, SUCCESS = 3};
-
-    inline int get_reference_count()
+    ~SharedInfo()
     {
-      return atomic_read(&reference_count);
-    }
-
-    inline void set_reference_count(int this_reference_count)
-    {
-      atomic_set(&reference_count, this_reference_count);
-    }
-
-    inline void dec_reference_count()
-    {
-      atomic_dec(&reference_count);
-    }
-
-    inline int dec_and_return_reference_count(int c)
-    {
-      return atomic_sub_return(c, &reference_count);
-    }
-
-    inline void set_failed_flag(int flag)
-    {
-      atomic_set(&is_failed, flag);
-    }
-
-    inline int get_failed_flag()
-    {
-      return atomic_read(&is_failed);
-    }
-
-    inline void reset_failed_flag()
-    {
-      atomic_set(&is_failed, SUCCESS);
-    }
-
-    inline uint16_t get_retry_times()
-    {
-      return retry_times;
-    }
-
-    inline void inc_retry_times()
-    {
-      retry_times ++;
-    }
-
-
-    inline void release_packet()
-    {
-      if (packet != NULL) {
+      if (atomic_read(&request_status) != CACHED_IN_STORAGE && packet != NULL)
+      {
         delete packet;
         packet = NULL;
       }
     }
 
-    //if /remove/hide/removes/hides operation was failed, the request packet
-    //should be pushed into queue of `retry_thread.
-    InvalRetryThread *retry;
-
-    //if /remove/hide/removes/hides operation was failed finally, the request packet
-    //should be pushed into the queue of `request_storage.
-    inval_request_storage *request_storage;
-
-    request_inval_packet* packet;
-  protected:
-    atomic_t reference_count;
-    atomic_t is_failed;
-    uint16_t retry_times;
-  };
-
-  class request_inval_packet_ex_wrapper : public request_inval_packet_wrapper
-  {
-  public:
-    request_inval_packet_ex_wrapper(request_inval_packet *packet, InvalRetryThread *retry_thread,
-        inval_request_storage *request_storage) :request_inval_packet_wrapper(packet, retry_thread, request_storage),
-    failed_key_set(NULL)
+    inline void set_request_reference_count(int ref_count)
     {
+      atomic_set(&reference_count, ref_count);
     }
 
-    ~request_inval_packet_ex_wrapper()
+    inline void set_request_delay_count(int del_count)
     {
-      if (failed_key_set != NULL) {
-        delete failed_key_set;
-        failed_key_set = NULL;
+      atomic_set(&delay_count, del_count);
+    }
+  };
+
+  class PacketWrapper {
+  public:
+    PacketWrapper(TairGroup *group, SharedInfo *shared)
+    {
+      this->group = group;
+      this->shared = shared;
+      is_need_return_packet = true;
+    }
+
+    virtual ~PacketWrapper()
+    {
+      if(atomic_read(&(shared->reference_count)) == 0
+          && atomic_read(&(shared->delay_count)) == 0
+          && atomic_read(&(shared->request_status)) != RETRY_COMMIT
+          && atomic_read(&(shared->request_status)) != PREPARE_COMMIT)
+      {
+        delete shared;
       }
     }
-  public:
-    tair_dataentry_set *failed_key_set;
-    data_entry pkey;
+
+    inline int get_request_reference_count()
+    {
+      return atomic_read(&(shared->reference_count));
+    }
+
+    inline void set_request_reference_count(int this_reference_count)
+    {
+      atomic_set(&(shared->reference_count), this_reference_count);
+    }
+
+    inline int dec_and_return_reference_count(int c)
+    {
+      return atomic_sub_return(c, &(shared->reference_count));
+    }
+
+    inline void inc_request_reference_count()
+    {
+      atomic_inc(&(shared->reference_count));
+    }
+
+    inline void dec_request_reference_count()
+    {
+      atomic_dec(&(shared->reference_count));
+    }
+
+    inline uint16_t get_retry_times()
+    {
+      return atomic_read(&(shared->retry_times));
+    }
+
+    inline void inc_retry_times()
+    {
+      atomic_inc(&(shared->retry_times));
+    }
+
+    inline void set_request_status(int rs)
+    {
+      atomic_set(&(shared->request_status), rs);
+    }
+
+    inline int get_request_status()
+    {
+      return atomic_read(&(shared->request_status));
+    }
+
+    inline void inc_request_delay_count()
+    {
+      atomic_inc(&(shared->delay_count));
+    }
+
+    inline void dec_request_delay_count()
+    {
+      atomic_dec(&(shared->delay_count));
+    }
+
+    inline int get_request_delay_count()
+    {
+      return atomic_read(&(shared->delay_count));
+    }
+
+    inline int get_needed_return_packet()
+    {
+      return is_need_return_packet;
+    }
+
+    inline void set_needed_return_packet(bool is_need)
+    {
+      is_need_return_packet = is_need;
+    }
+
+    inline TairGroup *get_group()
+    {
+      return group;
+    }
+
+    inline tair_client_impl *get_tair_client()
+    {
+      //return group != NULL ? group->get_tair_client() : NULL;
+      return NULL;
+    }
+
+    inline request_inval_packet *get_packet()
+    {
+      return shared->packet;
+    }
+
+    inline SharedInfo *get_shared_info()
+    {
+      return shared;
+    }
+  protected:
+    bool is_need_return_packet;
+
+    SharedInfo *shared;
+
+    TairGroup *group;
   };
 
-}
+  //with single key
+  class SingleWrapper : public PacketWrapper
+  {
+  public:
+    SingleWrapper(TairGroup *group, SharedInfo *shared, data_entry *key)
+      : PacketWrapper(group, shared)
+    {
+      this->key = key;
+    }
 
+    ~SingleWrapper()
+    {
+      if (key != NULL)
+      {
+        delete key;
+        key = NULL;
+      }
+    }
+
+    inline data_entry* get_key()
+    {
+      return key;
+    }
+  protected:
+    data_entry *key;
+  };
+
+  //with multi-keys
+  class MultiWrapper : public PacketWrapper
+  {
+  public:
+    MultiWrapper(TairGroup *group, SharedInfo *shared, tair_dataentry_set *keys)
+      : PacketWrapper(group, shared)
+    {
+      this->keys = keys;
+    }
+
+    ~MultiWrapper()
+    {
+      if (keys != NULL)
+      {
+        delete keys;
+        keys = NULL;
+      }
+    }
+
+    inline tair_dataentry_set *get_keys()
+    {
+      return keys;
+    }
+  protected:
+    tair_dataentry_set *keys;
+  };
+}
 #endif

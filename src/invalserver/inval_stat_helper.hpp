@@ -23,10 +23,10 @@
 #include <tbnet.h>
 #include "inval_stat.hpp"
 namespace tair {
-#define TAIR_INVAL_STAT tair::inval_stat_helper::inval_stat_helper_instance
+#define TAIR_INVAL_STAT tair::InvalStatHelper::inval_stat_helper_instance
 
   class CThreadMutex;
-  class inval_stat_helper : public tbsys::CDefaultRunnable {
+  class InvalStatHelper : public tbsys::CDefaultRunnable {
   public:
     //inval_stat_helper needs nessary parameters(group names) to start working.
     //it will wait(sleep) until obaining the parameters.
@@ -41,8 +41,8 @@ namespace tair {
     //operation's name ->{invalid,preifx_invalid,hide,prefix_hide}
     enum {INVALID = 0, PREFIX_INVALID = 1, HIDE = 2, PREFIX_HIDE = 3 };
 
-    inval_stat_helper();
-    ~inval_stat_helper();
+    InvalStatHelper();
+    ~InvalStatHelper();
 
     void run(tbsys::CThread *thread, void *arg);
 
@@ -64,10 +64,12 @@ namespace tair {
     //get group name
     inline std::string get_group_name(const int index)
     {
-      if (index < 0 || index >= (int)group_names.size()) {
+      if (index < 0 || index >= (int)group_names.size())
+      {
         return std::string("bad index");
       }
-      else {
+      else
+      {
         return group_names[index];
       }
     }
@@ -79,7 +81,7 @@ namespace tair {
     void reset();
   public:
     //glabol instance
-    static inval_stat_helper inval_stat_helper_instance;
+    static InvalStatHelper inval_stat_helper_instance;
   private:
     //<group_name, inval_group_stat*>
     typedef __gnu_cxx::hash_map<std::string, inval_group_stat*, tbsys::str_hash> group_stat_map_t;

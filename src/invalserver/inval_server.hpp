@@ -19,7 +19,6 @@
 #include "util.hpp"
 #include "inval_loader.hpp"
 #include "inval_retry_thread.hpp"
-#include "inval_async_task_thread.hpp"
 #include "inval_processor.hpp"
 #include "retry_all_packet.hpp"
 #include "inval_stat_packet.hpp"
@@ -37,12 +36,16 @@ namespace tair {
 
     tbnet::IPacketHandler::HPRetCode handlePacket(tbnet::Connection *connection, tbnet::Packet *packet);
     bool handlePacketQueue(tbnet::Packet *packet, void *args);
+    bool push_task(tbnet::Packet *packet) {
+      return true;
+    }
   private:
-    int do_invalid(request_invalid *req);
-    int do_hide(request_hide_by_proxy *req);
-    int do_prefix_hides(request_prefix_hides_by_proxy *req);
-    int do_prefix_invalids(request_prefix_invalids *req);
+    void do_invalid(request_invalid *req);
+    void do_hide(request_hide_by_proxy *req);
+    void do_prefix_hides(request_prefix_hides_by_proxy *req);
+    void do_prefix_invalids(request_prefix_invalids *req);
     int do_request_stat(request_inval_stat *req, response_inval_stat *resp);
+    int do_retry_all(request_retry_all* req);
     bool init();
     bool destroy();
 
@@ -64,13 +67,23 @@ namespace tair {
     InvalLoader invalid_loader;
     RequestProcessor processor;
     InvalRetryThread retry_thread;
-    AsyncTaskThread async_thread;
 
     //local storage for request packet.
-    inval_request_storage request_storage;
+    InvalRequestStorage request_storage;
     //for debug info
     int sync_task_thread_count;
-    int async_task_thread_count;
+  };
+
+  class RetryWorkThread : public tbsys::CDefaultRunnable {
+  public:
+    RetryWorkThread(InvalRequestStorage *request_storage, InvalServer *inval_server);
+    void run(tbsys::CThread * thread, void *arg);
+  private:
+    //killed
+    ~RetryWorkThread();
+    InvalRequestStorage *request_storage;
+    InvalServer* inval_server;
+    static const int MAX_EXECUTED_COUNT = 100;
   };
 }
 #endif

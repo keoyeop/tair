@@ -12,8 +12,8 @@
  *   fengmao <fengmao.pj@taobao.com>
  *
  */
-#ifndef INVAL_REQUEST_STORAGE_H
-#define INVAL_REQUEST_STORAGE_H
+#ifndef InvalRequestStorage_H
+#define InvalRequestStorage_H
 
 #include <tbsys.h>
 #include <tbnet.h>
@@ -21,15 +21,14 @@
 #include "define.hpp"
 #include "log.hpp"
 #include "base_packet.hpp"
-#include <fstream>
 #include <string>
 #include "packet_factory.hpp"
 namespace tair {
-  class inval_request_storage : public tbsys::CDefaultRunnable {
+  class InvalRequestStorage : public tbsys::CDefaultRunnable {
   public:
-    inval_request_storage();
+    InvalRequestStorage();
 
-    ~inval_request_storage();
+    ~InvalRequestStorage();
   public:
     void setThreadParameter(const std::string& data_path, const std::string& queue_name,
         const float read_disk_threshold, const float write_disk_threshold, const int max_cached_packet_count,
@@ -40,6 +39,10 @@ namespace tair {
     void run(tbsys::CThread *thread, void *arg);
 
     int get_packet_count();
+    bool is_empty()
+    {
+      return true;
+    }
 
     int get_packet_count_on_disk();
 
