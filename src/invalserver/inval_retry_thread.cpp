@@ -83,8 +83,6 @@ namespace tair {
             SharedInfo *shared = swrapper->get_shared_info();
 
             shared->set_request_reference_count(groups->size());
-            shared->set_request_delay_count(0);
-
             for (size_t i = 0; i < groups->size(); ++i)
             {
               (*groups)[i]->commit_request(swrapper->get_key(), shared);
@@ -139,7 +137,8 @@ namespace tair {
     log_warn("RetryThread %d is stopped", index);
   }
 
-  void InvalRetryThread::add_packet(PacketWrapper *wrapper, int index) {
+  void InvalRetryThread::add_packet(PacketWrapper *wrapper, int index)
+  {
     if (index < 0 || index > RETRY_COUNT - 1 || _stop == true)
     {
     }

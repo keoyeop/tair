@@ -260,7 +260,6 @@ namespace tair {
 
         if (req->request_time < 0)
         {
-          req->request_time = time(NULL);
           need_return_packet = false;
         }
 

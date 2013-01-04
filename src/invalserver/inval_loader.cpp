@@ -188,8 +188,12 @@ namespace tair {
       }
       for (size_t i = 0; i < tair_groups.size(); i++)
       {
-       // client_list[i]->add_count(0, key, 1, &value);
+        tair_client_impl *tair_client = tair_groups[i]->get_tair_client();
+        tair_client->add_count(0, key, 1, &value);
         log_debug("client: %d, 'invalid_server_counter': %d", i, value);
+
+        //sampling data
+        tair_groups[i]->sampling();
         if (_stop)
         {
           break;

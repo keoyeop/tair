@@ -26,7 +26,6 @@
 #include "inval_processor.hpp"
 namespace tair {
   class tair_client_impl;
-  class InvalRetryThread;
   class TairGroup {
   public:
     TairGroup(uint64_t master, uint64_t slave, const std::string &group_name, tair_client_impl *tair_client);
@@ -74,7 +73,7 @@ namespace tair {
       atomic_inc(&request_timeout_count);
     }
 
-    inline void reset_request_timout_count()
+    inline void reset_request_timeout_count()
     {
       atomic_set(&request_timeout_count, 0);
     }
@@ -87,37 +86,30 @@ namespace tair {
     //sample the data indicated the status of tair group's healthy.
     void sampling();
 
-  protected:
-    bool is_healthy();
-    void do_commit_request(PacketWrapper* wrapper);
-    inline void cache_request(PacketWrapper *wrapper, bool need_return_packet)
+    inline void set_uninvoked_callback_count_limit(int limit)
     {
-        wrapper->set_needed_return_packet(need_return_packet);
-        wrapper->inc_request_delay_count();
-        wrapper->set_request_status(RETRY_COMMIT);
+      atomic_set(&uninvoked_callback_count_limit, limit);
+    }
 
-        if (wrapper->dec_and_return_reference_count(1) == 0)
-        {
-          REQUEST_PROCESSOR.end_request(wrapper);
-        }
+    inline void set_request_timeout_count_limit(int limit)
+    {
+      atomic_set(&request_timeout_count_limit, limit);
     }
   protected:
-    atomic_t uninvoked_callback_count;
-    atomic_t uninvoked_callback_count_average;
-
-    atomic_t request_timeout_count;
-    atomic_t request_timeout_count_average;
-
-    atomic_t healthy;
-    enum
+    inline bool is_healthy()
     {
-      HEALTHY = 0,
-      SICK = 1
-    };
+      return atomic_read(&healthy) == HEALTHY;
+    }
+    void do_commit_request(PacketWrapper* wrapper);
 
+    typedef void (RequestProcessor::*PROC_FUNC_T) (PacketWrapper *wrapper);
+    void do_process_unmerged_keys(PROC_FUNC_T func, SharedInfo *shared, bool need_return_packet);
+    void do_process_merged_keys(PROC_FUNC_T func, SharedInfo *shared, bool need_return_packet);
+
+    void process_commit_request(PROC_FUNC_T func, SharedInfo *shared, bool merged, bool need_return_packet);
+  protected:
     //tair client
     tair_client_impl *tair_client;
-    InvalRetryThread *retry_thread;
 
     //group
     std::string group_name;
@@ -125,10 +117,27 @@ namespace tair {
     uint64_t slave;
 
     //data of group's healthy
-    static const int DATA_ITEM_SIZE;
+    //record the accumulated count of callback functions, that wait to be invoked.
+    atomic_t uninvoked_callback_count;
+    //the limit value of `uninvoked_callback_count.
+    atomic_t uninvoked_callback_count_limit;
+
+    //record the accumulated count of timeout for some time.
+    atomic_t request_timeout_count;
+    //the limit value of `request_timeout_count.
+    atomic_t request_timeout_count_limit;
+
+    atomic_t healthy;
+    enum
+    {
+      HEALTHY = 0,
+      SICK = 1
+    };
+    static const size_t DATA_ITEM_SIZE;
+    //sampling the data of `uninvoked_callback_count.
     std::vector<atomic_t> uninvoked_callback_sampling_data;
-    std::vector<atomic_t> timeout_count_sampling_data;
-    int head;
+    //sampling the data of `request_timeout_count.
+    std::vector<atomic_t> request_timeout_sampling_data;
     int tail;
   };
 }

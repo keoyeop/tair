@@ -56,9 +56,6 @@ namespace tair {
     //when the value of `reference_count was equ. 0, the return packet whould be send to client, except retry request.
     atomic_t reference_count;
 
-    //request was cached in the retry_thread's queue, when the related group was unhealthy.
-    atomic_t delay_count;
-
     //the state of the request.
     atomic_t request_status;
 
@@ -71,7 +68,6 @@ namespace tair {
     SharedInfo(int init_reference_count, request_inval_packet *packet)
     {
       atomic_set(&reference_count, init_reference_count);
-      atomic_set(&delay_count, 0);
       atomic_set(&retry_times, 0);
       atomic_set(&request_status, PREPARE_COMMIT);
       this->packet = packet;
@@ -90,11 +86,6 @@ namespace tair {
     {
       atomic_set(&reference_count, ref_count);
     }
-
-    inline void set_request_delay_count(int del_count)
-    {
-      atomic_set(&delay_count, del_count);
-    }
   };
 
   class PacketWrapper {
@@ -109,7 +100,6 @@ namespace tair {
     virtual ~PacketWrapper()
     {
       if(atomic_read(&(shared->reference_count)) == 0
-          && atomic_read(&(shared->delay_count)) == 0
           && atomic_read(&(shared->request_status)) != RETRY_COMMIT
           && atomic_read(&(shared->request_status)) != PREPARE_COMMIT)
       {
@@ -160,21 +150,6 @@ namespace tair {
     inline int get_request_status()
     {
       return atomic_read(&(shared->request_status));
-    }
-
-    inline void inc_request_delay_count()
-    {
-      atomic_inc(&(shared->delay_count));
-    }
-
-    inline void dec_request_delay_count()
-    {
-      atomic_dec(&(shared->delay_count));
-    }
-
-    inline int get_request_delay_count()
-    {
-      return atomic_read(&(shared->delay_count));
     }
 
     inline int get_needed_return_packet()

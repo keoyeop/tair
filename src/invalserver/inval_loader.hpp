@@ -35,6 +35,7 @@ namespace tair {
         }
 
         void run(tbsys::CThread *thread, void *arg);
+
         bool is_loading() const
         {
           return loading;

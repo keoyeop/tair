@@ -46,9 +46,20 @@ namespace tair {
     void process_callback(int rcode, PacketWrapper *wrapper);
 
     void end_request(PacketWrapper *wrapper);
-  protected:
-    void do_rescue_failure(PacketWrapper* wrapper);
 
+    inline void process_failed_request(PacketWrapper *wrapper)
+    {
+      wrapper->set_request_status(COMMITTED_FAILED);
+      if (wrapper->dec_and_return_reference_count(1) == 0)
+      {
+        end_request(wrapper);
+      }
+      else
+      {
+        delete wrapper;
+      }
+    }
+  protected:
     void send_return_packet(PacketWrapper *wrapper, const int ret);
 
     //defination of function type.

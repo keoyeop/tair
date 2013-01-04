@@ -49,15 +49,16 @@ namespace tair {
 
     if (wrapper->dec_and_return_reference_count(1) == 0)
     {
-      if (wrapper->get_needed_return_packet() == true)
+      //send packet to client
+      if (wrapper->get_needed_return_packet())
       {
         REQUEST_PROCESSOR.send_return_packet(wrapper, TAIR_RETURN_SUCCESS);
       }
 
+      //change request's status, if dataserver returns the failed `rcode.
       if (!(rcode == TAIR_RETURN_SUCCESS || rcode == TAIR_RETURN_DATA_NOT_EXIST))
       {
         wrapper->set_request_status(COMMITTED_FAILED);
-
         if (rcode == TAIR_RETURN_TIMEOUT)
         {
           group->inc_request_timeout_count();
@@ -66,46 +67,31 @@ namespace tair {
 
       if (wrapper->get_request_status() == COMMITTED_SUCCESS)
       {
+        //release the wrapper
         delete wrapper;
       }
       else
       {
+        //change the request's status from COMMITTED_FAILED to RETRY_COMMIT,
+        //and push the wrapper into retry_thread's queue.
         wrapper->set_needed_return_packet(false);
         wrapper->set_request_status(RETRY_COMMIT);
-        do_rescue_failure(wrapper);
+        retry_thread->add_packet(wrapper, wrapper->get_retry_times());
+        wrapper->inc_retry_times();
+        //wrapper will be released by `retry_thread.
       }
     }
     else
     {
+      //`request_reference_count is not equal to 0.
+      //check the request status necessarily.
       if (!(rcode == TAIR_RETURN_SUCCESS || rcode == TAIR_RETURN_DATA_NOT_EXIST))
       {
         wrapper->set_request_status(COMMITTED_FAILED);
-
         if (rcode == TAIR_RETURN_TIMEOUT)
         {
           group->inc_request_timeout_count();
         }
-      }
-      delete wrapper;
-    }
-  }
-
-  void RequestProcessor::do_rescue_failure(PacketWrapper *wrapper)
-  {
-    //retry operation
-    if (wrapper->get_retry_times() < InvalRetryThread::RETRY_COUNT)
-    {
-      wrapper->set_request_status(RETRY_COMMIT);
-      retry_thread->add_packet(wrapper, wrapper->get_retry_times());
-      wrapper->inc_retry_times();
-    }
-    //write the request packet to disk
-    else
-    {
-      if (wrapper->get_request_reference_count() == 0 && wrapper->get_request_delay_count() == 0)
-      {
-        wrapper->set_request_status(CACHED_IN_STORAGE);
-        request_storage->write_request(wrapper->get_packet());
       }
       delete wrapper;
     }
@@ -125,7 +111,7 @@ namespace tair {
     if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_key()),
             client_callback_with_single_key, (void*)wrapper) != TAIR_RETURN_SUCCESS)
     {
-      retry_thread->add_packet(wrapper, wrapper->get_retry_times());
+      process_failed_request(wrapper);
     }
   }
 
@@ -135,7 +121,7 @@ namespace tair {
     if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_keys()),&failed_key_code_map,
             client_callback_with_multi_keys, (void*)wrapper) != TAIR_RETURN_SUCCESS)
     {
-      retry_thread->add_packet(wrapper, wrapper->get_retry_times());
+      process_failed_request(wrapper);
     }
   }
 
@@ -152,6 +138,9 @@ namespace tair {
     {
       wrapper->set_needed_return_packet(false);
       wrapper->set_request_status(RETRY_COMMIT);
+      //push the wrapper into the retry_thread's queue
+      retry_thread->add_packet(wrapper, wrapper->get_retry_times());
+      wrapper->inc_retry_times();
     }
   }
 }
