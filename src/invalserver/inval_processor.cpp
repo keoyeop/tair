@@ -19,25 +19,65 @@ namespace tair {
     pcode_opname_map[TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET] = InvalStatHelper::PREFIX_HIDE;
   }
 
+  void RequestProcessor::do_process_request(PROCESS_RH_FUNC_T pproc, PacketWrapper *wrapper)
+  {
+    SingleWrapper *single_wrapper = dynamic_cast<SingleWrapper*>(wrapper);
+    if (single_wrapper != NULL)
+    {
+      do_process(pproc, single_wrapper);
+    }
+    else
+    {
+      log_error("FATAL ERROR, the wrapper should be SingleWrapper, pcode: %d", wrapper->get_packet()->getPCode());
+    }
+  }
+  void RequestProcessor::do_process_request(PROCESS_RHS_FUNC_T pproc, PacketWrapper *wrapper)
+  {
+    MultiWrapper *multi_wrapper = dynamic_cast<MultiWrapper*>(wrapper);
+    if (multi_wrapper != NULL)
+    {
+      do_process(pproc, multi_wrapper);
+    }
+    else
+    {
+      log_error("FATAL ERROR, the wrapper should be MultiWrapper, pcode: %d", wrapper->get_packet()->getPCode());
+    }
+  }
+
   void RequestProcessor::process(PacketWrapper *wrapper)
   {
-    int pcode = wrapper->get_packet()->getPCode();
-    switch (pcode)
+    if (wrapper == NULL)
     {
-      case TAIR_REQ_INVAL_PACKET:
-        {
-        SingleWrapper * single_wrapper = dynamic_cast<SingleWrapper*>(wrapper);
-        do_process(&tair_client_impl::remove, single_wrapper);
-        break;
-        }
-      case TAIR_REQ_HIDE_BY_PROXY_PACKET:
-        break;
-      case TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET:
-        break;
-      case TAIR_REQ_PREFIX_INVALIDS_PACKET:
-        break;
-      default:
-        log_error("FATAL ERORR, unknown pakcet, pcode: %d", pcode);
+      log_error("FATAL ERROR, wrapper is null.");
+    }
+    else
+    {
+      int pcode = wrapper->get_packet()->getPCode();
+      switch (pcode)
+      {
+        case TAIR_REQ_INVAL_PACKET:
+          {
+            do_process_request(&tair_client_impl::remove, wrapper);
+            break;
+          }
+        case TAIR_REQ_HIDE_BY_PROXY_PACKET:
+          {
+            do_process_request(&tair_client_impl::hide, wrapper);
+            break;
+          }
+        case TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET:
+          {
+            do_process_request(&tair_client_impl::hides, wrapper);
+            break;
+          }
+        case TAIR_REQ_PREFIX_INVALIDS_PACKET:
+          {
+            do_process_request(&tair_client_impl::removes, wrapper);
+            break;
+          }
+        default:
+          log_error("FATAL ERORR, unknown pakcet, pcode: %d", pcode);
+      }
     }
   }
 
@@ -113,7 +153,7 @@ namespace tair {
   {
     tair_client_impl *tair_client = wrapper->get_tair_client();
     if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_key()),
-            client_callback_with_single_key, (void*)wrapper) != TAIR_RETURN_SUCCESS)
+          client_callback_with_single_key, (void*)wrapper) != TAIR_RETURN_SUCCESS)
     {
       vector<std::string> servers;
       tair_client_impl *client = wrapper->get_tair_client();
@@ -132,7 +172,7 @@ namespace tair {
   {
     tair_client_impl *tair_client = wrapper->get_tair_client();
     if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_keys()),&failed_key_code_map,
-            client_callback_with_multi_keys, (void*)wrapper) != TAIR_RETURN_SUCCESS)
+          client_callback_with_multi_keys, (void*)wrapper) != TAIR_RETURN_SUCCESS)
     {
       vector<std::string> servers;
       tair_client_impl *client = wrapper->get_tair_client();
@@ -174,6 +214,19 @@ namespace tair {
     else
     {
       log_error("FATAL ERORR, request state: %d", wrapper->get_request_status());
+    }
+  }
+  void RequestProcessor::process_failed_request(PacketWrapper *wrapper)
+  {
+    wrapper->set_request_status(COMMITTED_FAILED);
+    //decrease the reference count
+    if (wrapper->dec_and_return_reference_count(1) == 0)
+    {
+      end_request(wrapper);
+    }
+    else
+    {
+      delete wrapper;
     }
   }
 }

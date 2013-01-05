@@ -47,19 +47,7 @@ namespace tair {
 
     void end_request(PacketWrapper *wrapper);
 
-    inline void process_failed_request(PacketWrapper *wrapper)
-    {
-      wrapper->set_request_status(COMMITTED_FAILED);
-      //decrease the reference count
-      if (wrapper->dec_and_return_reference_count(1) == 0)
-      {
-        end_request(wrapper);
-      }
-      else
-      {
-        delete wrapper;
-      }
-    }
+    void process_failed_request(PacketWrapper *wrapper);
   protected:
     void send_return_packet(PacketWrapper *wrapper, const int ret);
 
@@ -76,6 +64,8 @@ namespace tair {
 
     //process prefix_invalids/prefix_hides operation
     void do_process(PROCESS_RHS_FUNC_T pproc, MultiWrapper *wrapper);
+    void do_process_request(PROCESS_RH_FUNC_T pproc, PacketWrapper *wrapper);
+    void do_process_request(PROCESS_RHS_FUNC_T pproc, PacketWrapper *wrapper);
   private:
     static tair_packet_factory packet_factory;
 
