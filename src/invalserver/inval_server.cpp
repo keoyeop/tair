@@ -1,431 +1,463 @@
 #include "inval_server.hpp"
 #include "inval_request_packet_wrapper.hpp"
 #include "inval_group.hpp"
-namespace tair {
-  InvalServer::InvalServer()
-  {
-    _stop = false;
-    ignore_zero_area = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_IGNORE_ZERO_AREA, 0);
-    sync_task_thread_count = 0;
-  }
-
-  InvalServer::~InvalServer()
-  {
-  }
-
-  void InvalServer::start()
-  {
-    //~ initialization
-    if (!init())
+  namespace tair {
+    InvalServer::InvalServer()
     {
-      return ;
+      _stop = false;
+      ignore_zero_area = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_IGNORE_ZERO_AREA, 0);
+      sync_task_thread_count = 0;
     }
 
-    //~ start the thread to save the request packets.
-    request_storage.start();
-    //~ start thread that retrieves the group infos.
-    invalid_loader.start();
-    //~ start the retry threads.
-    retry_thread.start();
-    //~ start the threads handling the packets received from clients.
-    task_queue_thread.start();
-    //~ start the stat thread
-    TAIR_INVAL_STAT.start();
-
-    char spec[32];
-    bool ret = true;
-    //~ establish the server socket.
-    if (ret)
+    InvalServer::~InvalServer()
     {
-      int port = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_PORT, TAIR_INVAL_SERVER_DEFAULT_PORT);
-      snprintf(spec, sizeof(spec), "tcp::%d", port);
-      if (transport.listen(spec, &streamer, this) == NULL)
+    }
+
+    void InvalServer::start()
+    {
+      //~ initialization
+      if (!init())
       {
-        log_error("listen on port %d failure.", port);
-        ret = false;
+        return ;
       }
-      else
+
+      //~ start the thread to save the request packets.
+      request_storage.start();
+      //~ start thread that retrieves the group infos.
+      invalid_loader.start();
+      //~ start the retry threads.
+      retry_thread.start();
+      //~ start the threads handling the packets received from clients.
+      task_queue_thread.start();
+      //~ start the stat thread
+      TAIR_INVAL_STAT.start();
+
+      char spec[32];
+      bool ret = true;
+      //~ establish the server socket.
+      if (ret)
       {
-        log_info("listen on port %d.", port);
-      }
-    }
-    //~ start the network components.
-    if (ret)
-    {
-      log_info("invalid server start running, pid: %d", getpid());
-      transport.start();
-    }
-    else
-    {
-      stop();
-    }
-
-    //~ wait threads to complete.
-    invalid_loader.wait();
-    task_queue_thread.wait();
-    retry_thread.wait();
-    TAIR_INVAL_STAT.wait();
-    request_storage.wait();
-    transport.wait();
-
-    destroy();
-  }
-
-  void InvalServer::stop()
-  {
-    //~ stop threads.
-    if (!_stop)
-    {
-      _stop = true;
-      transport.stop();
-      log_warn("stopping transport");
-      task_queue_thread.stop();
-      log_warn("stopping task_queue_thread");
-      retry_thread.stop();
-      log_warn("stopping retry_thread");
-      invalid_loader.stop();
-      log_warn("stopping invalid_loader");
-      TAIR_INVAL_STAT.stop();
-      log_warn("stopping stat_helper");
-      request_storage.stop();
-      log_warn("stopping request_storage");
-    }
-  }
-
-  //~ the callback interface of IServerAdapter
-  tbnet::IPacketHandler::HPRetCode InvalServer::handlePacket(tbnet::Connection *connection,
-      tbnet::Packet *packet)
-  {
-    if (!packet->isRegularPacket())
-    {
-      log_error("ControlPacket, cmd: %d", ((tbnet::ControlPacket*)packet)->getCommand());
-      return tbnet::IPacketHandler::FREE_CHANNEL;
-    }
-    base_packet *bp = (base_packet*)packet;
-    bp->set_connection(connection);
-    bp->set_direction(DIRECTION_RECEIVE);
-    //~ push regular packet to task queue
-    if (!task_queue_thread.push(bp))
-    {
-      log_error("push packet to 'task_queue_thread' failed.");
-    }
-
-    return tbnet::IPacketHandler::FREE_CHANNEL;
-  }
-
-  //~ the callback interface of IPacketQueueHandler
-  bool InvalServer::handlePacketQueue(tbnet::Packet *packet, void *arg)
-  {
-    base_packet *bp = (base_packet*)packet;
-    int pcode = bp->getPCode();
-
-    bool send_ret = true;
-    int ret = TAIR_RETURN_SUCCESS;
-    const char *msg = "";
-
-    switch (pcode)
-    {
-      case TAIR_REQ_INVAL_PACKET:
+        int port = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_PORT, TAIR_INVAL_SERVER_DEFAULT_PORT);
+        snprintf(spec, sizeof(spec), "tcp::%d", port);
+        if (transport.listen(spec, &streamer, this) == NULL)
         {
-          request_invalid *req = dynamic_cast<request_invalid*>(bp);
-          if (req != NULL)
-          {
-            do_invalid(req);
-            send_ret = false;
-          }
-          else
-          {
-            log_error("[FATAL ERROR] packet could not be casted to request_invalid packet.");
-          }
-          break;
-        }
-      case TAIR_REQ_HIDE_BY_PROXY_PACKET:
-        {
-          break;
-        }
-      case TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET:
-        {
-          break;
-        }
-      case TAIR_REQ_PREFIX_INVALIDS_PACKET:
-        {
-          break;
-        }
-      case TAIR_REQ_PING_PACKET:
-        {
-          if (invalid_loader.is_loading())
-          {
-            log_info("ping packet received, but clients are still not ready");
-            ret = TAIR_RETURN_FAILED;
-            msg = "iv not ready";
-            break;
-          }
-          request_ping *req = dynamic_cast<request_ping*>(bp);
-          if (req != NULL)
-          {
-            log_info("ping packet received, config_version: %u, value: %d", req->config_version, req->value);
-            ret = TAIR_RETURN_SUCCESS;
-          }
-          else
-          {
-            ret = TAIR_RETURN_FAILED;
-          }
-          break;
-        }
-      case TAIR_REQ_INVAL_STAT_PACKET:
-        {
-          request_inval_stat *req = dynamic_cast<request_inval_stat*>(bp);
-          response_inval_stat *resp = new response_inval_stat();
-          if (req != NULL)
-          {
-            ret = do_request_stat(req, resp);
-            if (ret != TAIR_RETURN_SUCCESS)
-            {
-              send_ret = false;
-            }
-          }
-          else
-          {
-            log_error("[FATAL ERROR] the request should be request_stat.");
-            ret = TAIR_RETURN_FAILED;
-          }
-          break;
-        }
-      case TAIR_REQ_RETRY_ALL_PACKET:
-        {
-          request_retry_all *req = dynamic_cast<request_retry_all*>(bp);
-          if (req != NULL)
-          {
-            ret = do_retry_all(req);
-          }
-          else
-          {
-            log_error("[FATAL ERROR] packet could not be casted to request_retry_all packet.");
-            ret = TAIR_RETURN_FAILED;
-          }
-          break;
-        }
-      case TAIR_REQ_OP_CMD_PACKET:
-        {
-          request_op_cmd *op_cmd = dynamic_cast<request_op_cmd*>(bp);
-          if (op_cmd != NULL)
-          {
-            if (do_debug_support(op_cmd) == TAIR_RETURN_SUCCESS)
-            {
-              //had sent the packet
-              send_ret = false;
-            }
-          }
-          else
-          {
-            log_error("[FATAL ERROR] packet could not be casted to requet_op_cmd packet.");
-            ret = TAIR_RETURN_FAILED;
-          }
-          break;
-        }
-      default:
-        {
-          log_error("[FATAL ERROR] packet not recognized, pcode: %d.", pcode);
-          ret = TAIR_RETURN_FAILED;
-        }
-    }
-    //~ set and send the general return_packet.
-    // if packet->is_sync == SYNC_INVALID, send the return_packet.
-    if (send_ret && bp->get_direction() == DIRECTION_RECEIVE)
-    {
-      tair_packet_factory::set_return_packet(bp, ret, msg, 0);
-    }
-    //~ do not let 'tbnet' delete this 'packet'
-    return false;
-  }
-
-  void InvalServer::do_invalid(request_invalid *req)
-  {
-    if (ignore_zero_area && req->area == 0)
-    {
-      log_info("ignoring packet of area 0");
-    }
-    else
-    {
-      vector<TairGroup*>* tair_groups = invalid_loader.find_groups(req->group_name);
-      if (tair_groups->empty())
-      {
-        log_error("FATAL ERROR, cann't find the group name: %s, or invalid_loader is still loading.", req->group_name);
-      }
-      else
-      {
-        bool need_return_packet = true;
-        size_t request_reference_count = tair_groups->size() * req->key_count;
-        SharedInfo *shared = new SharedInfo(request_reference_count, req);
-
-        if (req->request_time < 0)
-        {
-          need_return_packet = false;
-        }
-
-        for (size_t i = 0; i < tair_groups->size(); ++i)
-        {
-          (*tair_groups)[i]->commit_request(shared, false, need_return_packet);
-        }
-
-        TAIR_INVAL_STAT.statistcs(InvalStatHelper::INVALID,
-            std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
-      }
-    }
-  }
-
-  void InvalServer::do_hide(request_hide_by_proxy *req)
-  {
-  }
-
-  void InvalServer::do_prefix_hides(request_prefix_hides_by_proxy *req)
-  {
-  }
-
-  void InvalServer::do_prefix_invalids(request_prefix_invalids *req)
-  {
-  }
-
-  int InvalServer::do_retry_all(request_retry_all* req) {
-    int ret = TAIR_RETURN_SUCCESS;
-    RetryWorkThread *worker = new RetryWorkThread(&request_storage, this);
-    //the worker release by the the function RetryWorkThreadrun
-    //never block this thread.
-    if (worker == NULL)
-    {
-      ret = TAIR_RETURN_FAILED;
-    }
-    return ret;
-  }
-
-  int InvalServer::do_request_stat(request_inval_stat *req, response_inval_stat *resp)
-  {
-    int ret = TAIR_RETURN_SUCCESS;
-    return ret;
-  }
-
-  int InvalServer::parse_params(const std::vector<std::string>& params,
-      std::string &group_name, int32_t& area, int32_t& add_request_storage)
-  {
-    int ret = TAIR_RETURN_SUCCESS;
-    return ret;
-  }
-
-  void InvalServer::construct_debug_infos(std::vector<std::string>& infos)
-  {
-  }
-
-  int InvalServer::do_debug_support(request_op_cmd *req)
-  {
-    int ret = TAIR_RETURN_SUCCESS;
-    return ret;
-  }
-
-  bool InvalServer::init()
-  {
-    //~ get local address
-    const char *dev_name = TBSYS_CONFIG.getString(INVALSERVER_SECTION, TAIR_DEV_NAME, "eth0");
-    uint32_t ip = tbsys::CNetUtil::getLocalAddr(dev_name);
-    int port = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_PORT, TAIR_INVAL_SERVER_DEFAULT_PORT);
-    util::local_server_ip::ip = tbsys::CNetUtil::ipToAddr(ip, port);
-    log_info("address: %s", tbsys::CNetUtil::addrToString(util::local_server_ip::ip).c_str());
-
-    const char *data_dir = TBSYS_CONFIG.getString(INVALSERVER_SECTION, TAIR_INVAL_DATA_DIR,
-        TAIR_INVAL_DEFAULT_DATA_DIR);
-    log_info("invalid server data path: %s", data_dir);
-    char *queue_name = "disk_queue";
-    //the packet's count default value is 10,000.
-    const int cached_packet_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_INVAL_CACHED_PACKET_COUNT,
-        TAIR_INVAL_DEFAULT_CACHED_PACKET_COUNT);
-    log_info("invalid server cached packet's count: %d", cached_packet_count);
-    request_storage.setThreadParameter(data_dir, queue_name, 0.2, 0.8, cached_packet_count, &packet_factory);
-    //~ set packet factory for packet streamer.
-    streamer.setPacketFactory(&packet_factory);
-    int thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_PROCESS_THREAD_COUNT, 4);
-    //~ set the number of threads to handle the requests.
-    task_queue_thread.setThreadParameter(thread_count, this, NULL);
-    retry_thread.setThreadParameter(&invalid_loader, &processor, &request_storage);
-    thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, "async_thread_num", 8);
-    sync_task_thread_count = thread_count;
-    return true;
-  }
-
-  bool InvalServer::destroy()
-  {
-    return true;
-  }
-
-  //begin retry_worker_thread
-  RetryWorkThread::RetryWorkThread(InvalRequestStorage *request_storage, InvalServer *inval_server)
-  {
-    this->request_storage = request_storage;
-    this->inval_server = inval_server;
-    start();
-    log_warn("retry_worker start.");
-  }
-
-  RetryWorkThread::~RetryWorkThread()
-  {
-    wait();
-    log_warn("retry_worker stop.");
-  }
-
-  void RetryWorkThread::run(tbsys::CThread *thread, void *arg)
-  {
-    int executed_count = 0;
-    if (request_storage != NULL) {
-      float safety_ratio = 0.75;
-      while (!_stop && executed_count < MAX_EXECUTED_COUNT)
-      {
-        if(request_storage->is_empty() == true)
-        {
-          log_debug("the request_storage is empty, retry worker stop.");
-          break;
-        }
-        int limit_size = (int) (MAX_QUEUE_SIZE * safety_ratio);
-        int task_queue_size = /*task_queue_thread.size();*/ 0;
-        int retry_packet_count = limit_size - task_queue_size;
-        if (retry_packet_count <= 0)
-        {
-          log_warn("task queue size: %d", task_queue_size);
+          log_error("listen on port %d failure.", port);
+          ret = false;
         }
         else
         {
-          std::vector<base_packet*> packet_vector;
-          int left_packet_count = 0;
-          left_packet_count = request_storage->read_request(packet_vector, retry_packet_count);
-          log_debug("left  %d packet(s), vector size :%d", left_packet_count, packet_vector.size());
-          //push packet to the task_queue
-          for (size_t i = 0; i < packet_vector.size(); ++i)
-          {
-            //typedef request_invalid request_inval_packet.
-            //request_invalid, request_prefix_invalids, request_hide_by_proxy, and
-            //request_prefix_hides_by_proxy are the subclass of request_invalid.
-            request_inval_packet *req = (request_inval_packet*)packet_vector[i];
-            if (req != NULL)
-            {
-              if (!inval_server->push_task(req))
-              {
-                //write to the storage.
-                request_storage->write_request(req);
-              }
-            }
-          }
+          log_info("listen on port %d.", port);
         }
-        executed_count++;
-        sleep(10);
+      }
+      //~ start the network components.
+      if (ret)
+      {
+        log_info("invalid server start running, pid: %d", getpid());
+        transport.start();
+      }
+      else
+      {
+        stop();
+      }
+
+      //~ wait threads to complete.
+      invalid_loader.wait();
+      task_queue_thread.wait();
+      retry_thread.wait();
+      TAIR_INVAL_STAT.wait();
+      request_storage.wait();
+      transport.wait();
+
+      destroy();
+    }
+
+    void InvalServer::stop()
+    {
+      //~ stop threads.
+      if (!_stop)
+      {
+        _stop = true;
+        transport.stop();
+        log_warn("stopping transport");
+        task_queue_thread.stop();
+        log_warn("stopping task_queue_thread");
+        retry_thread.stop();
+        log_warn("stopping retry_thread");
+        invalid_loader.stop();
+        log_warn("stopping invalid_loader");
+        TAIR_INVAL_STAT.stop();
+        log_warn("stopping stat_helper");
+        request_storage.stop();
+        log_warn("stopping request_storage");
       }
     }
 
-    stop();
-    log_warn("stop retry worker, cached packet count: %d, disk_queue is empty: %s",
-        request_storage->get_packet_count(), request_storage->is_empty() == true ? "yes" : "no");
+    //~ the callback interface of IServerAdapter
+    tbnet::IPacketHandler::HPRetCode InvalServer::handlePacket(tbnet::Connection *connection,
+        tbnet::Packet *packet)
+    {
+      if (!packet->isRegularPacket())
+      {
+        log_error("ControlPacket, cmd: %d", ((tbnet::ControlPacket*)packet)->getCommand());
+        return tbnet::IPacketHandler::FREE_CHANNEL;
+      }
+      base_packet *bp = (base_packet*)packet;
+      bp->set_connection(connection);
+      bp->set_direction(DIRECTION_RECEIVE);
+      //~ push regular packet to task queue
+      if (!task_queue_thread.push(bp))
+      {
+        log_error("push packet to 'task_queue_thread' failed.");
+      }
 
-    //never use it at all.
-    delete this;
-  }
+      return tbnet::IPacketHandler::FREE_CHANNEL;
+    }
 
-} //~ end of namespace tair
+    //~ the callback interface of IPacketQueueHandler
+    bool InvalServer::handlePacketQueue(tbnet::Packet *packet, void *arg)
+    {
+      base_packet *bp = (base_packet*)packet;
+      int pcode = bp->getPCode();
+
+      bool send_ret = true;
+      int ret = TAIR_RETURN_SUCCESS;
+      const char *msg = "";
+
+      switch (pcode)
+      {
+        case TAIR_REQ_INVAL_PACKET:
+          {
+            request_invalid *req = dynamic_cast<request_invalid*>(bp);
+            if (req != NULL)
+            {
+              do_invalid(req);
+              send_ret = false;
+            }
+            else
+            {
+              log_error("[FATAL ERROR] packet could not be casted to request_invalid packet.");
+            }
+            break;
+          }
+        case TAIR_REQ_HIDE_BY_PROXY_PACKET:
+          {
+            request_hide_by_proxy *req = dynamic_cast<request_hide_by_proxy*>(bp);
+            if (req != NULL)
+            {
+              do_hide(req);
+              send_ret = false;
+            }
+            else
+            {
+              log_error("[FATAL ERROR] packet could not be casted to request_hide_by_proxy packet.");
+            }
+            break;
+          }
+        case TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET:
+          {
+            request_prefix_hides_by_proxy *req = dynamic_cast<request_prefix_hides_by_proxy*>(bp);
+            if (req != NULL)
+            {
+              do_prefix_hides(req);
+              send_ret = false;
+            }
+            else
+            {
+              log_error("[FATAL ERROR] packet could not be casted to request_prefix_hides_by_proxy packet.");
+            }
+            break;
+          }
+        case TAIR_REQ_PREFIX_INVALIDS_PACKET:
+          {
+            request_prefix_invalids *req = dynamic_cast<request_prefix_invalids*>(bp);
+            if (req != NULL)
+            {
+              do_prefix_invalids(req);
+              send_ret = false;
+            }
+            else
+            {
+              log_error("[FATAL ERROR] packet could not be casted to request_prefix_invalids packet.");
+            }
+            break;
+          }
+        case TAIR_REQ_PING_PACKET:
+          {
+            if (invalid_loader.is_loading())
+            {
+              log_info("ping packet received, but clients are still not ready");
+              ret = TAIR_RETURN_FAILED;
+              msg = "iv not ready";
+              break;
+            }
+            request_ping *req = dynamic_cast<request_ping*>(bp);
+            if (req != NULL)
+            {
+              log_info("ping packet received, config_version: %u, value: %d", req->config_version, req->value);
+              ret = TAIR_RETURN_SUCCESS;
+            }
+            else
+            {
+              ret = TAIR_RETURN_FAILED;
+            }
+            break;
+          }
+        case TAIR_REQ_INVAL_STAT_PACKET:
+          {
+            request_inval_stat *req = dynamic_cast<request_inval_stat*>(bp);
+            response_inval_stat *resp = new response_inval_stat();
+            if (req != NULL)
+            {
+              ret = do_request_stat(req, resp);
+              if (ret != TAIR_RETURN_SUCCESS)
+              {
+                send_ret = false;
+              }
+            }
+            else
+            {
+              log_error("[FATAL ERROR] the request should be request_stat.");
+              ret = TAIR_RETURN_FAILED;
+            }
+            break;
+          }
+        case TAIR_REQ_RETRY_ALL_PACKET:
+          {
+            request_retry_all *req = dynamic_cast<request_retry_all*>(bp);
+            if (req != NULL)
+            {
+              ret = do_retry_all(req);
+            }
+            else
+            {
+              log_error("[FATAL ERROR] packet could not be casted to request_retry_all packet.");
+              ret = TAIR_RETURN_FAILED;
+            }
+            break;
+          }
+        case TAIR_REQ_OP_CMD_PACKET:
+          {
+            request_op_cmd *op_cmd = dynamic_cast<request_op_cmd*>(bp);
+            if (op_cmd != NULL)
+            {
+              if (do_debug_support(op_cmd) == TAIR_RETURN_SUCCESS)
+              {
+                //had sent the packet
+                send_ret = false;
+              }
+            }
+            else
+            {
+              log_error("[FATAL ERROR] packet could not be casted to requet_op_cmd packet.");
+              ret = TAIR_RETURN_FAILED;
+            }
+            break;
+          }
+        default:
+          {
+            log_error("[FATAL ERROR] packet not recognized, pcode: %d.", pcode);
+            ret = TAIR_RETURN_FAILED;
+          }
+      }
+      //~ set and send the general return_packet.
+      // if packet->is_sync == SYNC_INVALID, send the return_packet.
+      if (send_ret && bp->get_direction() == DIRECTION_RECEIVE)
+      {
+        tair_packet_factory::set_return_packet(bp, ret, msg, 0);
+      }
+      //~ do not let 'tbnet' delete this 'packet'
+      return false;
+    }
+
+    void InvalServer::process_unknown_groupname_request(tbnet::Packet *packet)
+    {
+      //can't find the instance of TairGroup, according to the `req->group_name.
+      //just send the return packet to client
+      request_inval_packet *req = dynamic_cast<request_inval_packet*>(packet);
+      if (req != NULL && req->request_time > 0 && req->get_direction() == DIRECTION_RECEIVE)
+      {
+        tair_packet_factory::set_return_packet(req, TAIR_RETURN_FAILED, "unknown group name.", 0);
+      }
+    }
+
+    void InvalServer::do_request(request_inval_packet *req, int factor, int request_type, bool merged)
+    {
+      if (ignore_zero_area && req->area == 0)
+      {
+        log_info("ignoring packet of area 0");
+      }
+      else
+      {
+        vector<TairGroup*>* tair_groups = invalid_loader.find_groups(req->group_name);
+
+        if (tair_groups == NULL || tair_groups->empty())
+        {
+          log_error("FATAL ERROR, cann't find the group name: %s, or invalid_loader is still loading.", req->group_name);
+          process_unknown_groupname_request(req);
+          return;
+        }
+        else
+        {
+          bool need_return_packet = true;
+          size_t request_reference_count = tair_groups->size() * factor;
+          SharedInfo *shared = new SharedInfo(request_reference_count, req);
+
+          if (req->request_time < 0)
+          {
+            need_return_packet = false;
+          }
+
+          for (size_t i = 0; i < tair_groups->size(); ++i)
+          {
+            (*tair_groups)[i]->commit_request(shared, merged, need_return_packet);
+          }
+
+          TAIR_INVAL_STAT.statistcs(request_type,
+              std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
+        }
+      }
+    }
+
+    int InvalServer::do_retry_all(request_retry_all* req) {
+      int ret = TAIR_RETURN_SUCCESS;
+      RetryWorkThread *worker = new RetryWorkThread(&request_storage, this);
+      //the worker release by the the function RetryWorkThreadrun
+      //never block this thread.
+      if (worker == NULL)
+      {
+        ret = TAIR_RETURN_FAILED;
+      }
+      return ret;
+    }
+
+    int InvalServer::do_request_stat(request_inval_stat *req, response_inval_stat *resp)
+    {
+      int ret = TAIR_RETURN_SUCCESS;
+      return ret;
+    }
+
+    int InvalServer::parse_params(const std::vector<std::string>& params,
+        std::string &group_name, int32_t& area, int32_t& add_request_storage)
+    {
+      int ret = TAIR_RETURN_SUCCESS;
+      return ret;
+    }
+
+    void InvalServer::construct_debug_infos(std::vector<std::string>& infos)
+    {
+    }
+
+    int InvalServer::do_debug_support(request_op_cmd *req)
+    {
+      int ret = TAIR_RETURN_SUCCESS;
+      return ret;
+    }
+
+    bool InvalServer::init()
+    {
+      //~ get local address
+      const char *dev_name = TBSYS_CONFIG.getString(INVALSERVER_SECTION, TAIR_DEV_NAME, "eth0");
+      uint32_t ip = tbsys::CNetUtil::getLocalAddr(dev_name);
+      int port = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_PORT, TAIR_INVAL_SERVER_DEFAULT_PORT);
+      util::local_server_ip::ip = tbsys::CNetUtil::ipToAddr(ip, port);
+      log_info("address: %s", tbsys::CNetUtil::addrToString(util::local_server_ip::ip).c_str());
+
+      const char *data_dir = TBSYS_CONFIG.getString(INVALSERVER_SECTION, TAIR_INVAL_DATA_DIR,
+          TAIR_INVAL_DEFAULT_DATA_DIR);
+      log_info("invalid server data path: %s", data_dir);
+      char *queue_name = "disk_queue";
+      //the packet's count default value is 10,000.
+      const int cached_packet_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_INVAL_CACHED_PACKET_COUNT,
+          TAIR_INVAL_DEFAULT_CACHED_PACKET_COUNT);
+      log_info("invalid server cached packet's count: %d", cached_packet_count);
+      request_storage.setThreadParameter(data_dir, queue_name, 0.2, 0.8, cached_packet_count, &packet_factory);
+      //~ set packet factory for packet streamer.
+      streamer.setPacketFactory(&packet_factory);
+      int thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_PROCESS_THREAD_COUNT, 4);
+      //~ set the number of threads to handle the requests.
+      task_queue_thread.setThreadParameter(thread_count, this, NULL);
+      retry_thread.setThreadParameter(&invalid_loader, &request_storage);
+      thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, "async_thread_num", 8);
+      sync_task_thread_count = thread_count;
+      return true;
+    }
+
+    bool InvalServer::destroy()
+    {
+      return true;
+    }
+
+    //begin retry_worker_thread
+    RetryWorkThread::RetryWorkThread(InvalRequestStorage *request_storage, InvalServer *inval_server)
+    {
+      this->request_storage = request_storage;
+      this->inval_server = inval_server;
+      start();
+      log_warn("retry_worker start.");
+    }
+
+    RetryWorkThread::~RetryWorkThread()
+    {
+      wait();
+      log_warn("retry_worker stop.");
+    }
+
+    void RetryWorkThread::run(tbsys::CThread *thread, void *arg)
+    {
+      int executed_count = 0;
+      if (request_storage != NULL) {
+        float safety_ratio = 0.75;
+        while (!_stop && executed_count < MAX_EXECUTED_COUNT)
+        {
+          if(request_storage->is_empty() == true)
+          {
+            log_debug("the request_storage is empty, retry worker stop.");
+            break;
+          }
+          int limit_size = (int) (MAX_QUEUE_SIZE * safety_ratio);
+          int task_queue_size = /*task_queue_thread.size();*/ 0;
+          int retry_packet_count = limit_size - task_queue_size;
+          if (retry_packet_count <= 0)
+          {
+            log_warn("task queue size: %d", task_queue_size);
+          }
+          else
+          {
+            std::vector<base_packet*> packet_vector;
+            int left_packet_count = 0;
+            left_packet_count = request_storage->read_request(packet_vector, retry_packet_count);
+            log_debug("left  %d packet(s), vector size :%d", left_packet_count, packet_vector.size());
+            //push packet to the task_queue
+            for (size_t i = 0; i < packet_vector.size(); ++i)
+            {
+              //typedef request_invalid request_inval_packet.
+              //request_invalid, request_prefix_invalids, request_hide_by_proxy, and
+              //request_prefix_hides_by_proxy are the subclass of request_invalid.
+              request_inval_packet *req = (request_inval_packet*)packet_vector[i];
+              if (req != NULL)
+              {
+                if (!inval_server->push_task(req))
+                {
+                  //write to the storage.
+                  request_storage->write_request(req);
+                }
+              }
+            }
+          }
+          executed_count++;
+          sleep(10);
+        }
+      }
+
+      stop();
+      log_warn("stop retry worker, cached packet count: %d, disk_queue is empty: %s",
+          request_storage->get_packet_count(), request_storage->is_empty() == true ? "yes" : "no");
+
+      //never use it at all.
+      delete this;
+    }
+
+  } //~ end of namespace tair
 
 tair::InvalServer * invalid_server = NULL;
 uint64_t tair::util::local_server_ip::ip = 0;

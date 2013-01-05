@@ -37,12 +37,13 @@ namespace tair {
       case TAIR_REQ_PREFIX_INVALIDS_PACKET:
         break;
       default:
-        log_error("[BUG] ");
+        log_error("FATAL ERORR, unknown pakcet, pcode: %d", pcode);
     }
   }
 
   void RequestProcessor::process_callback(int rcode, PacketWrapper *wrapper)
   {
+    log_debug("call back invoked");
 
     TairGroup *group = wrapper->get_group();
     group->dec_uninvoked_callback_count();
@@ -68,10 +69,12 @@ namespace tair {
       if (wrapper->get_request_status() == COMMITTED_SUCCESS)
       {
         //release the wrapper
+        log_debug("release the wrapper, finished the request.");
         delete wrapper;
       }
       else
       {
+        log_warn("request failed, retry the request, retry times: %d", wrapper->get_retry_times());
         //change the request's status from COMMITTED_FAILED to RETRY_COMMIT,
         //and push the wrapper into retry_thread's queue.
         wrapper->set_needed_return_packet(false);
@@ -85,6 +88,7 @@ namespace tair {
     {
       //`request_reference_count is not equal to 0.
       //check the request status necessarily.
+      log_debug("the reques reference count is more than 0, just release the wrapper.");
       if (!(rcode == TAIR_RETURN_SUCCESS || rcode == TAIR_RETURN_DATA_NOT_EXIST))
       {
         wrapper->set_request_status(COMMITTED_FAILED);
@@ -111,7 +115,16 @@ namespace tair {
     if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_key()),
             client_callback_with_single_key, (void*)wrapper) != TAIR_RETURN_SUCCESS)
     {
+      vector<std::string> servers;
+      tair_client_impl *client = wrapper->get_tair_client();
+      client->get_server_with_key(*(wrapper->get_key()), servers);
+      log_warn("failed to send request to data server: %s, group name: %s",
+          servers[0].c_str(), wrapper->get_packet()->group_name);
       process_failed_request(wrapper);
+    }
+    else
+    {
+      log_debug("send request to the data server successfully.");
     }
   }
 
@@ -121,7 +134,23 @@ namespace tair {
     if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_keys()),&failed_key_code_map,
             client_callback_with_multi_keys, (void*)wrapper) != TAIR_RETURN_SUCCESS)
     {
+      vector<std::string> servers;
+      tair_client_impl *client = wrapper->get_tair_client();
+      tair_dataentry_set *keys = wrapper->get_keys();
+      if (keys == NULL || keys->empty())
+      {
+        //bug: request without any key.
+        log_error("FATAL ERROR, request without any key");
+        return;
+      }
+      client->get_server_with_key(**(keys->begin()), servers);
+      log_warn("failed to send request to data server: %s, group name: %s",
+          servers[0].c_str(), wrapper->get_packet()->group_name);
       process_failed_request(wrapper);
+    }
+    else
+    {
+      log_debug("send request to the data server successfully.");
     }
   }
 
@@ -141,6 +170,10 @@ namespace tair {
       //push the wrapper into the retry_thread's queue
       retry_thread->add_packet(wrapper, wrapper->get_retry_times());
       wrapper->inc_retry_times();
+    }
+    else
+    {
+      log_error("FATAL ERORR, request state: %d", wrapper->get_request_status());
     }
   }
 }

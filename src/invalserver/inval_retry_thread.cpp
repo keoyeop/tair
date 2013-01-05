@@ -5,7 +5,6 @@ namespace tair {
   InvalRetryThread::InvalRetryThread()
   {
     invalid_loader = NULL;
-    processor = NULL;
     setThreadCount(RETRY_COUNT);
     request_storage = NULL;
   }
@@ -14,12 +13,10 @@ namespace tair {
   {
   }
 
-  void InvalRetryThread::setThreadParameter(InvalLoader *loader, RequestProcessor *processor,
-      InvalRequestStorage * requeststorage)
+  void InvalRetryThread::setThreadParameter(InvalLoader* invalid_loader, InvalRequestStorage * request_storage)
   {
-    this->invalid_loader = loader;
-    this->processor = processor;
-    this->request_storage = requeststorage;
+    this->invalid_loader = invalid_loader;
+    this->request_storage = request_storage;
   }
 
   void InvalRetryThread::stop()
@@ -31,10 +28,49 @@ namespace tair {
     }
   }
 
+  void InvalRetryThread::do_retry_commit_request(PacketWrapper *wrapper, int operation_type, bool merged)
+  {
+    int ret = TAIR_RETURN_SUCCESS;
+    request_inval_packet *packet = NULL;
+    if ((packet = wrapper->get_packet()) == NULL)
+    {
+      log_error("FATAL ERROR, packet is null.");
+      ret = TAIR_RETURN_FAILED;
+    }
+
+    vector<TairGroup*>* groups = NULL;
+    if (ret == TAIR_RETURN_SUCCESS && (groups = invalid_loader->find_groups(packet->group_name)) == NULL)
+    {
+      log_error("FATAL ERROR, can't find the group according the group name: %s", packet->group_name);
+      ret = TAIR_RETURN_FAILED;
+    }
+
+    SharedInfo *shared = NULL;
+    if (ret == TAIR_RETURN_SUCCESS && (shared = wrapper->get_shared_info()) == NULL)
+    {
+      log_error("FATAL ERROR, sharedinfo is null in the wrapper.");
+      ret = TAIR_RETURN_FAILED;
+    }
+
+    if (ret == TAIR_RETURN_SUCCESS)
+    {
+      log_debug("retry the request, group name: %s, current retry times: %d", packet->group_name,
+          wrapper->get_retry_times());
+      shared->set_request_reference_count(groups->size());
+      for (size_t i = 0; i < groups->size(); ++i)
+      {
+        (*groups)[i]->retry_commit_request(wrapper, merged);
+      }
+
+      TAIR_INVAL_STAT.statistcs(operation_type, std::string(packet->group_name),
+          packet->area, inval_area_stat::RETRY_EXEC);
+    }
+  }
+
   void InvalRetryThread::run(tbsys::CThread *thread, void *arg)
   {
     int index = (int)((long)arg);
-    if (index < 0 || index >= RETRY_COUNT || invalid_loader == NULL )
+    if (index < 0 || index >= RETRY_COUNT || invalid_loader == NULL)
     {
       return ;
     }
@@ -77,39 +113,22 @@ namespace tair {
       {
         case TAIR_REQ_INVAL_PACKET:
           {
-            SingleWrapper *swrapper = (SingleWrapper*) wrapper;
-            request_invalid* packet = (request_invalid*)swrapper->get_packet();
-            vector<TairGroup*>* groups = invalid_loader->find_groups(packet->group_name);
-            SharedInfo *shared = swrapper->get_shared_info();
-
-            shared->set_request_reference_count(groups->size());
-            for (size_t i = 0; i < groups->size(); ++i)
-            {
-              (*groups)[i]->commit_request(swrapper->get_key(), shared);
-            }
-
-            TAIR_INVAL_STAT.statistcs(InvalStatHelper::INVALID, std::string(packet->group_name),
-                packet->area, inval_area_stat::RETRY_EXEC);
-
-            delete swrapper;
+            do_retry_commit_request(wrapper, InvalStatHelper::INVALID, /*merged =*/ false);
             break;
           }
         case TAIR_REQ_HIDE_BY_PROXY_PACKET:
           {
-            //TAIR_INVAL_STAT.statistcs(InvalStatHelper::HIDE, std::string(wrapper->packet->group_name),
-            //    wrapper->packet->area, inval_area_stat::RETRY_EXEC);
+            do_retry_commit_request(wrapper, InvalStatHelper::HIDE, /*merged =*/ false);
             break;
           }
         case TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET:
           {
-            //TAIR_INVAL_STAT.statistcs(InvalStatHelper::PREFIX_HIDE, std::string(wrapper->packet->group_name),
-            //    wrapper->packet->area, inval_area_stat::RETRY_EXEC);
+            do_retry_commit_request(wrapper, InvalStatHelper::PREFIX_HIDE, /*merged =*/ true);
             break;
           }
         case TAIR_REQ_PREFIX_INVALIDS_PACKET:
           {
-           // TAIR_INVAL_STAT.statistcs(InvalStatHelper::PREFIX_INVALID, std::string(wrapper->packet->group_name),
-           //     wrapper->packet->area, inval_area_stat::RETRY_EXEC);
+            do_retry_commit_request(wrapper, InvalStatHelper::PREFIX_HIDE, /*merged =*/ true);
             break;
           }
         default:
@@ -118,6 +137,8 @@ namespace tair {
             break;
           }
       }
+      //release the wrapper
+      delete wrapper;
     }
     //~ clear the queue when stopped.
     cur_cond->lock();
@@ -139,23 +160,46 @@ namespace tair {
 
   void InvalRetryThread::add_packet(PacketWrapper *wrapper, int index)
   {
-    if (index < 0 || index > RETRY_COUNT - 1 || _stop == true)
+    if (index < 0 || index > RETRY_COUNT)
     {
+      log_error("FATAL ERROR, index: %d, mast be in the range of [0, %d]", index, RETRY_COUNT);
+      return;
     }
     queue_cond[index].lock();
-    if ((int)retry_queue[index].size() >= MAX_QUEUE_SIZE)
+    //the request will be write to `request_storage.
+    //1)  the retry's queue is overflowed;
+    //2)  the retry times were enough.
+    //3)  the retry thread were stop;
+    if ((int)retry_queue[index].size() >= MAX_QUEUE_SIZE
+        || index >= RETRY_COUNT || _stop)
     {
       queue_cond[index].unlock();
-      log_error("[ERROR] Retry Queue %d has overflowed, packet is pushed into request_storage.", index);
+      std::string res;
+      if (_stop)
+      {
+        res = "retry threads were stop";
+      }
+      else if (index >= RETRY_COUNT)
+      {
+        res = "retry times was sufficient";
+      }
+      else
+      {
+        res = "the retry thread's queue has overflowed";
+      }
+        log_error("ERROR, request failed, retry_times: %d, reason: %s, and write the request packet to `request_storage",
+            index, res.c_str());
       if (wrapper != NULL && wrapper->get_packet() != NULL)
       {
+        log_debug("write request to the `request_storage, retry_times: %d", index);
         wrapper->set_request_status(CACHED_IN_STORAGE);
         request_storage->write_request((base_packet*)wrapper->get_packet());
+        //just release the wrapper, the request packet will be released by `request_storage.
         delete wrapper;
       }
       return ;
     }
-    log_debug("add packet to RetryThread %d", index);
+    log_warn("add packet to RetryThread %d, group name: %s", index, wrapper->get_packet()->group_name);
     wrapper->get_packet()->request_time = time(NULL);
     retry_queue[index].push(wrapper);
     queue_cond[index].unlock();

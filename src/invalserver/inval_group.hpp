@@ -35,18 +35,7 @@ namespace tair {
     void commit_request(SharedInfo *shared, bool merged, bool need_return_packet);
 
     //retry_thread commit the request, invoked in retry_thread's funcation named `run.
-    inline void commit_request(data_entry * key, SharedInfo *shared)
-    {
-      SingleWrapper *wrapper = new SingleWrapper(this, shared, key);
-      do_commit_request(wrapper);
-    }
-
-    //retry_thread commit the request, invoked in retry_thread's funcation named `run.
-    inline void commit_request(tair_dataentry_set * keys, SharedInfo *shared)
-    {
-      MultiWrapper *wrapper = new MultiWrapper(this, shared, keys);
-      do_commit_request(wrapper);
-    }
+    void retry_commit_request(PacketWrapper *wrapper, bool merged);
 
     inline void inc_uninvokeded_callback_count()
     {
@@ -100,7 +89,7 @@ namespace tair {
     {
       return atomic_read(&healthy) == HEALTHY;
     }
-    void do_commit_request(PacketWrapper* wrapper);
+    void do_retry_commit_request(PacketWrapper* wrapper);
 
     typedef void (RequestProcessor::*PROC_FUNC_T) (PacketWrapper *wrapper);
     void do_process_unmerged_keys(PROC_FUNC_T func, SharedInfo *shared, bool need_return_packet);
@@ -126,6 +115,13 @@ namespace tair {
     atomic_t request_timeout_count;
     //the limit value of `request_timeout_count.
     atomic_t request_timeout_count_limit;
+
+    //default value of the limit.
+    enum
+    {
+      DEFAULT_UNINVOKED_CALLBACK_COUNT_LIMIT = 1000000,
+      DEFAULT_REQUEST_TIMEOUT_COUNT_LIMIT = 100000
+    };
 
     atomic_t healthy;
     enum

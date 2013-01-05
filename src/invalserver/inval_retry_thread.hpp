@@ -4,14 +4,12 @@
 #include <tbsys.h>
 #include <tbnet.h>
 
-#include "inval_loader.hpp"
 #include "log.hpp"
 #include "base_packet.hpp"
 #include "invalid_packet.hpp"
 #include "hide_by_proxy_packet.hpp"
 #include "prefix_invalids_packet.hpp"
 #include "prefix_hides_by_proxy_packet.hpp"
-#include "inval_processor.hpp"
 #include "inval_request_storage.hpp"
 #include "inval_stat_helper.hpp"
 #include <queue>
@@ -23,12 +21,13 @@
 
 namespace tair {
   class PacketWrapper;
+  class InvalLoader;
   class InvalRetryThread: public tbsys::CDefaultRunnable {
   public:
     InvalRetryThread();
     ~InvalRetryThread();
 
-    void setThreadParameter(InvalLoader *loader, RequestProcessor *processor, InvalRequestStorage * requeststorage);
+    void setThreadParameter(InvalLoader *invalid_loader, InvalRequestStorage * request_storage);
 
     void stop();
     void run(tbsys::CThread *thread, void *arg);
@@ -37,13 +36,14 @@ namespace tair {
 
     static const int RETRY_COUNT = 3;
   private:
+    void do_retry_commit_request(PacketWrapper *wrapper, int operation_type, bool merged);
+  private:
     static const int MAX_QUEUE_SIZE = 10000;
-    InvalLoader *invalid_loader;
-    RequestProcessor *processor;
     tbsys::CThreadCond queue_cond[RETRY_COUNT];
     std::queue<PacketWrapper*> retry_queue[RETRY_COUNT];
 
-    InvalRequestStorage * request_storage; //from inval server
+    InvalLoader *invalid_loader;
+    InvalRequestStorage *request_storage; //from inval server
   };
 }
 #endif

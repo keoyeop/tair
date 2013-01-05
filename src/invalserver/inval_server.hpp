@@ -40,10 +40,31 @@ namespace tair {
       return true;
     }
   private:
-    void do_invalid(request_invalid *req);
-    void do_hide(request_hide_by_proxy *req);
-    void do_prefix_hides(request_prefix_hides_by_proxy *req);
-    void do_prefix_invalids(request_prefix_invalids *req);
+    void do_request(request_inval_packet *req, int factor, int request_type, bool merged);
+    inline void do_invalid(request_invalid *req)
+    {
+      //the default value of `request_reference_count is the product of the group's count and `key_count,
+      //while the operation is any of {invalid, hide}. in this case, the factor's value is equal to `key_count.
+      do_request(req, /*factor = */ req->key_count, InvalStatHelper::INVALID, false);
+    }
+
+    inline void do_hide(request_hide_by_proxy *req)
+    {
+      do_request(req, req->key_count, InvalStatHelper::HIDE, false);
+    }
+
+    inline void do_prefix_hides(request_prefix_hides_by_proxy *req)
+    {
+      //the default value of `request_reference_count is the count of groups,
+      //while the operation is any of prefix_{invalid, hide}. in this case, the factor's value is aways equal to 1.
+      do_request(req, /*factor = */ 1, InvalStatHelper::PREFIX_HIDE, true);
+    }
+
+    inline void do_prefix_invalids(request_prefix_invalids *req)
+    {
+      do_request(req, 1, InvalStatHelper::PREFIX_INVALID, true);
+    }
+
     int do_request_stat(request_inval_stat *req, response_inval_stat *resp);
     int do_retry_all(request_retry_all* req);
     bool init();
@@ -55,7 +76,7 @@ namespace tair {
         std::string& group_name, int32_t& area, int32_t& add_request_storage);
     void construct_debug_infos(std::vector<std::string>& infos);
   private:
-    inline void set_packet_reference_count(tbnet::Packet *packet);
+    void process_unknown_groupname_request(tbnet::Packet *packet);
     bool _stop;
     bool ignore_zero_area;
 
