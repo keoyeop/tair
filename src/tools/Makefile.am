@@ -19,7 +19,7 @@ LDADD=$(top_srcdir)/src/client/.libs/libtairclientapi.a \
 	  $(TBLIB_ROOT)/lib/libtbnet.a \
 	  $(TBLIB_ROOT)/lib/libtbsys.a \
 	  $(COMPRESS_LDFLAGS) \
-		-lz
+		-lz -lrt
 
 AM_LDFLAGS=-lpthread -lz -lrt ${GCOV_LIB}
 

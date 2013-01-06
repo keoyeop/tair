@@ -11,7 +11,7 @@ AM_CPPFLAGS= -fPIC -I${top_srcdir}/src \
 	    -I${top_srcdir}/src/plugin
 
 LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
-      $(TBLIB_ROOT)/lib/libtbsys.a
+      $(TBLIB_ROOT)/lib/libtbsys.a -lrt
 
 multi_cluster_impl_source=tair_multi_cluster_client_impl.hpp tair_multi_cluster_client_impl.cpp \
 			  cluster_handler_manager.hpp cluster_handler_manager.cpp \

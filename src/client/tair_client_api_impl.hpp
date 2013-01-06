@@ -60,7 +60,6 @@ namespace tair {
   namespace common { struct key_value_pack_t; }
 
   class operation_record;
-  extern typedef vector<operation_record *> tair_operc_vector;
   const int UPDATE_SERVER_TABLE_INTERVAL = 50;
 
   typedef map<uint64_t , request_get *> request_get_map;
@@ -236,7 +235,7 @@ namespace tair {
     void run(tbsys::CThread *thread, void *arg);
 
 
-      int direct_update(std::vector<uint64_t>& servers, tair_operc_vector* opercs);
+    int direct_update(std::vector<uint64_t>& servers, std::vector<operation_record *>* opercs);
 
     int remove_area(int area);
     //    int getStatInfo(int type, int area, vector<ResponseStatPacket *> &list);
