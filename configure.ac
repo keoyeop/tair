@@ -1,6 +1,6 @@
-AC_INIT(tair, 2.3.2.1,ruohai@taobao.com)
+AC_INIT([tair], [2.3.2.1], [zongdai@taobao.com])
 
-AM_INIT_AUTOMAKE(tair, 2.3.2.1)
+AM_INIT_AUTOMAKE([foreign])
 AC_PROG_CXX
 AC_LANG([C++])
 AC_PROG_LIBTOOL

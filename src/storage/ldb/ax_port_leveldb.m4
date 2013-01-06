@@ -17,8 +17,8 @@ AC_CACHE_CHECK(
 	[ac_cv_cxx0x_supported],
 	[
 	 AC_LANG_PUSH([C++])
-	 AC_COMPILE_IFELSE(AC_LANG_PROGRAM([[@%:@include <cstdatomic>]],
-			      [[return 0;]]),
+	 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[@%:@include <cstdatomic>]],
+			      [[return 0;]])],
 			      [ac_cv_cxx0x_supported="yes"],
 			      [ac_cv_cxx0x_supported="no"])
          AC_LANG_POP([C++])
