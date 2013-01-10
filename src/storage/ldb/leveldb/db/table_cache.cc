@@ -69,7 +69,7 @@ Status TableCache::FindTable(uint64_t file_number, uint64_t file_size,
       TableAndFile* tf = new TableAndFile;
       tf->file = file;
       tf->table = table;
-      *handle = cache_->Insert(key, tf, 1, &DeleteEntry);
+      *handle = cache_->Insert(key, tf, 1, (key.size() + tf->table->ApproximateMemoryUsage()), &DeleteEntry);
     }
   }
   return s;
@@ -120,6 +120,10 @@ void TableCache::Evict(uint64_t file_number) {
   char buf[sizeof(file_number)];
   EncodeFixed64(buf, file_number);
   cache_->Erase(Slice(buf, sizeof(buf)));
+}
+
+void TableCache::Stats(std::string& result) {
+  return cache_->Stats(result);
 }
 
 }  // namespace leveldb

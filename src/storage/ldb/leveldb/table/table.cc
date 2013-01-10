@@ -181,7 +181,7 @@ Iterator* Table::BlockReader(void* arg,
           block = new Block(contents);
           if (contents.cachable && options.fill_cache) {
             cache_handle = block_cache->Insert(
-                key, block, block->size(), &DeleteCachedBlock);
+                key, block, block->size(), (key.size() + block->size()), &DeleteCachedBlock);
           }
         }
       }
@@ -277,6 +277,19 @@ uint64_t Table::ApproximateOffsetOf(const Slice& key) const {
   }
   delete index_iter;
   return result;
+}
+
+size_t Table::ApproximateMemoryUsage() const {
+  size_t ret = sizeof(Rep);
+  // index block data size
+  if (rep_->index_block != NULL) {
+    ret += rep_->index_block->size();
+  }
+  // filter block data size
+  if (rep_->filter != NULL) {
+    ret += rep_->filter->size();
+  }
+  return ret;
 }
 
 }  // namespace leveldb

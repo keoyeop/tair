@@ -2067,6 +2067,18 @@ bool DBImpl::GetProperty(const Slice& property, std::string* value,
         value->append(buf);
       }
     }
+
+    mutex_.Unlock();
+    // append cache statistics
+    if (table_cache_ != NULL) {
+      value->append("Table Cache: ");
+      table_cache_->Stats(*value);
+    }
+    if (options_.block_cache != NULL) {
+      value->append("Block Cache: ");
+      options_.block_cache->Stats(*value);
+    }
+    mutex_.Lock();
     return true;
   } else if (in == "sstables") {
     *value = versions_->current()->DebugString();

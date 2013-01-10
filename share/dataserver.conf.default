@@ -161,7 +161,7 @@ ldb_bucket_index_file_dir=./data/bindex
 ldb_max_mem_usage_for_memtable=3221225472
 ####
 
-#### leveldb config (Waring: you should know what you're doing.)
+#### leveldb config (Warning: you should know what you're doing.)
 ## one leveldb instance max open files(actually table_cache_ capacity, consider as working set)
 ldb_max_open_files=65535
 ## whether return fail when occure fail when init/load db, and

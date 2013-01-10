@@ -859,7 +859,7 @@ Status VersionSet::LogAndApply(VersionEdit* edit, port::Mutex* mu) {
     // No reason to unlock *mu here since we only hit this path in the
     // first call to LogAndApply (when opening the database).
     new_manifest_file_number = (descriptor_log_ == NULL) ? manifest_file_number_ : NewFileNumber();
-    Log(options_->info_log, "start new manifest, %d => %d", manifest_file_number_, new_manifest_file_number);
+    Log(options_->info_log, "start new manifest, %lu => %lu", manifest_file_number_, new_manifest_file_number);
     new_manifest_file = DescriptorFileName(dbname_, new_manifest_file_number);
     edit->SetNextFile(NextFileNumber());
     s = env_->NewWritableFile(new_manifest_file, &new_descriptor_file);

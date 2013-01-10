@@ -155,7 +155,7 @@ class PosixLogger : public Logger {
     }
 
     char buf[8];
-    snprintf(buf, sizeof(buf), ".%d", suffix_date);
+    snprintf(buf, sizeof(buf), ".%.2d", suffix_date);
     return filename_ + buf;
   }
 };
