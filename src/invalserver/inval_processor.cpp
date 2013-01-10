@@ -142,7 +142,7 @@ namespace tair {
       wrapper->get_shared_info()->packet = NULL;
       int retry_times = shared->get_retry_times();
       //request faield, warnnig ~
-      log_error("REQUEST FAILED, request will be retried to process, cluster name: %s, group name: %d, queue: %d, pcode: %d",
+      log_error("REQUEST FAILED, request will be retried to process, cluster name: %s, group name: %s, queue: %d, pcode: %d",
           wrapper->get_group()->get_cluster_name().c_str(), wrapper->get_group()->get_group_name().c_str(),
           retry_times, shared->packet->getPCode());
       shared->inc_retry_times();
