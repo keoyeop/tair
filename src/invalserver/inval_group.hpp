@@ -22,22 +22,21 @@
 #include "base_packet.hpp"
 #include <string>
 #include <queue>
-#include "inval_request_packet_wrapper.hpp"
-#include "inval_processor.hpp"
 namespace tair {
   class tair_client_impl;
+  struct SharedInfo;
+  class PacketWrapper;
+  class RequestProcessor;
   class TairGroup {
   public:
-    TairGroup(uint64_t master, uint64_t slave, const std::string &group_name, tair_client_impl *tair_client);
+    TairGroup(const std::string &cluster_name, uint64_t master, uint64_t slave,
+        const std::string &group_name, tair_client_impl *tair_client);
     ~TairGroup();
 
-    //inval_server commit the request, invoked in inval_server's funcation named `handlePacketQueue.
+    //inval_server commit the request
     void commit_request(SharedInfo *shared, bool merged, bool need_return_packet);
 
-    //retry_thread commit the request, invoked in retry_thread's funcation named `run.
-    void retry_commit_request(PacketWrapper *wrapper, bool merged);
-
-    inline void inc_uninvokeded_callback_count()
+    inline void inc_uninvoked_callback_count()
     {
       atomic_inc(&uninvoked_callback_count);
     }
@@ -84,12 +83,21 @@ namespace tair {
     {
       atomic_set(&request_timeout_count_limit, limit);
     }
+
+    inline const std::string& get_cluster_name()
+    {
+      return cluster_name;
+    }
+
+    inline const std::string& get_group_name()
+    {
+      return group_name;
+    }
   protected:
     inline bool is_healthy()
     {
       return atomic_read(&healthy) == HEALTHY;
     }
-    void do_retry_commit_request(PacketWrapper* wrapper);
 
     typedef void (RequestProcessor::*PROC_FUNC_T) (PacketWrapper *wrapper);
     void do_process_unmerged_keys(PROC_FUNC_T func, SharedInfo *shared, bool need_return_packet);
@@ -102,6 +110,7 @@ namespace tair {
 
     //group
     std::string group_name;
+    std::string cluster_name;
     uint64_t master;
     uint64_t slave;
 

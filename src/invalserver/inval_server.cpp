@@ -274,10 +274,23 @@
       //can't find the instance of TairGroup, according to the `req->group_name.
       //just send the return packet to client
       request_inval_packet *req = dynamic_cast<request_inval_packet*>(packet);
+      log_warn("TEST, unknown request packet, pcode: %d, group name: %s", req->getPCode(), req->group_name);
       if (req != NULL && req->request_time > 0 && req->get_direction() == DIRECTION_RECEIVE)
       {
         tair_packet_factory::set_return_packet(req, TAIR_RETURN_FAILED, "unknown group name.", 0);
+        //packet should be released.
+        delete req;
       }
+    }
+
+    bool InvalServer::push_task(tbnet::Packet *packet)
+    {
+      return task_queue_thread.push(packet);
+    }
+
+    int InvalServer::task_queue_size()
+    {
+      return task_queue_thread.size();
     }
 
     void InvalServer::do_request(request_inval_packet *req, int factor, int request_type, bool merged)
@@ -288,37 +301,47 @@
       }
       else
       {
-        vector<TairGroup*>* tair_groups = invalid_loader.find_groups(req->group_name);
-
-        if (tair_groups == NULL || tair_groups->empty())
+        if (req->key_count <= 0)
         {
-          log_error("FATAL ERROR, cann't find the group name: %s, or invalid_loader is still loading.", req->group_name);
-          process_unknown_groupname_request(req);
-          return;
+          delete req;
+          log_error("FATAL ERROR, the key count's value is not illegal, key count: %d", req->key_count);
         }
         else
         {
-          bool need_return_packet = true;
-          size_t request_reference_count = tair_groups->size() * factor;
-          SharedInfo *shared = new SharedInfo(request_reference_count, req);
+          vector<TairGroup*>* tair_groups = invalid_loader.find_groups(req->group_name);
+          log_debug("got tair_groups, name: %s, size: %d", req->group_name, tair_groups->size());
 
-          if (req->request_time < 0)
+          if (tair_groups == NULL || tair_groups->empty())
           {
-            need_return_packet = false;
+            log_error("FATAL ERROR, cann't find the group name: %s, or invalid_loader is still loading.", req->group_name);
+            process_unknown_groupname_request(req);
           }
-
-          for (size_t i = 0; i < tair_groups->size(); ++i)
+          else
           {
-            (*tair_groups)[i]->commit_request(shared, merged, need_return_packet);
-          }
+            bool need_return_packet = true;
+            size_t request_reference_count = tair_groups->size() * factor;
+            SharedInfo *shared = new SharedInfo(request_reference_count, req);
 
-          TAIR_INVAL_STAT.statistcs(request_type,
-              std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
+            if (req->request_time < 0)
+            {
+              req->request_time = 0;
+              need_return_packet = false;
+            }
+
+            for (size_t i = 0; i < tair_groups->size(); ++i)
+            {
+              (*tair_groups)[i]->commit_request(shared, merged, need_return_packet);
+            }
+
+            TAIR_INVAL_STAT.statistcs(request_type,
+                std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
+          }
         }
       }
     }
 
-    int InvalServer::do_retry_all(request_retry_all* req) {
+    int InvalServer::do_retry_all(request_retry_all* req)
+    {
       int ret = TAIR_RETURN_SUCCESS;
       RetryWorkThread *worker = new RetryWorkThread(&request_storage, this);
       //the worker release by the the function RetryWorkThreadrun
@@ -379,6 +402,7 @@
       retry_thread.setThreadParameter(&invalid_loader, &request_storage);
       thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, "async_thread_num", 8);
       sync_task_thread_count = thread_count;
+      REQUEST_PROCESSOR.setThreadParameter(&retry_thread, &request_storage);
       return true;
     }
 
@@ -404,18 +428,20 @@
 
     void RetryWorkThread::run(tbsys::CThread *thread, void *arg)
     {
+      log_warn("retry thread start");
       int executed_count = 0;
-      if (request_storage != NULL) {
+      if (request_storage != NULL && inval_server != NULL)
+      {
         float safety_ratio = 0.75;
         while (!_stop && executed_count < MAX_EXECUTED_COUNT)
         {
-          if(request_storage->is_empty() == true)
+          if(request_storage->get_packet_count() == 0)
           {
             log_debug("the request_storage is empty, retry worker stop.");
             break;
           }
-          int limit_size = (int) (MAX_QUEUE_SIZE * safety_ratio);
-          int task_queue_size = /*task_queue_thread.size();*/ 0;
+          int limit_size = (int) (MAX_TASK_QUEUE_SIZE * safety_ratio);
+          int task_queue_size = inval_server->task_queue_size();
           int retry_packet_count = limit_size - task_queue_size;
           if (retry_packet_count <= 0)
           {
@@ -426,7 +452,6 @@
             std::vector<base_packet*> packet_vector;
             int left_packet_count = 0;
             left_packet_count = request_storage->read_request(packet_vector, retry_packet_count);
-            log_debug("left  %d packet(s), vector size :%d", left_packet_count, packet_vector.size());
             //push packet to the task_queue
             for (size_t i = 0; i < packet_vector.size(); ++i)
             {
@@ -436,8 +461,12 @@
               request_inval_packet *req = (request_inval_packet*)packet_vector[i];
               if (req != NULL)
               {
+                //should not send return packet to client.
+                req->request_time = -1;
                 if (!inval_server->push_task(req))
                 {
+                  log_warn("failed to push retry request packet to task queue, task queue size: %d",
+                      inval_server->task_queue_size());
                   //write to the storage.
                   request_storage->write_request(req);
                 }
@@ -451,7 +480,7 @@
 
       stop();
       log_warn("stop retry worker, cached packet count: %d, disk_queue is empty: %s",
-          request_storage->get_packet_count(), request_storage->is_empty() == true ? "yes" : "no");
+          request_storage->get_packet_count(), request_storage->get_packet_count() == 0 ? "yes" : "no");
 
       //never use it at all.
       delete this;
@@ -596,7 +625,6 @@ int main(int argc, char **argv)
     invalid_server = new tair::InvalServer();
     log_info("starting invalid server.");
     invalid_server->start();
-
     delete invalid_server;
     log_info("process exit.");
   }

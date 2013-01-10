@@ -51,8 +51,13 @@ namespace tair {
     for (cluster_info_map::iterator it = cluster_without_groupnames.begin();
         it != cluster_without_groupnames.end();)
     {
-      master = it->first;
-      slave = it->second;
+      std::string cluster_name = it->first;
+      if (it->second == NULL)
+      {
+        continue;
+      }
+      master = it->second->master;
+      slave = it->second->slave;
       if (master != 0)
       {
         group_names.clear();
@@ -63,7 +68,7 @@ namespace tair {
           {
             if (group_names[i].size() > 0)
             {
-              disconnected_client_map_insert(master, slave, group_names[i]);
+              disconnected_client_map_insert(cluster_name, master, slave, group_names[i]);
               log_debug("got the group names, master: %s, slave: %s, group name: %s",
                   tbsys::CNetUtil::addrToString(master).c_str(),
                   tbsys::CNetUtil::addrToString(slave).c_str(),
@@ -71,6 +76,7 @@ namespace tair {
             }
           }
           // remove the cluster info from the cluster_without_groupnames.
+          delete it->second;
           cluster_without_groupnames.erase(it++);
         }
         else
@@ -81,6 +87,7 @@ namespace tair {
       else
       {
         // remove master == 0
+        delete it->second;
         cluster_without_groupnames.erase(it++);
       }
     }
@@ -139,7 +146,7 @@ namespace tair {
               client->set_timeout(timeout);
 
               //create the instance of TairGroup.
-              TairGroup* group = new TairGroup(master, slave, group_name, client);
+              TairGroup* group = new TairGroup(gc->cluster_name, master, slave, group_name, client);
               tair_groups.push_back(group);
               client_helper_map[group_name].push_back(group);
             }
@@ -188,18 +195,25 @@ namespace tair {
       }
       for (size_t i = 0; i < tair_groups.size(); i++)
       {
-        tair_client_impl *tair_client = tair_groups[i]->get_tair_client();
-        tair_client->add_count(0, key, 1, &value);
-        log_debug("client: %d, 'invalid_server_counter': %d", i, value);
+        if(tair_groups[i] != NULL)
+        {
+          tair_client_impl *tair_client = tair_groups[i]->get_tair_client();
+          if (tair_client != NULL)
+          {
+            tair_client->add_count(0, key, 1, &value);
+          }
 
-        //sampling data
-        tair_groups[i]->sampling();
+          log_debug("client: %d, 'invalid_server_counter': %d", i, value);
+
+          // sampling data
+          tair_groups[i]->sampling();
+        }
         if (_stop)
         {
           break;
         }
       }
-      log_info("KeepAlive client count: %d", tair_groups.size());
+      //log_info("KeepAlive client count: %d", tair_groups.size());
       TAIR_SLEEP(_stop, 10);
     }
   }
@@ -216,7 +230,7 @@ namespace tair {
       }
     }
   }
-  void InvalLoader::disconnected_client_map_insert(const uint64_t &master,
+  void InvalLoader::disconnected_client_map_insert(const std::string &cluster_name, const uint64_t &master,
       const uint64_t &slave, const std::string &group_name)
   {
     group_client_map::iterator it = disconnected_client_map.find(master);
@@ -232,6 +246,7 @@ namespace tair {
           (*(disconnected_client_map[master]))[group_name]->slave = slave;
           (*(disconnected_client_map[master]))[group_name]->group_name = group_name;
           (*(disconnected_client_map[master]))[group_name]->removed = false;
+          (*(disconnected_client_map[master]))[group_name]->cluster_name = cluster_name;
         }
         else
         {
@@ -240,6 +255,7 @@ namespace tair {
           gc->slave = slave;
           gc->group_name = group_name;
           gc->removed = false;
+          gc->cluster_name = cluster_name;
           gi->insert(group_info_map::value_type(group_name, gc));
         }
       }
@@ -252,6 +268,7 @@ namespace tair {
       gc->slave = slave;
       gc->group_name = group_name;
       gc->removed = false;
+      gc->cluster_name = cluster_name;
       gi->insert(group_info_map::value_type(group_name, gc));
       disconnected_client_map[master] = gi;
     }
@@ -375,11 +392,12 @@ namespace tair {
       int ret = EXIT_SUCCESS;
       for (it = spmap.begin(); it != spmap.end(); ++it)
       {
+        std::string cluster_name = it->first;
         ServerPairId *spid = it->second;
         if (spid->loaded == false)
         {
           log_debug("load group %s %s %s",
-              it->first.c_str(),
+              cluster_name.c_str(),
               tbsys::CNetUtil::addrToString(spid->id1).c_str(),
               tbsys::CNetUtil::addrToString(spid->id2).c_str());
           tair_client_impl client;
@@ -388,7 +406,10 @@ namespace tair {
             log_error("exception, when fetch group name from %s.",
                 tbsys::CNetUtil::addrToString(spid->id1).c_str());
             //save <master, slave>
-            cluster_without_groupnames[spid->id1] = spid->id2;
+            cluster_info *cluster = new cluster_info;
+            cluster->master = spid->id1;
+            cluster->slave = spid->id2;
+            cluster_without_groupnames[cluster_name] = cluster;
             ret = EXIT_FAILURE;
             continue;
           }
@@ -412,7 +433,7 @@ namespace tair {
           {
             log_error("cannot connect to configserver %s.",
                 tbsys::CNetUtil::addrToString(spid->id1).c_str());
-            disconnected_client_map_insert(spid->id1, spid->id2, spid->group_name_list[i]);
+            disconnected_client_map_insert(cluster_name, spid->id1, spid->id2, spid->group_name_list[i]);
             ret = EXIT_FAILURE;
             delete client;
             continue;
@@ -423,7 +444,7 @@ namespace tair {
           int timeout = TBSYS_CONFIG.getInt("invalserver", "client_timeout", 1000);
           client->set_timeout(timeout);
           //create the instance of TairGroup
-          TairGroup* group = new TairGroup(spid->id1, spid->id2, spid->group_name_list[i], client);
+          TairGroup* group = new TairGroup(cluster_name, spid->id1, spid->id2, spid->group_name_list[i], client);
           tair_groups.push_back(group);
           client_helper_map[spid->group_name_list[i].c_str()].push_back(group);
           spid->group_name_list[i] = "";
@@ -456,9 +477,12 @@ namespace tair {
     for (cluster_info_map::iterator it = cluster_without_groupnames.begin();
         it != cluster_without_groupnames.end(); it++)
     {
-      log_debug("failed to get group names from cluster, master: %s, slave: %s ",
-          tbsys::CNetUtil::addrToString(it->first).c_str(),
-          tbsys::CNetUtil::addrToString(it->second).c_str());
+      if (it->second != NULL)
+      {
+        log_debug("failed to get group names from cluster, master: %s, slave: %s ",
+            tbsys::CNetUtil::addrToString(it->second->master).c_str(),
+            tbsys::CNetUtil::addrToString(it->second->slave).c_str());
+      }
     }
     for (group_client_map::iterator it = disconnected_client_map.begin();
         it != disconnected_client_map.end(); it++)

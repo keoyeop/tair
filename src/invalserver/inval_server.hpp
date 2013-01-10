@@ -36,9 +36,8 @@ namespace tair {
 
     tbnet::IPacketHandler::HPRetCode handlePacket(tbnet::Connection *connection, tbnet::Packet *packet);
     bool handlePacketQueue(tbnet::Packet *packet, void *args);
-    bool push_task(tbnet::Packet *packet) {
-      return true;
-    }
+    bool push_task(tbnet::Packet *packet);
+    int task_queue_size();
   private:
     void do_request(request_inval_packet *req, int factor, int request_type, bool merged);
     inline void do_invalid(request_invalid *req)
@@ -105,6 +104,7 @@ namespace tair {
     InvalRequestStorage *request_storage;
     InvalServer* inval_server;
     static const int MAX_EXECUTED_COUNT = 100;
+    static const int MAX_TASK_QUEUE_SIZE = 10000;
   };
 }
 #endif

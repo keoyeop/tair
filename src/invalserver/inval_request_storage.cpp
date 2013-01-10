@@ -282,8 +282,6 @@ namespace tair {
     queue_cond.lock();
     if (bp != NULL)
     {
-      //这里修改request time，在retry all的时候无需要回包
-      bp->request_time = -1;
       request_queue.push(bp);
     }
     else

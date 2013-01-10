@@ -24,8 +24,9 @@
 #include "hide_by_proxy_packet.hpp"
 #include "prefix_hides_by_proxy_packet.hpp"
 #include "prefix_invalids_packet.hpp"
+#include "inval_group.hpp"
+#include "inval_processor.hpp"
 namespace tair {
-  class TairGroup;
   //the class request_hide_by_proxy, request_hides_by_proxy,
   //request_prefix_invalids are the subclass of request_invalid.
   typedef request_invalid request_inval_packet;
@@ -73,8 +74,17 @@ namespace tair {
       this->packet = packet;
     }
 
+    SharedInfo(const SharedInfo &shared)
+    {
+      atomic_set(&reference_count, 0);
+      atomic_set(&retry_times, atomic_read(&shared.retry_times));
+      atomic_set(&request_status, PREPARE_COMMIT);
+      this->packet = shared.packet;
+    }
+
     ~SharedInfo()
     {
+      //packet, which was cached in the `request_storage, should not be released.
       if (atomic_read(&request_status) != CACHED_IN_STORAGE && packet != NULL)
       {
         delete packet;
@@ -85,6 +95,31 @@ namespace tair {
     inline void set_request_reference_count(int ref_count)
     {
       atomic_set(&reference_count, ref_count);
+    }
+
+    inline int dec_and_return_reference_count(int c)
+    {
+      return atomic_sub_return(c, &reference_count);
+    }
+
+    inline void set_request_status(int status)
+    {
+      atomic_set(&request_status, status);
+    }
+
+    inline int get_request_status()
+    {
+      return atomic_read(&request_status);
+    }
+
+    inline int get_retry_times()
+    {
+      return atomic_read(&retry_times);
+    }
+
+    inline void inc_retry_times()
+    {
+      atomic_inc(&retry_times);
     }
   };
 
@@ -99,10 +134,12 @@ namespace tair {
 
     virtual ~PacketWrapper()
     {
-      if(atomic_read(&(shared->reference_count)) == 0
-          && atomic_read(&(shared->request_status)) != RETRY_COMMIT
-          && atomic_read(&(shared->request_status)) != PREPARE_COMMIT)
+      if (dec_and_return_reference_count(1) == 0)
       {
+        //finish the request, first of all, send return packet to client if necessary,
+        //second, retry the request if failed.
+        REQUEST_PROCESSOR.end_request(this);
+        //release the shared.
         delete shared;
       }
     }
@@ -119,7 +156,7 @@ namespace tair {
 
     inline int dec_and_return_reference_count(int c)
     {
-      return atomic_sub_return(c, &(shared->reference_count));
+      return shared->dec_and_return_reference_count(c);
     }
 
     inline void inc_request_reference_count()
@@ -130,16 +167,6 @@ namespace tair {
     inline void dec_request_reference_count()
     {
       atomic_dec(&(shared->reference_count));
-    }
-
-    inline uint16_t get_retry_times()
-    {
-      return atomic_read(&(shared->retry_times));
-    }
-
-    inline void inc_retry_times()
-    {
-      atomic_inc(&(shared->retry_times));
     }
 
     inline void set_request_status(int rs)
@@ -169,8 +196,7 @@ namespace tair {
 
     inline tair_client_impl *get_tair_client()
     {
-      //return group != NULL ? group->get_tair_client() : NULL;
-      return NULL;
+      return group != NULL ? group->get_tair_client() : NULL;
     }
 
     inline request_inval_packet *get_packet()
@@ -202,11 +228,6 @@ namespace tair {
 
     ~SingleWrapper()
     {
-      if (key != NULL)
-      {
-        delete key;
-        key = NULL;
-      }
     }
 
     inline data_entry* get_key()

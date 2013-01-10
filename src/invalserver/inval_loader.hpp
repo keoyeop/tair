@@ -17,15 +17,15 @@
 #include "log.hpp"
 #include "inval_stat_helper.hpp"
 namespace tair {
-    class ServerPairId;
-    class TairGroup;
-    typedef __gnu_cxx::hash_map<std::string, ServerPairId*, tbsys::str_hash> SERVER_PAIRID_MAP;
-    typedef __gnu_cxx::hash_map<std::string, std::vector<TairGroup*>, tbsys::str_hash > CLIENT_HELPER_MAP;
+  class TairGroup;
+  class ServerPairId;
+  typedef __gnu_cxx::hash_map<std::string, ServerPairId*, tbsys::str_hash> SERVER_PAIRID_MAP;
+  typedef __gnu_cxx::hash_map<std::string, std::vector<TairGroup*>, tbsys::str_hash > CLIENT_HELPER_MAP;
 
-    class InvalLoader: public tbsys::CDefaultRunnable {
+  class InvalLoader: public tbsys::CDefaultRunnable {
     public:
-        InvalLoader();
-        virtual ~InvalLoader();
+      InvalLoader();
+      virtual ~InvalLoader();
 
         std::vector<TairGroup*>* find_groups(const char *groupname);
         inline int get_client_count(const char *groupname)
@@ -57,11 +57,18 @@ namespace tair {
         //whose master configserver ID is `master, and slave configserver ID is `slave.
         //The object of `group_client_info contains such information as: the cluster's
         //master configserver, slave configserver, group's name, and status.
-        struct group_client_info {
+        struct group_client_info
+        {
           uint64_t master;
           uint64_t slave;
           std::string group_name;
+          std::string cluster_name;
           bool removed;
+        };
+        struct cluster_info
+        {
+          uint64_t master;
+          uint64_t slave;
         };
 
         //group's name --> instance of `group_client_info.
@@ -71,7 +78,7 @@ namespace tair {
         typedef __gnu_cxx::hash_map<uint64_t, group_info_map*, __gnu_cxx::hash<int> > group_client_map;
 
         //collect the information of ervery cluster managed by invalid server.
-        typedef __gnu_cxx::hash_map<uint64_t, uint64_t, __gnu_cxx::hash<int> > cluster_info_map;
+        typedef __gnu_cxx::hash_map<std::string, cluster_info*, tbsys::str_hash > cluster_info_map;
 
         //The interaction, that builds connection with every group in the cluster, with the cluster will
         //be phased.
@@ -85,7 +92,7 @@ namespace tair {
         //with the cluster for the same reason, a network unreachable, the information such as master, slave
         //and group's name should be saved in the `disconnected_client_map.
         group_client_map disconnected_client_map;
-        void disconnected_client_map_insert(const uint64_t &master, const uint64_t &slave,
+        void disconnected_client_map_insert(const std::string &cluster_name, const uint64_t &master, const uint64_t &slave,
             const std::string &group_name);
 
         //markup the item should be removed.

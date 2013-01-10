@@ -39,10 +39,6 @@ namespace tair {
     void run(tbsys::CThread *thread, void *arg);
 
     int get_packet_count();
-    bool is_empty()
-    {
-      return true;
-    }
 
     int get_packet_count_on_disk();
 

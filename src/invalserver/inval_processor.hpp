@@ -26,27 +26,31 @@
 #include "prefix_invalids_packet.hpp"
 #include <map>
 #include <utility>
-#include "inval_request_packet_wrapper.hpp"
 namespace tair {
-  #define REQUEST_PROCESSOR tair::RequestProcessor::request_processor_instance
+#define REQUEST_PROCESSOR tair::RequestProcessor::request_processor_instance
   class InvalRetryThread;
   class InvalRequestStorage;
-  class TairGroup;
+  class PacketWrapper;
+  class SingleWrapper;
+  class MultiWrapper;
   class RequestProcessor {
   public:
     RequestProcessor();
 
-    void setThreadParameters(const vector<TairGroup*> &groups, InvalRetryThread *retry_thread,
-        InvalRequestStorage *request_storage);
+    void setThreadParameter(InvalRetryThread *retry_thread, InvalRequestStorage *request_storage);
   public:
     static RequestProcessor request_processor_instance;
   public:
+    //process the request
     void process(PacketWrapper *wrapper);
 
+    //call back
     void process_callback(int rcode, PacketWrapper *wrapper);
 
+    //finish the request
     void end_request(PacketWrapper *wrapper);
 
+    //process the failed request
     void process_failed_request(PacketWrapper *wrapper);
   protected:
     void send_return_packet(PacketWrapper *wrapper, const int ret);
@@ -94,7 +98,7 @@ namespace tair {
       }
       else
       {
-      REQUEST_PROCESSOR.process_callback(rcode, wrapper);
+        REQUEST_PROCESSOR.process_callback(rcode, wrapper);
       }
     }
   }
