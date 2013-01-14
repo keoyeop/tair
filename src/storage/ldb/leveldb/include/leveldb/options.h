@@ -105,6 +105,9 @@ struct Options {
   // total block cache size (byte unit)
   int64_t block_cache_size;
 
+  // Approximate size of table(sstable) cache size.
+  size_t table_cache_size;
+
   // Approximate size of user data packed per block.  Note that the
   // block size specified here corresponds to uncompressed data.  The
   // actual size of the unit read from disk may be smaller if

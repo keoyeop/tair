@@ -118,8 +118,8 @@ namespace tair
             {
               sanitize_option();
 
-              log_warn("init ldb %d: max_open_file: %d, write_buffer: %d, use_bloomfilter: %s, use_mmap: %s",
-                       index_, options_.max_open_files, options_.write_buffer_size,
+              log_warn("init ldb %d: table_cache_size: %lu, write_buffer: %d, use_bloomfilter: %s, use_mmap: %s",
+                       index_, options_.table_cache_size, options_.write_buffer_size,
                        options_.filter_policy != NULL ? "yes" : "no",
                        options_.kUseMmapRandomAccess ? "yes" : "no");
               leveldb::Status status = leveldb::DB::Open(options_, db_path_, &db_);
@@ -1310,7 +1310,8 @@ namespace tair
         options_.max_mem_usage_for_memtable = atoll(TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_MAX_MEM_USAGE_FOR_MEMTABLE, "1073741824"));
         options_.write_buffer_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_WRITE_BUFFER_SIZE, 4<<20); // 4M
         options_.block_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_SIZE, 4<<10); // 4K
-        options_.block_cache_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_CACHE_SIZE, 8<<20); // 8M
+        options_.table_cache_size = atoll(TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_TABLE_CACHE_SIZE, "5368709120")); // 5G
+        options_.block_cache_size = atoll(TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_BLOCK_CACHE_SIZE, "8388608")); // 8M
         options_.block_restart_interval = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_BLOCK_RESTART_INTERVAL, 16); // 16
         options_.compression = static_cast<leveldb::CompressionType>(TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_COMPRESSION, leveldb::kSnappyCompression));
         // need reserve binlog when doing remote sync

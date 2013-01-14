@@ -31,11 +31,11 @@ static void UnrefEntry(void* arg1, void* arg2) {
 
 TableCache::TableCache(const std::string& dbname,
                        const Options* options,
-                       int entries)
+                       size_t capacity)
     : env_(options->env),
       dbname_(dbname),
       options_(options),
-      cache_(NewLRUCache(entries)) {
+      cache_(NewLRUCache(capacity)) {
 }
 
 TableCache::~TableCache() {
@@ -69,7 +69,7 @@ Status TableCache::FindTable(uint64_t file_number, uint64_t file_size,
       TableAndFile* tf = new TableAndFile;
       tf->file = file;
       tf->table = table;
-      *handle = cache_->Insert(key, tf, 1, (key.size() + tf->table->ApproximateMemoryUsage()), &DeleteEntry);
+      *handle = cache_->Insert(key, tf, (key.size() + tf->table->ApproximateMemoryUsage()), 1, &DeleteEntry);
     }
   }
   return s;

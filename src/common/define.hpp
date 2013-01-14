@@ -214,6 +214,7 @@
 #define LDB_TARGET_FILE_SIZE            "ldb_target_file_size"
 #define LDB_BLOCK_SIZE                  "ldb_block_size"
 #define LDB_BLOCK_RESTART_INTERVAL      "ldb_block_restart_interval"
+#define LDB_TABLE_CACHE_SIZE            "ldb_table_cache_size"
 #define LDB_BLOCK_CACHE_SIZE            "ldb_block_cache_size"
 #define LDB_ARENABLOCK_SIZE             "ldb_arenablock_size"
 #define LDB_COMPRESSION                 "ldb_compression"

@@ -162,7 +162,7 @@ ldb_max_mem_usage_for_memtable=3221225472
 ####
 
 #### leveldb config (Warning: you should know what you're doing.)
-## one leveldb instance max open files(actually table_cache_ capacity, consider as working set)
+## one leveldb instance max open files(actually table_cache_ capacity, consider as working set, see `ldb_table_cache_size)
 ldb_max_open_files=65535
 ## whether return fail when occure fail when init/load db, and
 ## if true, read data when compactiong will verify checksum
@@ -175,6 +175,8 @@ ldb_target_file_size=8388608
 ldb_base_level_size=134217728
 ## sstable's block size
 # ldb_block_size=4096
+## sstable cache size (override `ldb_max_open_files)
+ldb_table_cache_size=1073741824
 ##block cache size
 ldb_block_cache_size=16777216
 ## arena used by memtable, arena block size

@@ -29,7 +29,7 @@ struct LRUHandle {
   LRUHandle* next;
   LRUHandle* prev;
   size_t charge;      // TODO(opt): Only allow uint32_t?
-  size_t mem_charge;  // we need memory usage statistics, maybe equal to `charge
+  size_t stat_charge; // statistics charge
   size_t key_length;
   uint32_t refs;
   uint32_t hash;      // Hash of key(); used for fast sharding and comparisons
@@ -144,12 +144,12 @@ class LRUCache {
 
   // Like Cache methods, but with an extra "hash" parameter.
   Cache::Handle* Insert(const Slice& key, uint32_t hash,
-                        void* value, size_t charge, size_t mem_charge,
+                        void* value, size_t charge, size_t stat_charge,
                         void (*deleter)(const Slice& key, void* value));
   Cache::Handle* Lookup(const Slice& key, uint32_t hash);
   void Release(Cache::Handle* handle);
   void Erase(const Slice& key, uint32_t hash);
-  void Stats(size_t& usage, size_t& mem_usage);
+  void Stats(size_t& usage, size_t& extra_usage);
 
  private:
   void LRU_Remove(LRUHandle* e);
@@ -164,8 +164,8 @@ class LRUCache {
   size_t usage_;
   uint64_t last_id_;
 
-  // approximate memory usage
-  size_t mem_usage_;
+  // extra usage statictics
+  size_t extra_usage_;
 
   // Dummy head of LRU list.
   // lru.prev is newest entry, lru.next is oldest entry.
@@ -177,7 +177,7 @@ class LRUCache {
 LRUCache::LRUCache()
     : usage_(0),
       last_id_(0),
-      mem_usage_(0) {
+      extra_usage_(0) {
   // Make empty circular linked list
   lru_.next = &lru_;
   lru_.prev = &lru_;
@@ -197,7 +197,7 @@ void LRUCache::Unref(LRUHandle* e) {
   e->refs--;
   if (e->refs <= 0) {
     usage_ -= e->charge;
-    mem_usage_ -= e->mem_charge;
+    extra_usage_ -= e->stat_charge;
     (*e->deleter)(e->key(), e->value);
     free(e);
   }
@@ -233,7 +233,7 @@ void LRUCache::Release(Cache::Handle* handle) {
 }
 
 Cache::Handle* LRUCache::Insert(
-    const Slice& key, uint32_t hash, void* value, size_t charge, size_t mem_charge,
+    const Slice& key, uint32_t hash, void* value, size_t charge, size_t stat_charge,
     void (*deleter)(const Slice& key, void* value)) {
   MutexLock l(&mutex_);
 
@@ -242,7 +242,7 @@ Cache::Handle* LRUCache::Insert(
   e->value = value;
   e->deleter = deleter;
   e->charge = charge;
-  e->mem_charge = mem_charge;
+  e->stat_charge = stat_charge;
   e->key_length = key.size();
   e->hash = hash;
   e->refs = 2;  // One from LRUCache, one for the returned handle
@@ -250,7 +250,7 @@ Cache::Handle* LRUCache::Insert(
   LRU_Append(e);
   usage_ += charge;
 
-  mem_usage_ += mem_charge;
+  extra_usage_ += stat_charge;
 
   LRUHandle* old = table_.Insert(e);
   if (old != NULL) {
@@ -277,9 +277,9 @@ void LRUCache::Erase(const Slice& key, uint32_t hash) {
   }
 }
 
-void LRUCache::Stats(size_t& usage, size_t& mem_usage) {
+void LRUCache::Stats(size_t& usage, size_t& extra_usage) {
   usage = usage_;
-  mem_usage = mem_usage_;
+  extra_usage = extra_usage_;
 }
 
 static const int kNumShardBits = 4;
@@ -308,10 +308,10 @@ class ShardedLRUCache : public Cache {
     }
   }
   virtual ~ShardedLRUCache() { }
-  virtual Handle* Insert(const Slice& key, void* value, size_t charge, size_t mem_charge,
+  virtual Handle* Insert(const Slice& key, void* value, size_t charge, size_t stat_charge,
                          void (*deleter)(const Slice& key, void* value)) {
     const uint32_t hash = HashSlice(key);
-    return shard_[Shard(hash)].Insert(key, hash, value, charge, mem_charge, deleter);
+    return shard_[Shard(hash)].Insert(key, hash, value, charge, stat_charge, deleter);
   }
   virtual Handle* Lookup(const Slice& key) {
     const uint32_t hash = HashSlice(key);
@@ -333,15 +333,15 @@ class ShardedLRUCache : public Cache {
     return ++(last_id_);
   }
   virtual void Stats(std::string& result) {
-    size_t usage = 0, mem_usage = 0,
-      total_usage = 0, total_mem_usage = 0;
+    size_t usage = 0, extra_usage = 0,
+      total_usage = 0, total_extra_usage = 0;
     for (int s = 0; s < kNumShards; s++) {
-      shard_[s].Stats(usage, mem_usage);
+      shard_[s].Stats(usage, extra_usage);
       total_usage += usage;
-      total_mem_usage += mem_usage;
+      total_extra_usage += extra_usage;
     }
     char buf[128];
-    snprintf(buf, sizeof(buf), "usage: %lu, memusage: %lu\n", total_usage, total_mem_usage);
+    snprintf(buf, sizeof(buf), "charge usage: %lu, usage: %lu\n", total_usage, total_extra_usage);
     result.append(buf);
   }
 };

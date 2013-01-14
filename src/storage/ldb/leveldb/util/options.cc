@@ -20,6 +20,7 @@ Options::Options()
       max_mem_usage_for_memtable(1<<30),
       max_open_files(1000),
       block_cache(NULL),
+      table_cache_size((5UL)<<30),
       block_cache_size(8<<20),
       block_size(4096),
       block_restart_interval(16),
