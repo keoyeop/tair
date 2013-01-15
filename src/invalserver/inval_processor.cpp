@@ -163,6 +163,7 @@ namespace tair {
     tair_client_impl *tair_client = wrapper->get_tair_client();
     if (tair_client != NULL)
     {
+      TairGroup *group = wrapper->get_group();
       if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_key()),
             client_callback_with_single_key, (void*)wrapper) != TAIR_RETURN_SUCCESS)
       {
@@ -180,10 +181,12 @@ namespace tair {
       }
       else
       {
-        log_debug("send request to cluster %s success.",
-            wrapper->get_group()->get_cluster_name().c_str());
-        TairGroup *group = wrapper->get_group();
-        group->inc_uninvoked_callback_count();
+        if (group != NULL)
+        {
+          log_debug("send request to cluster %s success.",
+              group->get_cluster_name().c_str());
+          group->inc_uninvoked_callback_count();
+        }
       }
     }
     else
@@ -192,6 +195,7 @@ namespace tair {
       log_error("FATAL ERROR, wrapper without tair_client, cluster name: %s, group name: %s",
           wrapper->get_group()->get_cluster_name().c_str(),
           wrapper->get_group()->get_group_name().c_str());
+      delete wrapper;
     }
   }
 
@@ -212,31 +216,46 @@ namespace tair {
   void RequestProcessor::do_process(PROCESS_RHS_FUNC_T pproc, MultiWrapper *wrapper)
   {
     tair_client_impl *tair_client = wrapper->get_tair_client();
-    if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_keys()),&failed_key_code_map,
-          client_callback_with_multi_keys, (void*)wrapper) != TAIR_RETURN_SUCCESS)
+    if (tair_client != NULL)
     {
-      log_debug("send request to cluster %s failed.",
-          wrapper->get_group()->get_cluster_name().c_str());
-      vector<std::string> servers;
-      tair_client_impl *client = wrapper->get_tair_client();
-      tair_dataentry_set *keys = wrapper->get_keys();
-      if (keys == NULL || keys->empty())
+      TairGroup *group = wrapper->get_group();
+      if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_keys()),&failed_key_code_map,
+            client_callback_with_multi_keys, (void*)wrapper) != TAIR_RETURN_SUCCESS)
       {
-        //bug: request without any key.
-      log_error("FATAL ERROR, request without any key, cluster name: %s, group name: %s, pcode: %d",
-          wrapper->get_group()->get_cluster_name().c_str(),
-          wrapper->get_group()->get_group_name().c_str(), wrapper->get_packet()->getPCode());
-        return;
+        log_debug("send request to cluster %s failed.",
+            wrapper->get_group()->get_cluster_name().c_str());
+        vector<std::string> servers;
+        tair_client_impl *client = wrapper->get_tair_client();
+        tair_dataentry_set *keys = wrapper->get_keys();
+        if (keys == NULL || keys->empty())
+        {
+          //bug: request without any key.
+          log_error("FATAL ERROR, request without any key, cluster name: %s, group name: %s, pcode: %d",
+              wrapper->get_group()->get_cluster_name().c_str(),
+              wrapper->get_group()->get_group_name().c_str(), wrapper->get_packet()->getPCode());
+          return;
+        }
+        client->get_server_with_key(**(keys->begin()), servers);
+        wrapper->set_request_status(COMMITTED_FAILED);
+        //just release the wrapper
+        delete wrapper;
       }
-      client->get_server_with_key(**(keys->begin()), servers);
-      wrapper->set_request_status(COMMITTED_FAILED);
-      //just release the wrapper
-      delete wrapper;
+      else
+      {
+        if (group != NULL)
+        {
+          log_debug("send request to cluster %s success.",
+              group->get_cluster_name().c_str());
+        }
+      }
     }
     else
     {
-      log_debug("send request to cluster %s success.",
-          wrapper->get_group()->get_cluster_name().c_str());
+      //bug: should not be here.
+      log_error("FATAL ERROR, wrapper without tair_client, cluster name: %s, group name: %s",
+          wrapper->get_group()->get_cluster_name().c_str(),
+          wrapper->get_group()->get_group_name().c_str());
+      delete wrapper;
     }
   }
 }
