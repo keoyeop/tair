@@ -36,7 +36,7 @@ namespace tair {
 
     static const int RETRY_COUNT = 3;
   private:
-    void do_retry_commit_request(SharedInfo *shared, int operation_type, bool merged);
+    void do_retry_commit_request(SharedInfo *shared, int factor, int operation_type, bool merged);
     void cache_request_packet(SharedInfo *shared);
   private:
     static const int MAX_QUEUE_SIZE = 10000;

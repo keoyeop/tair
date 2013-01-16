@@ -91,7 +91,6 @@ namespace tair {
 
   void RequestProcessor::process_callback(int rcode, PacketWrapper *wrapper)
   {
-    rcode = TAIR_RETURN_TIMEOUT;
     log_debug("callback invoked from cluster %s, reference count: %d",
         wrapper->get_group()->get_cluster_name().c_str(),
         wrapper->get_request_reference_count());
@@ -136,17 +135,24 @@ namespace tair {
     if (wrapper->get_request_status() == COMMITTED_FAILED)
     {
       //retry request.
-      wrapper->set_request_status(RETRY_COMMIT);
-      SharedInfo *shared = new SharedInfo(*(wrapper->get_shared_info()));
-      //not to release the request packet
-      wrapper->get_shared_info()->packet = NULL;
-      int retry_times = shared->get_retry_times();
-      //request faield, warnnig ~
-      log_error("REQUEST FAILED, request will be retried to process, cluster name: %s, group name: %s, queue: %d, pcode: %d",
-          wrapper->get_group()->get_cluster_name().c_str(), wrapper->get_group()->get_group_name().c_str(),
-          retry_times, shared->packet->getPCode());
-      shared->inc_retry_times();
-      retry_thread->add_packet(shared, retry_times);
+      SharedInfo *old_shared = wrapper->get_shared_info();
+      int retry_times = old_shared->get_retry_times();
+      if (retry_times < InvalRetryThread::RETRY_COUNT)
+      {
+        log_error("REQUEST FAILED, request will be retried to process, cluster name: %s, group name: %s, queue: %d, pcode: %d",
+            wrapper->get_group()->get_cluster_name().c_str(), wrapper->get_group()->get_group_name().c_str(),
+            retry_times, old_shared->packet->getPCode());
+        SharedInfo *new_shared = new SharedInfo(0, old_shared->packet);
+        new_shared->set_retry_times(retry_times);
+        retry_thread->add_packet(new_shared, retry_times);
+      }
+      else
+      {
+        old_shared->set_request_status(CACHED_IN_STORAGE);
+        request_storage->write_request(old_shared->packet);
+      }
+      //request packet was released by `shared, while the request's status is equ. to COMMITTED_SUCCESS.
+      old_shared->packet = NULL;
     }
   }
 
@@ -185,7 +191,6 @@ namespace tair {
         {
           log_debug("send request to cluster %s success.",
               group->get_cluster_name().c_str());
-          group->inc_uninvoked_callback_count();
         }
       }
     }

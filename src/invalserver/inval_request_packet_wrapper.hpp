@@ -74,14 +74,6 @@ namespace tair {
       this->packet = packet;
     }
 
-    SharedInfo(const SharedInfo &shared)
-    {
-      atomic_set(&reference_count, 0);
-      atomic_set(&retry_times, atomic_read(&shared.retry_times));
-      atomic_set(&request_status, PREPARE_COMMIT);
-      this->packet = shared.packet;
-    }
-
     ~SharedInfo()
     {
       //packet, which was cached in the `request_storage, should not be released.
@@ -115,6 +107,11 @@ namespace tair {
     inline int get_retry_times()
     {
       return atomic_read(&retry_times);
+    }
+
+    inline void set_retry_times(int this_retry_times)
+    {
+      atomic_set(&retry_times, this_retry_times);
     }
 
     inline void inc_retry_times()

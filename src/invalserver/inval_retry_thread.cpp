@@ -28,7 +28,7 @@
       }
     }
 
-    void InvalRetryThread::do_retry_commit_request(SharedInfo *shared, int operation_type, bool merged)
+    void InvalRetryThread::do_retry_commit_request(SharedInfo *shared, int factor, int operation_type, bool merged)
     {
       int ret = TAIR_RETURN_SUCCESS;
       request_inval_packet *packet = NULL;
@@ -47,7 +47,8 @@
 
       if (ret == TAIR_RETURN_SUCCESS)
       {
-        shared->set_request_reference_count(groups->size());
+        shared->inc_retry_times();
+        shared->set_request_reference_count(groups->size() * factor);
         for (size_t i = 0; i < groups->size(); ++i)
         {
           (*groups)[i]->commit_request(shared, merged, false);
@@ -104,22 +105,22 @@
         {
           case TAIR_REQ_INVAL_PACKET:
             {
-              do_retry_commit_request(shared, InvalStatHelper::INVALID, /*merged =*/ false);
+              do_retry_commit_request(shared, shared->packet->key_count, InvalStatHelper::INVALID, /*merged =*/ false);
               break;
             }
           case TAIR_REQ_HIDE_BY_PROXY_PACKET:
             {
-              do_retry_commit_request(shared, InvalStatHelper::HIDE, /*merged =*/ false);
+              do_retry_commit_request(shared, shared->packet->key_count, InvalStatHelper::HIDE, /*merged =*/ false);
               break;
             }
           case TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET:
             {
-              do_retry_commit_request(shared, InvalStatHelper::PREFIX_HIDE, /*merged =*/ true);
+              do_retry_commit_request(shared, 1, InvalStatHelper::PREFIX_HIDE, /*merged =*/ true);
               break;
             }
           case TAIR_REQ_PREFIX_INVALIDS_PACKET:
             {
-              do_retry_commit_request(shared, InvalStatHelper::PREFIX_HIDE, /*merged =*/ true);
+              do_retry_commit_request(shared, 1, InvalStatHelper::PREFIX_HIDE, /*merged =*/ true);
               break;
             }
           default:
@@ -162,32 +163,24 @@
 
     void InvalRetryThread::add_packet(SharedInfo *shared, int index)
     {
-      if (index < 0 || index > RETRY_COUNT)
+      if (index < 0 || index >= RETRY_COUNT)
       {
         log_error("FATAL ERROR, should not be here, index: %d, mast be in the range of [0, %d]", index, RETRY_COUNT);
       }
       else
       {
-        if (index >= 0 && index < RETRY_COUNT)
+        queue_cond[index].lock();
+        if ((int)retry_queue[index].size() >= MAX_QUEUE_SIZE || _stop)
         {
-          queue_cond[index].lock();
-          if ((int)retry_queue[index].size() >= MAX_QUEUE_SIZE || _stop)
-          {
-            queue_cond[index].unlock();
-            cache_request_packet(shared);
-          }
-          else
-          {
-            shared->packet->request_time = time(NULL);
-            retry_queue[index].push(shared);
-            queue_cond[index].unlock();
-            queue_cond[index].signal();
-          }
+          queue_cond[index].unlock();
+          cache_request_packet(shared);
         }
         else
         {
-          // more than max retry times.
-          cache_request_packet(shared);
+          shared->packet->request_time = time(NULL);
+          retry_queue[index].push(shared);
+          queue_cond[index].unlock();
+          queue_cond[index].signal();
         }
       }
     }
