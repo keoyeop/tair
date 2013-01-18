@@ -35,6 +35,7 @@ namespace tair {
     int retry_queue_size(int index);
 
     static const int RETRY_COUNT = 3;
+    std::string get_info();
   private:
     void do_retry_commit_request(SharedInfo *shared, int factor, int operation_type, bool merged);
     void cache_request_packet(SharedInfo *shared);

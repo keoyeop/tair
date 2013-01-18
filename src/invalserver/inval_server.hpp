@@ -38,6 +38,14 @@ namespace tair {
     bool handlePacketQueue(tbnet::Packet *packet, void *args);
     bool push_task(tbnet::Packet *packet);
     int task_queue_size();
+    inline void start_retry_work()
+    {
+      atomic_set(&retry_work_status, RETRY_START);
+    }
+    inline void stop_retry_work()
+    {
+      atomic_set(&retry_work_status, RETRY_STOP);
+    }
   private:
     void do_request(request_inval_packet *req, int factor, int request_type, bool merged);
     inline void do_invalid(request_invalid *req)
@@ -70,11 +78,12 @@ namespace tair {
     bool destroy();
 
     //debug support
-    int do_debug_support(request_op_cmd *rq);
+    void do_inval_server_cmd(request_op_cmd *rq);
     int parse_params(const std::vector<std::string>& params,
         std::string& group_name, int32_t& area, int32_t& add_request_storage);
     void construct_debug_infos(std::vector<std::string>& infos);
   private:
+    std::string get_info();
     void process_unknown_groupname_request(tbnet::Packet *packet);
     bool _stop;
     bool ignore_zero_area;
@@ -92,6 +101,12 @@ namespace tair {
     InvalRequestStorage request_storage;
     //for debug info
     int sync_task_thread_count;
+    enum
+    {
+      RETRY_START = 0,
+      RETRY_STOP = 1
+    };
+    atomic_t retry_work_status;
   };
 
   class RetryWorkThread : public tbsys::CDefaultRunnable {

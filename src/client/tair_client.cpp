@@ -78,6 +78,7 @@ namespace tair {
       cmd_map["pause_rsync"] = &tair_client::do_cmd_pause_rsync;
       cmd_map["resume_rsync"] = &tair_client::do_cmd_resume_rsync;
       cmd_map["set_config"] = &tair_client::do_cmd_set_config;
+      cmd_map["invalcmd"] = &tair_client::do_cmd_to_inval;
       // cmd_map["additems"] = &tair_client::doCmdAddItems;
    }
 
@@ -505,6 +506,13 @@ namespace tair {
             "------------------------------------------------\n"
             "SYNOPSIS: pgethidden [area] pkey skey\n"
             "DESCRIPTION: to get one hidden item with prefix\n");
+      }
+      if (cmd == NULL || strcmp(cmd, "invalcmd") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
+                 "SYNOPSIS(0)   : invalcmd [retryall [ip:port] | retrieve | info ip::iport]\n"
+                 "DESCRIPTION: retry all request, retrieve all inval servers, get the inval server's info."
+            );
       }
       if (cmd == NULL || strcmp(cmd, "phide") == 0) {
         fprintf(stderr,
@@ -1562,6 +1570,26 @@ namespace tair {
      } else {
        fprintf(stderr, "%s success.\n", cmd_str);
      }
+   }
+
+   int tair_client::do_cmd_inval_retryall(VSTRING &params)
+   {
+     int ret = TAIR_RETURN_SUCCESS;
+     return ret;
+   }
+
+   int tair_client::do_cmd_inval_info(VSTRING &params)
+   {
+     int ret = TAIR_RETURN_SUCCESS;
+     return ret;
+   }
+   int tair_client::do_cmd_inval_retrieve(VSTRING &params)
+   {
+     int ret = TAIR_RETURN_SUCCESS;
+     return ret;
+   }
+   void tair_client::do_cmd_to_inval(VSTRING &params)
+   {
    }
 
 } // namespace tair

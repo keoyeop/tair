@@ -4,501 +4,326 @@
 #include <functional>
 #include <cstdlib>
 #include "inval_group.hpp"
-namespace tair {
-  InvalLoader::InvalLoader()
-  {
-    loading = true;
-  }
+  namespace tair {
+    InvalLoader::ClusterInfo::ClusterInfo() : master(0), slave(0), all_connected(false)
+    {
+    }
 
-  InvalLoader::~InvalLoader()
-  {
-    for (size_t i = 0; i < tair_groups.size(); ++i)
+    InvalLoader::ClusterInfo::~ClusterInfo()
     {
-      if (tair_groups[i] != NULL)
+      for (group_info_map_t::iterator it = groups.begin(); it != groups.end(); ++it)
       {
-        delete tair_groups[i];
-        tair_groups[i] = NULL;
-      }
-    }
-  }
-
-  std::vector<TairGroup*>* InvalLoader::find_groups(const char *groupname)
-  {
-    if (groupname == NULL)
-    {
-      log_error("groupname is NULL!");
-      return NULL;
-    }
-    if (loading)
-    {
-      return NULL;
-    }
-    CLIENT_HELPER_MAP::iterator it = client_helper_map.find(groupname);
-    if ( it == client_helper_map.end())
-    {
-      return NULL;
-    }
-    return &(it->second);
-  }
-
-  void InvalLoader::retrieve_group_names()
-  {
-    //re-connect group
-    uint64_t master = 0;
-    uint64_t slave = 0;
-    log_debug("do_check_client, cluster_without_groupnames size: %d", cluster_without_groupnames.size());
-    vector<std::string> group_names;
-    for (cluster_info_map::iterator it = cluster_without_groupnames.begin();
-        it != cluster_without_groupnames.end();)
-    {
-      std::string cluster_name = it->first;
-      if (it->second == NULL)
-      {
-        continue;
-      }
-      master = it->second->master;
-      slave = it->second->slave;
-      if (master != 0)
-      {
-        group_names.clear();
-        tair_client_impl client;
-        if (client.get_group_name_list(master, slave, group_names) == true)
+        if (it->second != NULL)
         {
-          for (size_t i = 0; i < group_names.size(); i++)
-          {
-            if (group_names[i].size() > 0)
-            {
-              disconnected_client_map_insert(cluster_name, master, slave, group_names[i]);
-              log_debug("got the group names, master: %s, slave: %s, group name: %s",
-                  tbsys::CNetUtil::addrToString(master).c_str(),
-                  tbsys::CNetUtil::addrToString(slave).c_str(),
-                  group_names[i].c_str());
-            }
-          }
-          // remove the cluster info from the cluster_without_groupnames.
           delete it->second;
-          cluster_without_groupnames.erase(it++);
-        }
-        else
-        {
-          it++;
         }
       }
-      else
-      {
-        // remove master == 0
-        delete it->second;
-        cluster_without_groupnames.erase(it++);
-      }
+      groups.clear();
     }
-    //here, we got group names
-    if (group_names.size() > 0)
-    {
-      //set group names again.
-      if (TAIR_INVAL_STAT.setThreadParameter(group_names) == false)
-      {
-        log_error("[FATAL ERROR], failed to add group names to inval_stat_helper.");
-      }
-      // for debug info
-      for (size_t i = 0; i < group_names.size(); ++i)
-      {
-        log_debug("add group name: %s", group_names[i].c_str());
-      }
-    }
-  }
 
-  void InvalLoader::build_connections()
-  {
-    //re startup client
-    uint64_t master = 0;
-    uint64_t slave = 0;
-    int timeout = TBSYS_CONFIG.getInt("invalserver", "client_timeout", 1000);
-    log_debug("disconnected_client_map size: %d", disconnected_client_map.size());
-    std::string group_name;
-    for (group_client_map::iterator it = disconnected_client_map.begin();
-        it != disconnected_client_map.end(); it++)
+    InvalLoader::InvalLoader()
     {
-      group_info_map *gi = it->second;
-      if (gi != NULL)
+      loading = true;
+    }
+
+    InvalLoader::~InvalLoader()
+    {
+      for (cluster_info_map_t::iterator it = clusters.begin(); it != clusters.end(); ++it)
       {
-        for (group_info_map::iterator i = gi->begin(); i != gi->end(); i++)
+        if (it->second != NULL)
         {
-          group_client_info *gc = i->second;
-          if (gc != NULL)
+          delete it->second;
+        }
+      }
+      clusters.clear();
+    }
+
+    std::vector<TairGroup*>* InvalLoader::find_groups(const char *groupname)
+    {
+      if (groupname == NULL)
+      {
+        log_error("groupname is NULL!");
+        return NULL;
+      }
+      if (loading)
+      {
+        return NULL;
+      }
+      CLIENT_HELPER_MAP::iterator it = client_helper_map.find(groupname);
+      if ( it == client_helper_map.end())
+      {
+        return NULL;
+      }
+      return &(it->second);
+    }
+
+    void InvalLoader::load_group_name()
+    {
+      //connect to groups
+      if (!_stop)
+      {
+        //read the cluster infos from the configeration file.
+        fetch_cluster_infos();
+        do_reload_work();
+      }
+    }
+
+    void InvalLoader::do_reload_work()
+    {
+      int finished_count = 0;
+      int cluster_count = 0;
+      for (cluster_info_map_t::iterator it = clusters.begin(); it != clusters.end(); ++it)
+      {
+        if (it->second != NULL)
+        {
+          cluster_count++;
+          ClusterInfo &ci = *(it->second);
+          if (!ci.group_name_list.empty())
           {
-            master = gc->master;
-            slave = gc->slave;
-            group_name = gc->group_name;
-            //restartup
-            tair_client_impl * client = new tair_client_impl();
-            if (client->startup(tbsys::CNetUtil::addrToString(master).c_str(),
-                  tbsys::CNetUtil::addrToString(slave).c_str(),
-                  group_name.c_str()) == true)
+            //load group name
+            fetch_group_names(ci);
+            //create `tair_client instance for every group name.
+            if (!ci.group_name_list.empty() && ci.all_connected == false)
             {
-              //remove from the disconnected_client_map
-              log_debug("connected successfully to the group, master: %s, slave: %s, group name: %s",
-                  tbsys::CNetUtil::addrToString(master).c_str(),
-                  tbsys::CNetUtil::addrToString(slave).c_str(),
-                  group_name.c_str());
-              disconnected_client_map_markup(master, group_name);
-              //add instance tair_client_impl to list.
-              log_info("timeout of clients set to %dms.", timeout);
-              client->set_timeout(timeout);
-
-              //create the instance of TairGroup.
-              TairGroup* group = new TairGroup(gc->cluster_name, master, slave, group_name, client);
-              tair_groups.push_back(group);
-              client_helper_map[group_name].push_back(group);
-            }
-            else
-            {
-              log_error("failed to connect the group, master: %s, slave: %s, group name: %s",
-                  tbsys::CNetUtil::addrToString(master).c_str(),
-                  tbsys::CNetUtil::addrToString(slave).c_str(),
-                  group_name.c_str());
-              delete client;
-              client = NULL;
+              connect_cluster(ci);
             }
           }
-          else
+          if (!ci.group_name_list.empty()  && ci.all_connected)
           {
-            log_error("[FATAL ERROR], group_client_info is null");
+            finished_count++;
           }
         }
       }
-      else
-      { //gi == NULL, group_info_map is null
-        log_error("[FATAL ERROR], group_info_map is null, master: %s",
-            tbsys::CNetUtil::addrToString(master).c_str());
-      }
-    }
-    disconnected_client_map_remove();
-  }
-  void InvalLoader::run(tbsys::CThread *thread, void *arg)
-  {
-    load_group_name();
-    log_info("load groupname complete.");
 
-    const char *pkey = "invalid_server_counter";
-    data_entry key(pkey, strlen(pkey), false);
-    int value;
-
-    while (!_stop)
-    {
-      if (cluster_without_groupnames.size() > 0)
+      if (finished_count == cluster_count)
       {
-        retrieve_group_names();
-      }
-      if (disconnected_client_map.size() > 0)
-      {
-        build_connections();
-      }
-      for (size_t i = 0; i < tair_groups.size(); i++)
-      {
-        if(tair_groups[i] != NULL)
+        //finish the loading group name task
+        loading = false;
+        //set the group name to `stat_helper.
+        if (!group_names.empty())
         {
-          tair_client_impl *tair_client = tair_groups[i]->get_tair_client();
-          if (tair_client != NULL)
-          {
-            tair_client->add_count(0, key, 1, &value);
-          }
-
-          log_debug("client: %d, 'invalid_server_counter': %d", i, value);
-
-          // sampling data
-          tair_groups[i]->sampling();
-        }
-        if (_stop)
-        {
-          break;
-        }
-      }
-      //log_info("KeepAlive client count: %d", tair_groups.size());
-      TAIR_SLEEP(_stop, 10);
-    }
-  }
-
-  void InvalLoader::stop()
-  {
-    _stop = true;
-    for (size_t i = 0; i < tair_groups.size(); ++i)
-    {
-      tair_client_impl *tair_client = tair_groups[i]->get_tair_client();
-      if (tair_client != NULL)
-      {
-        tair_client->close();
-      }
-    }
-  }
-  void InvalLoader::disconnected_client_map_insert(const std::string &cluster_name, const uint64_t &master,
-      const uint64_t &slave, const std::string &group_name)
-  {
-    group_client_map::iterator it = disconnected_client_map.find(master);
-    if (it != disconnected_client_map.end())
-    { // exist
-      group_info_map *gi = it->second;
-      if (gi != NULL)
-      {
-        group_info_map::iterator i = gi->find(group_name);
-        if (i != gi->end())
-        { // exist the group name, only update
-          (*(disconnected_client_map[master]))[group_name]->master = master;
-          (*(disconnected_client_map[master]))[group_name]->slave = slave;
-          (*(disconnected_client_map[master]))[group_name]->group_name = group_name;
-          (*(disconnected_client_map[master]))[group_name]->removed = false;
-          (*(disconnected_client_map[master]))[group_name]->cluster_name = cluster_name;
+          TAIR_INVAL_STAT.setThreadParameter(group_names);
         }
         else
         {
-          group_client_info * gc = new group_client_info();
-          gc->master = master;
-          gc->slave = slave;
-          gc->group_name = group_name;
-          gc->removed = false;
-          gc->cluster_name = cluster_name;
-          gi->insert(group_info_map::value_type(group_name, gc));
+          log_error("FATAL ERROR, group_names is empty.");
         }
       }
     }
-    else
-    {
-      group_info_map *gi = new group_info_map();
-      group_client_info * gc = new group_client_info();
-      gc->master = master;
-      gc->slave = slave;
-      gc->group_name = group_name;
-      gc->removed = false;
-      gc->cluster_name = cluster_name;
-      gi->insert(group_info_map::value_type(group_name, gc));
-      disconnected_client_map[master] = gi;
-    }
-    log_debug("insert disconnected client maps, master: %s, slave: %s, group name: %s",
-        tbsys::CNetUtil::addrToString(master).c_str(),
-        tbsys::CNetUtil::addrToString(slave).c_str(),
-        group_name.c_str());
-  }
 
-  void InvalLoader::disconnected_client_map_markup(const uint64_t &master, const std::string &group_name)
-  {
-    if (disconnected_client_map.find(master) != disconnected_client_map.end())
+    void InvalLoader::run(tbsys::CThread *thread, void *arg)
     {
-      group_info_map *gi = disconnected_client_map[master];
-      if (gi != NULL)
+      load_group_name();
+      if (!loading)
       {
-        group_info_map::iterator it = gi->find(group_name);
-        if (it != gi->end())
-        {
-          it->second->removed = true;
-          log_debug("markup disconnected client maps, master: %s, group name: %s",
-              tbsys::CNetUtil::addrToString(master).c_str(),
-              group_name.c_str());
-
-        }
+        log_info("load groupname complete.");
       }
-    }
-  }
 
-  void InvalLoader::disconnected_client_map_remove()
-  {
-    for (group_client_map::iterator it = disconnected_client_map.begin();
-        it != disconnected_client_map.end();)
-    {
-      group_info_map *gi = it->second;
-      if (gi != NULL)
+      const char *pkey = "invalid_server_counter";
+      data_entry key(pkey, strlen(pkey), false);
+      int value = 0;
+      int ret = TAIR_RETURN_SUCCESS;
+
+      int alive_count = 0;
+      while (!_stop)
       {
-        for (group_info_map::iterator i = gi->begin(); i != gi->end();)
+        if (loading)
         {
-          group_client_info *gc = i->second;
-          if (gc != NULL && gc ->removed )
+          //loading
+          do_reload_work();
+        }
+
+        //sampling and keepalive.
+        alive_count = 0;
+        for (size_t i = 0; i < tair_groups.size(); i++)
+        {
+          if(tair_groups[i] != NULL)
           {
-            gi->erase(i++);
-            uint64_t master = gc->master;
-            uint64_t slave = gc->slave;
-            std::string group_name = gc->group_name;
-            log_debug("remove disconnected client maps, master: %s, slave: %s, group name: %s",
-                tbsys::CNetUtil::addrToString(master).c_str(),
-                tbsys::CNetUtil::addrToString(slave).c_str(),
-                group_name.c_str());
-            delete gc;
-            gc = NULL;
+            tair_client_impl *tair_client = tair_groups[i]->get_tair_client();
+            if (tair_client != NULL)
+            {
+              ret = tair_client->add_count(0, key, 1, &value);
+              tair_groups[i]->sampling(ret == TAIR_RETURN_SUCCESS);
+              if (tair_groups[i]->is_healthy())
+              {
+                log_debug("cluster: %s, group name: %s, healthy.",
+                    tair_groups[i]->get_cluster_name().c_str(), tair_groups[i]->get_group_name().c_str());
+                alive_count++;
+              }
+              else
+              {
+                log_debug("cluster: %s, group name: %s, sick.",
+                    tair_groups[i]->get_cluster_name().c_str(), tair_groups[i]->get_group_name().c_str());
+              }
+            }
           }
-          else
+          if (_stop)
           {
-            i++;
+            break;
           }
         }
-        // removed
-        if (gi ->size() == 0)
-        {
-          disconnected_client_map.erase(it++);
-          delete gi;
-          gi = NULL;
-        }
-        else
-        {
-          ++it;
-        }
-      }
-      else
-      {
-        disconnected_client_map.erase(it++);
+        log_info("KeepAlive group count: %d, total: %d", alive_count, tair_groups.size());
+        TAIR_SLEEP(_stop, 5);
       }
     }
-  }
 
-  void InvalLoader::load_group_name()
-  {
-    log_info("start loading groupnames.");
-    int defaultPort = TBSYS_CONFIG.getInt(CONFSERVER_SECTION,
-        TAIR_PORT, TAIR_CONFIG_SERVER_DEFAULT_PORT);
-    //collect all group names
-    std::vector<std::string> group_names;
-    std::vector<std::string> keylist;
-    TBSYS_CONFIG.getSectionKey(INVALSERVER_SECTION, keylist);
-    SERVER_PAIRID_MAP spmap;
-    SERVER_PAIRID_MAP::iterator it;
-    for (size_t i = 0; i < keylist.size(); ++i)
+    void InvalLoader::stop()
     {
-      const char *key = keylist[i].c_str();
-      if (key == NULL || strncmp(key, "config_server", 13) != 0)
+      _stop = true;
+      for (size_t i = 0; i < tair_groups.size(); ++i)
       {
-        continue;
+        tair_client_impl *tair_client = tair_groups[i]->get_tair_client();
+        if (tair_client != NULL)
+        {
+          tair_client->close();
+        }
       }
-      std::vector<const char*> strList = TBSYS_CONFIG.getStringList(INVALSERVER_SECTION, key);
-      for (size_t j = 0; j < strList.size(); ++j)
+    }
+
+    void InvalLoader::fetch_cluster_infos()
+    {
+      log_info("start loading groupnames.");
+      int defaultPort = TBSYS_CONFIG.getInt(CONFSERVER_SECTION,
+          TAIR_PORT, TAIR_CONFIG_SERVER_DEFAULT_PORT);
+      //collect all group names
+      std::vector<std::string> keylist;
+      TBSYS_CONFIG.getSectionKey(INVALSERVER_SECTION, keylist);
+      cluster_info_map_t::iterator it;
+      for (size_t i = 0; i < keylist.size(); ++i)
       {
-        uint64_t id = tbsys::CNetUtil::strToAddr(strList[j], defaultPort);
-        log_info("got configserver: %s", tbsys::CNetUtil::addrToString(id).c_str());
-        if (id == 0)
+        const char *key = keylist[i].c_str();
+        if (key == NULL || strncmp(key, "config_server", 13) != 0)
         {
           continue;
         }
-        it = spmap.find(key);
-        if (it == spmap.end())
+        std::vector<const char*> strList = TBSYS_CONFIG.getStringList(INVALSERVER_SECTION, key);
+        for (size_t j = 0; j < strList.size(); ++j)
         {
-          ServerPairId *spid = new ServerPairId();
-          spid->addServerId(id);
-          spmap.insert(SERVER_PAIRID_MAP::value_type(key, spid));
+          uint64_t id = tbsys::CNetUtil::strToAddr(strList[j], defaultPort);
+          log_info("got configserver: %s", tbsys::CNetUtil::addrToString(id).c_str());
+          if (id == 0)
+          {
+            continue;
+          }
+          it = clusters.find(key);
+
+          if (it == clusters.end())
+          {
+            //create the `cluster_info
+            ClusterInfo *ci = new ClusterInfo();
+            ci->master = id;
+            ci->cluster_name = key;
+            clusters.insert(cluster_info_map_t::value_type(key, ci));
+          }
+          else
+          {
+            it->second->slave = id;
+          }
+        }
+      }
+    }
+
+    void InvalLoader::fetch_group_names(ClusterInfo &ci)
+    {
+      if (ci.group_name_list.empty())
+      {
+        std::string cluster_name = ci.cluster_name;
+        log_debug("load group %s %s %s",
+            cluster_name.c_str(),
+            tbsys::CNetUtil::addrToString(ci.master).c_str(),
+            tbsys::CNetUtil::addrToString(ci.slave).c_str());
+        //got group names;
+        tair_client_impl client;
+        if (client.get_group_name_list(ci.master, ci.slave, ci.group_name_list) == false)
+        {
+          log_error("exception, when fetch group name from %s.",
+              tbsys::CNetUtil::addrToString(ci.master).c_str());
+          ci.group_name_list.clear();
         }
         else
         {
-          it->second->addServerId(id);
+          log_debug("cluster: %s, fetch group count: %d, success.", cluster_name.c_str(), ci.group_name_list.size());
         }
       }
-    }
-    int done = 0;
-    while (done < 1 && !_stop)
-    {
-      int ret = EXIT_SUCCESS;
-      for (it = spmap.begin(); it != spmap.end(); ++it)
-      {
-        std::string cluster_name = it->first;
-        ServerPairId *spid = it->second;
-        if (spid->loaded == false)
-        {
-          log_debug("load group %s %s %s",
-              cluster_name.c_str(),
-              tbsys::CNetUtil::addrToString(spid->id1).c_str(),
-              tbsys::CNetUtil::addrToString(spid->id2).c_str());
-          tair_client_impl client;
-          if (client.get_group_name_list(spid->id1, spid->id2, spid->group_name_list) == false)
-          {
-            log_error("exception, when fetch group name from %s.",
-                tbsys::CNetUtil::addrToString(spid->id1).c_str());
-            //save <master, slave>
-            cluster_info *cluster = new cluster_info;
-            cluster->master = spid->id1;
-            cluster->slave = spid->id2;
-            cluster_without_groupnames[cluster_name] = cluster;
-            ret = EXIT_FAILURE;
-            continue;
-          }
-          spid->loaded = true;
-        }
-        for (size_t i = 0; i < spid->group_name_list.size(); ++i)
-        {
-          if (spid->group_name_list[i].size() == 0)
-            continue;
-          //collect all group names for INVAL_STAT_HELPER
-          std::vector<std::string>::iterator it = std::find(group_names.begin(),
-              group_names.end(),spid->group_name_list[i]);
-          if (it == group_names.end())
-          {
-            group_names.push_back(spid->group_name_list[i]);
-          }
-          tair_client_impl * client = new tair_client_impl();
-          if (client->startup(tbsys::CNetUtil::addrToString(spid->id1).c_str(),
-                tbsys::CNetUtil::addrToString(spid->id2).c_str(),
-                (spid->group_name_list[i]).c_str()) == false)
-          {
-            log_error("cannot connect to configserver %s.",
-                tbsys::CNetUtil::addrToString(spid->id1).c_str());
-            disconnected_client_map_insert(cluster_name, spid->id1, spid->id2, spid->group_name_list[i]);
-            ret = EXIT_FAILURE;
-            delete client;
-            continue;
-          }
-          log_debug("connected: %s => %s.",
-              tbsys::CNetUtil::addrToString(spid->id1).c_str(),
-              spid->group_name_list[i].c_str());
-          int timeout = TBSYS_CONFIG.getInt("invalserver", "client_timeout", 1000);
-          client->set_timeout(timeout);
-          //create the instance of TairGroup
-          TairGroup* group = new TairGroup(cluster_name, spid->id1, spid->id2, spid->group_name_list[i], client);
-          tair_groups.push_back(group);
-          client_helper_map[spid->group_name_list[i].c_str()].push_back(group);
-          spid->group_name_list[i] = "";
-        }
-      }
-      if (ret == EXIT_SUCCESS)
-      {
-        break;
-      }
-      else if (_stop == false)
-      {
-        TAIR_SLEEP(_stop, 1);
-      }
-      ++done;
-    }
-    for (it = spmap.begin(); it != spmap.end(); ++it)
-    {
-      delete it->second;
-    }
-    //set the parameters for INVAL_STAT_HELPER
-    if (TAIR_INVAL_STAT.setThreadParameter(group_names) == false)
-    {
-      log_error("[FATAL ERROR] Can't set the group's name for instance of TAIR_INVAL_STAT.");
     }
 
-    loading = false;
-    log_debug("load complete, group count: %d, client count: %d.",
-        client_helper_map.size(), tair_groups.size());
-    //show  debug information
-    for (cluster_info_map::iterator it = cluster_without_groupnames.begin();
-        it != cluster_without_groupnames.end(); it++)
+    void InvalLoader::connect_cluster(ClusterInfo &ci)
     {
-      if (it->second != NULL)
+      if (!ci.group_name_list.empty() && ci.all_connected == false)
       {
-        log_debug("failed to get group names from cluster, master: %s, slave: %s ",
-            tbsys::CNetUtil::addrToString(it->second->master).c_str(),
-            tbsys::CNetUtil::addrToString(it->second->slave).c_str());
-      }
-    }
-    for (group_client_map::iterator it = disconnected_client_map.begin();
-        it != disconnected_client_map.end(); it++)
-    {
-      if (it->second != NULL)
-      {
-        group_info_map *gi = it->second;
-        for (group_info_map::iterator i = gi->begin(); i != gi->end(); i++)
+        std::vector<std::string> &group_name_list = ci.group_name_list;
+        int connected_group_count = 0;
+        int group_name_count = 0;
+        for (size_t i = 0; i < group_name_list.size(); ++i)
         {
-          group_client_info *gc = i->second;
-          log_debug("failed to connected to the cluster, master: %s, slave: %s, group name: %s",
-              tbsys::CNetUtil::addrToString(gc->master).c_str(),
-              tbsys::CNetUtil::addrToString(gc->slave).c_str(),
-              gc->group_name.c_str());
+          if (group_name_list[i].size() == 0)
+            continue;
+          group_name_count++;
+          //collect all group names for INVAL_STAT_HELPER
+          std::vector<std::string>::iterator it = std::find(group_names.begin(),
+              group_names.end(),group_name_list[i]);
+          if (it == group_names.end())
+          {
+            group_names.push_back(group_name_list[i]);
+          }
+
+          group_info_map_t::iterator gt = ci.groups.find(group_name_list[i]);
+          TairGroup *tair_group = NULL;
+          if (gt == ci.groups.end())
+          {
+            TairGroup *tg = new TairGroup(ci.cluster_name, ci.master, ci.slave, group_name_list[i]);
+            ci.groups.insert(group_info_map_t::value_type(group_name_list[i], tg));
+            tair_group = tg;
+          }
+          else
+          {
+            tair_group = gt->second;
+          }
+          if (tair_group != NULL)
+          {
+            if (!tair_group->is_connected())
+            {
+              tair_client_impl * client = new tair_client_impl();
+              if (client->startup(tbsys::CNetUtil::addrToString(ci.master).c_str(),
+                    tbsys::CNetUtil::addrToString(ci.slave).c_str(),
+                    (group_name_list[i]).c_str()) == false)
+              {
+                log_error("cannot connect to configserver %s.",
+                    tbsys::CNetUtil::addrToString(ci.master).c_str());
+                delete client;
+                tair_group->disconnected();
+              }
+              else
+              {
+                log_debug("connected: %s => %s.",
+                    tbsys::CNetUtil::addrToString(ci.master).c_str(),
+                    group_name_list[i].c_str());
+                int timeout = TBSYS_CONFIG.getInt("invalserver", "client_timeout", 1000);
+                client->set_timeout(timeout);
+                //create the instance of TairGroup
+                tair_group->set_client(client);
+                tair_groups.push_back(tair_group);
+                client_helper_map[group_name_list[i].c_str()].push_back(tair_group);
+              }
+            } //end of gi->connected == false
+
+            if (tair_group->is_connected())
+            {
+              connected_group_count++;
+            }
+          }
+        }
+
+        if (connected_group_count == group_name_count)
+        {
+          ci.all_connected = true;
         }
       }
     }
+
+    //print cluster's info to `string
+    std::string InvalLoader::get_info()
+    {
+      return "none implementation";
+    }
   }
-}

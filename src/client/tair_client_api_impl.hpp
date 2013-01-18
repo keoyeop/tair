@@ -142,9 +142,10 @@ namespace tair {
 
     int prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, bool is_sync = true);
 
-    int debug_support(uint64_t server_id, std::vector<std::string> &infos);
-
     int retry_all();
+
+    //get inval server's info
+    int get_invalidserver_info(const uint64_t &inval_server_id, std::string &buffer);
 
     int retry_all(uint64_t invalid_server_id);
 
@@ -373,7 +374,7 @@ namespace tair {
     int resolve_packet(base_packet* packet, uint64_t server_id);
 
     // resolve the packet from the invalid server.
-    int resolve_packet(base_packet* packet, uint64_t server_id, std::vector<std::string>& infos);
+    int resolve_packet(base_packet* packet, uint64_t server_id, std::string &info);
 
     //interact with the invalid server(s)
     //if invalid_server_id == 0, we will select the invalid server randomly from the

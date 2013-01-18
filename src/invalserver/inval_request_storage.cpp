@@ -153,7 +153,7 @@ namespace tair {
     {
       queue_cond.lock();
       int size = request_queue.size();
-      while (!_stop
+      if (!_stop
           && ((read_thresh <= size && size <= write_thresh)
           || (size < read_thresh && disk_queue->isEmpty())))
       {
@@ -345,5 +345,10 @@ namespace tair {
     int size = packet_count_on_disk;
     queue_cond.unlock();
     return size;
+  }
+
+  std::string InvalRequestStorage::get_info()
+  {
+    return "none implementation";
   }
 }

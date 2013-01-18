@@ -7,6 +7,7 @@
       _stop = false;
       ignore_zero_area = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_IGNORE_ZERO_AREA, 0);
       sync_task_thread_count = 0;
+      stop_retry_work();
     }
 
     InvalServer::~InvalServer()
@@ -240,11 +241,8 @@
             request_op_cmd *op_cmd = dynamic_cast<request_op_cmd*>(bp);
             if (op_cmd != NULL)
             {
-              if (do_debug_support(op_cmd) == TAIR_RETURN_SUCCESS)
-              {
-                //had sent the packet
-                send_ret = false;
-              }
+              do_inval_server_cmd(op_cmd);
+              send_ret = false;
             }
             else
             {
@@ -274,12 +272,23 @@
       //can't find the instance of TairGroup, according to the `req->group_name.
       //just send the return packet to client
       request_inval_packet *req = dynamic_cast<request_inval_packet*>(packet);
-      log_warn("TEST, unknown request packet, pcode: %d, group name: %s", req->getPCode(), req->group_name);
       if (req != NULL && req->request_time > 0 && req->get_direction() == DIRECTION_RECEIVE)
       {
-        tair_packet_factory::set_return_packet(req, TAIR_RETURN_FAILED, "unknown group name.", 0);
-        //packet should be released.
-        delete req;
+        if (invalid_loader.is_loading())
+        {
+          tair_packet_factory::set_return_packet(req, TAIR_RETURN_SUCCESS, "inval server is not ready.", 0);
+          log_warn("inval server is still loading group name, request packet will be cached. pcode: %d, group name: %s",
+              req->getPCode(), req->group_name);
+          //write the request to `request_storage
+          request_storage.write_request(req);
+        }
+        else
+        {
+          log_warn("unknown request packet, pcode: %d, group name: %s", req->getPCode(), req->group_name);
+          tair_packet_factory::set_return_packet(req, TAIR_RETURN_FAILED, "unknown group name.", 0);
+          //packet should be released.
+          delete req;
+        }
       }
     }
 
@@ -309,11 +318,9 @@
         else
         {
           vector<TairGroup*>* tair_groups = invalid_loader.find_groups(req->group_name);
-          log_debug("got tair_groups, name: %s, size: %d", req->group_name, tair_groups->size());
 
           if (tair_groups == NULL || tair_groups->empty())
           {
-            log_error("FATAL ERROR, cann't find the group name: %s, or invalid_loader is still loading.", req->group_name);
             process_unknown_groupname_request(req);
           }
           else
@@ -328,9 +335,17 @@
               need_return_packet = false;
             }
 
-            for (size_t i = 0; i < tair_groups->size(); ++i)
+            if (tair_groups->size() != 0)
             {
-              (*tair_groups)[i]->commit_request(shared, merged, need_return_packet);
+              for (size_t i = 0; i < tair_groups->size(); ++i)
+              {
+                (*tair_groups)[i]->commit_request(shared, merged, need_return_packet);
+              }
+            }
+            else
+            {
+              //just release `shared
+              delete shared;
             }
 
             TAIR_INVAL_STAT.statistcs(request_type,
@@ -343,12 +358,20 @@
     int InvalServer::do_retry_all(request_retry_all* req)
     {
       int ret = TAIR_RETURN_SUCCESS;
-      RetryWorkThread *worker = new RetryWorkThread(&request_storage, this);
-      //the worker release by the the function RetryWorkThreadrun
-      //never block this thread.
-      if (worker == NULL)
+      if (atomic_read(&retry_work_status) == RETRY_STOP)
       {
-        ret = TAIR_RETURN_FAILED;
+        start_retry_work();
+        RetryWorkThread *worker = new RetryWorkThread(&request_storage, this);
+        //the worker release by the the function RetryWorkThreadrun
+        //never block this thread.
+        if (worker == NULL)
+        {
+          ret = TAIR_RETURN_FAILED;
+        }
+      }
+      else
+      {
+        log_warn("retry thread is already working ....");
       }
       return ret;
     }
@@ -356,24 +379,52 @@
     int InvalServer::do_request_stat(request_inval_stat *req, response_inval_stat *resp)
     {
       int ret = TAIR_RETURN_SUCCESS;
+      if (ignore_zero_area && req->area == 0)
+      {
+        log_info("ignoring packet of area 0.");
+      }
+      else
+      {
+        unsigned long buffer_size = 0;
+        unsigned long uncompressed_data_size = 0;
+        int group_count = 0;
+        char *buffer = 0;
+        TAIR_INVAL_STAT.get_stat_buffer(buffer, buffer_size, uncompressed_data_size, group_count);
+        if (buffer_size == 0 || buffer == NULL) 
+        {
+          log_error("NONE stat info at all");
+          delete resp;
+          ret = TAIR_RETURN_FAILED;
+        }
+        else
+        {
+          std::string key("inval_stats");
+          resp->key = new data_entry(key.c_str());
+          resp->stat_value = new data_entry(buffer, buffer_size, true); //alloc the new memory
+          resp->uncompressed_data_size = uncompressed_data_size;
+          resp->group_count = group_count;
+          resp->setChannelId(req->getChannelId());
+          if (req->get_connection()->postPacket(resp) == false) 
+          {
+            log_error("[FATAL ERROR] fail to send stat info to client.");
+            delete resp;
+            ret = TAIR_RETURN_FAILED;
+          }
+          delete [] buffer; // alloced by `inval_stat_helper
+          buffer = NULL;
+        }
+      }
       return ret;
     }
 
-    int InvalServer::parse_params(const std::vector<std::string>& params,
-        std::string &group_name, int32_t& area, int32_t& add_request_storage)
+    std::string InvalServer::get_info()
     {
-      int ret = TAIR_RETURN_SUCCESS;
-      return ret;
+      return "none implementaion";
     }
 
-    void InvalServer::construct_debug_infos(std::vector<std::string>& infos)
+    void InvalServer::do_inval_server_cmd(request_op_cmd *req)
     {
-    }
-
-    int InvalServer::do_debug_support(request_op_cmd *req)
-    {
-      int ret = TAIR_RETURN_SUCCESS;
-      return ret;
+      //none implementation;
     }
 
     bool InvalServer::init()
@@ -483,6 +534,7 @@
           request_storage->get_packet_count(), request_storage->get_packet_count() == 0 ? "yes" : "no");
 
       //never use it at all.
+      inval_server->stop_retry_work();
       delete this;
     }
 

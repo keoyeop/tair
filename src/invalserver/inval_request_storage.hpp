@@ -60,6 +60,7 @@ namespace tair {
     int write_request(base_packet* packet);
 
     int read_request(std::vector<base_packet*>& packet_vector, const int read_count);
+    std::string get_info();
   private:
     int read_packet_from_disk();
 

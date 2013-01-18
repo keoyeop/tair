@@ -105,8 +105,11 @@ namespace tair {
       void do_cmd_resume_rsync(VSTRING& param);
       void do_cmd_set_config(VSTRING& param);
       void do_cmd_op_ds_or_not(VSTRING &param, const char* cmd_str, ServerCmdType cmd_type, int base_param_size = 0);
-
+      void do_cmd_to_inval(VSTRING& param);
     private:
+      int do_cmd_inval_retryall(VSTRING &param);
+      int do_cmd_inval_retrieve(VSTRING &param);
+      int do_cmd_inval_info(VSTRING &param);
 #ifdef HAVE_LIBREADLINE
       char *input(char *buffer, size_t size);
       void update_history(const char *line);

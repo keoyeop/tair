@@ -199,4 +199,9 @@
 
       return size;
     }
+
+    std::string InvalRetryThread::get_info()
+    {
+      return "none implementation";
+    }
   }

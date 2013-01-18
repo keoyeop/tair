@@ -30,41 +30,11 @@ namespace tair {
   class TairGroup {
   public:
     TairGroup(const std::string &cluster_name, uint64_t master, uint64_t slave,
-        const std::string &group_name, tair_client_impl *tair_client);
+        const std::string &group_name);
     ~TairGroup();
 
     //inval_server commit the request
     void commit_request(SharedInfo *shared, bool merged, bool need_return_packet);
-
-    inline void inc_uninvoked_callback_count()
-    {
-      atomic_inc(&uninvoked_callback_count);
-    }
-
-    inline void dec_uninvoked_callback_count()
-    {
-      atomic_dec(&uninvoked_callback_count);
-    }
-
-    inline int get_uninvoked_callback_count()
-    {
-      return atomic_read(&uninvoked_callback_count);
-    }
-
-    inline int get_request_timeout_count()
-    {
-      return atomic_read(&request_timeout_count);
-    }
-
-    inline void inc_request_timeout_count()
-    {
-      atomic_inc(&request_timeout_count);
-    }
-
-    inline void reset_request_timeout_count()
-    {
-      atomic_set(&request_timeout_count, 0);
-    }
 
     inline tair_client_impl* get_tair_client()
     {
@@ -72,17 +42,7 @@ namespace tair {
     }
 
     //sample the data indicated the status of tair group's healthy.
-    void sampling();
-
-    inline void set_uninvoked_callback_count_limit(int limit)
-    {
-      atomic_set(&uninvoked_callback_count_limit, limit);
-    }
-
-    inline void set_request_timeout_count_limit(int limit)
-    {
-      atomic_set(&request_timeout_count_limit, limit);
-    }
+    void sampling(bool connected);
 
     inline const std::string& get_cluster_name()
     {
@@ -93,11 +53,44 @@ namespace tair {
     {
       return group_name;
     }
-  protected:
+
     inline bool is_healthy()
     {
-      return atomic_read(&healthy) == HEALTHY;
+      return atomic_read(&failed_count) < atomic_read(&max_failed_count);
     }
+    inline void failed()
+    {
+      atomic_inc(&failed_count);
+    }
+    inline void successed()
+    {
+      if (atomic_sub_return(2, &failed_count) <= 0)
+        atomic_set(&failed_count, 0);
+    }
+    inline void set_max_failed_count(int max_count)
+    {
+      atomic_set(&failed_count, max_count);
+    }
+
+    inline bool is_connected()
+    {
+      return connected;
+    }
+    inline void disconnected()
+    {
+      connected = false;
+    }
+    inline void set_client(tair_client_impl *client)
+    {
+      if (client == NULL)
+        connected = false;
+      else
+      {
+        tair_client = client;
+        connected = true;
+      }
+    }
+  protected:
 
     typedef void (RequestProcessor::*PROC_FUNC_T) (PacketWrapper *wrapper);
     void do_process_unmerged_keys(PROC_FUNC_T func, SharedInfo *shared, bool need_return_packet);
@@ -114,36 +107,10 @@ namespace tair {
     uint64_t master;
     uint64_t slave;
 
-    //data of group's healthy
-    //record the accumulated count of callback functions, that wait to be invoked.
-    atomic_t uninvoked_callback_count;
-    //the limit value of `uninvoked_callback_count.
-    atomic_t uninvoked_callback_count_limit;
-
-    //record the accumulated count of timeout for some time.
-    atomic_t request_timeout_count;
-    //the limit value of `request_timeout_count.
-    atomic_t request_timeout_count_limit;
-
-    //default value of the limit.
-    enum
-    {
-      DEFAULT_UNINVOKED_CALLBACK_COUNT_LIMIT = 1000000,
-      DEFAULT_REQUEST_TIMEOUT_COUNT_LIMIT = 100000
-    };
-
-    atomic_t healthy;
-    enum
-    {
-      HEALTHY = 0,
-      SICK = 1
-    };
-    static const size_t DATA_ITEM_SIZE;
-    //sampling the data of `uninvoked_callback_count.
-    std::vector<atomic_t> uninvoked_callback_sampling_data;
-    //sampling the data of `request_timeout_count.
-    std::vector<atomic_t> request_timeout_sampling_data;
-    int tail;
+    atomic_t failed_count;
+    const static int DEFAULT_MAX_FAILED_COUNT = 10;
+    atomic_t max_failed_count;
+    bool connected;
   };
 }
 #endif
