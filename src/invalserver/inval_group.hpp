@@ -108,7 +108,7 @@ namespace tair {
     uint64_t slave;
 
     atomic_t failed_count;
-    const static int DEFAULT_MAX_FAILED_COUNT = 10;
+    const static int DEFAULT_MAX_FAILED_COUNT = 1000;
     atomic_t max_failed_count;
     bool connected;
   };

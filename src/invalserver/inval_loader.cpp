@@ -78,7 +78,7 @@
         {
           cluster_count++;
           ClusterInfo &ci = *(it->second);
-          if (!ci.group_name_list.empty())
+          if (ci.group_name_list.empty())
           {
             //load group name
             fetch_group_names(ci);
@@ -152,7 +152,7 @@
               }
               else
               {
-                log_debug("cluster: %s, group name: %s, sick.",
+                log_warn("cluster: %s, group name: %s, sick.",
                     tair_groups[i]->get_cluster_name().c_str(), tair_groups[i]->get_group_name().c_str());
               }
             }
@@ -242,7 +242,7 @@
         }
         else
         {
-          log_debug("cluster: %s, fetch group count: %d, success.", cluster_name.c_str(), ci.group_name_list.size());
+          log_info("cluster: %s, fetch group count: %d, success.", cluster_name.c_str(), ci.group_name_list.size());
         }
       }
     }
