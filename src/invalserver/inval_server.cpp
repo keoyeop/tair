@@ -419,12 +419,60 @@
 
     std::string InvalServer::get_info()
     {
-      return "none implementaion";
+      stringstream buffer;
+      buffer << " retry thread is working: " << (atomic_read(&retry_work_status) == RETRY_START ? "YES" : "NO") << endl;
+      return buffer.str();
     }
 
     void InvalServer::do_inval_server_cmd(request_op_cmd *req)
     {
-      //none implementation;
+      if (req != NULL)
+      {
+        response_op_cmd *resp = new response_op_cmd ();
+        std::vector<std::string> &cmd_set = req->params;
+        if (cmd_set.size() < 1)
+        {
+          log_error("none cmd at all");
+          resp->infos.push_back("none cmd");
+        }
+        else
+        {
+          std::string cmd = cmd_set[0];
+          if (strncmp(cmd.c_str(), "info", 4) == 0)
+          {
+            stringstream buffer;
+            buffer << endl << " INVAL SERVER" << endl;
+            buffer << get_info() << endl;
+
+            buffer << endl << " INVAL LOADER" << endl;
+            buffer << invalid_loader.get_info() << endl;
+
+            buffer << endl << " REQUEST STORAGE" << endl;
+            buffer << request_storage.get_info() << endl;
+
+            buffer << endl << " RETRY THREADS" << endl;
+            buffer << retry_thread.get_info() << endl;
+
+            resp->infos.push_back(buffer.str());
+          }
+          else
+          {
+            log_error("unknown cmd: %s", cmd.c_str());
+            resp->infos.push_back("unknown cmd");
+          }
+        }
+        resp->setChannelId(req->getChannelId());
+        if (req->get_connection()->postPacket(resp) == false) 
+        {
+          log_error("[FATAL ERROR] fail to send stat info to client.");
+          delete resp;
+        }
+        delete req;
+      }
+      else
+      {
+        log_error("cmd request packet is null.");
+      }
     }
 
     bool InvalServer::init()
@@ -454,6 +502,11 @@
       thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, "async_thread_num", 8);
       sync_task_thread_count = thread_count;
       REQUEST_PROCESSOR.setThreadParameter(&retry_thread, &request_storage);
+      int max_failed_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION,
+          TAIR_INVAL_MAX_FAILED_COUNT, TAIR_INVAL_DEFAULT_MAX_FAILED_COUNT);
+      if (max_failed_count <=0)
+        max_failed_count = TAIR_INVAL_DEFAULT_MAX_FAILED_COUNT;
+      invalid_loader.setThreadParameter(max_failed_count);
       return true;
     }
 

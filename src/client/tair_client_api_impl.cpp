@@ -2422,7 +2422,36 @@ FAIL:
 
   int tair_client_impl::get_invalidserver_info(const uint64_t &invalid_server_id, std::string &buffer)
   {
+    if (invalid_server_id == 0) {
+      log_error("invalidate server id is not alive.");
+      return TAIR_RETURN_FAILED;
+    }
+    if (std::find(invalid_server_list.begin(), invalid_server_list.end(),
+          invalid_server_id) == invalid_server_list.end()) {
+      log_error("the invalid server: %s is not in the list.",
+          tbsys::CNetUtil::addrToString(invalid_server_id).c_str());
+      return TAIR_RETURN_FAILED;
+    }
+    request_op_cmd *req = new request_op_cmd();
     int ret = TAIR_RETURN_SUCCESS;
+    uint64_t server_id = invalid_server_id;
+    req->add_param("info");
+    // send request.
+    wait_object *cwo = this_wait_object_manager->create_wait_object();
+    log_debug("send request_invalid to %s.", tbsys::CNetUtil::addrToString(server_id).c_str());
+    ret = send_packet_to_is(server_id, req, cwo->get_id());
+    if (ret != TAIR_RETURN_SUCCESS) {
+      delete req;
+    }
+    // get respone packet.
+    base_packet * packet = NULL;
+    if (ret == TAIR_RETURN_SUCCESS ) {
+      ret = get_packet_from_is(cwo, server_id, packet);
+    }
+    // resolve packet
+    if (ret == TAIR_RETURN_SUCCESS ) {
+      ret = resolve_packet(packet, server_id, buffer);
+    }
     return ret;
   }
 

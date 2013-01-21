@@ -43,6 +43,8 @@ namespace tair {
 
     std::string get_info();
 
+    void setThreadParameter(int max_failed_count);
+
   protected:
     //map `group_name to `TairGroup
     typedef __gnu_cxx::hash_map<std::string, TairGroup*, tbsys::str_hash > group_info_map_t;
@@ -80,6 +82,7 @@ namespace tair {
     //collect the information of ervery cluster managed by invalid server.
     typedef __gnu_cxx::hash_map<std::string, ClusterInfo*, tbsys::str_hash > cluster_info_map_t;
     cluster_info_map_t clusters;
+    int max_failed_count;
   };
 }
 #endif

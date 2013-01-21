@@ -202,6 +202,16 @@
 
     std::string InvalRetryThread::get_info()
     {
-      return "none implementation";
+      std::stringstream buffer;
+      buffer << " retry thread's count: " << RETRY_COUNT << endl;
+      buffer << " max of queue size: " << MAX_QUEUE_SIZE << endl;
+      for (size_t i = 0; i < (size_t)RETRY_COUNT; ++i)
+      {
+        queue_cond[i].lock();
+        int queue_size = retry_queue[i].size();
+        queue_cond[i].unlock();
+        buffer << " retry thread# " << i << " queue's size: " << queue_size << endl;
+      }
+      return buffer.str();
     }
   }

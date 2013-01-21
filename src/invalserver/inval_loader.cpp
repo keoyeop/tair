@@ -24,6 +24,7 @@
     InvalLoader::InvalLoader()
     {
       loading = true;
+      max_failed_count = 0;
     }
 
     InvalLoader::~InvalLoader()
@@ -36,6 +37,11 @@
         }
       }
       clusters.clear();
+    }
+
+    void InvalLoader::setThreadParameter(int max_failed_count)
+    {
+      this->max_failed_count = max_failed_count;
     }
 
     std::vector<TairGroup*>* InvalLoader::find_groups(const char *groupname)
@@ -271,7 +277,7 @@
           TairGroup *tair_group = NULL;
           if (gt == ci.groups.end())
           {
-            TairGroup *tg = new TairGroup(ci.cluster_name, ci.master, ci.slave, group_name_list[i]);
+            TairGroup *tg = new TairGroup(ci.cluster_name, ci.master, ci.slave, group_name_list[i], max_failed_count);
             ci.groups.insert(group_info_map_t::value_type(group_name_list[i], tg));
             tair_group = tg;
           }
@@ -324,6 +330,32 @@
     //print cluster's info to `string
     std::string InvalLoader::get_info()
     {
-      return "none implementation";
+      stringstream buffer;
+      buffer << " inval loader, loading: " << (loading ? "YES" : "NO") << endl;
+      int idx = 0;
+      for (cluster_info_map_t::iterator it = clusters.begin(); it != clusters.end(); ++it)
+      {
+        if (it->second != NULL)
+        {
+          ClusterInfo &ci = *(it->second);
+           buffer << " cluster# " << idx << " name: " << ci.cluster_name << endl;
+            buffer << "  got group name: " << (!ci.group_name_list.empty() ? "YES" : "NO") << endl;
+            buffer << "  all connected: " << (ci.all_connected ? "YES" : "NO") << endl;
+          group_info_map_t &gi = ci.groups;
+          int gidx = 0;
+          for (group_info_map_t::iterator git = gi.begin(); git != gi.end(); ++git)
+          {
+            if (git->second != NULL)
+            {
+              TairGroup &g = *(git->second);
+               buffer << "     group# " << gidx++ << " name: " << g.get_group_name() << endl;
+               buffer << "     connected: " << (g.is_connected() ? "YES" : "NO") << endl;
+               buffer << "     status: " << (g.is_healthy() ? "HEALTY" : "SICK") <<endl;
+            }
+          }
+          buffer << " cluster# " << idx++ <<  " group count: " << ci.group_name_list.size() << endl;
+        }
+      }
+      return buffer.str();
     }
   }

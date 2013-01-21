@@ -30,7 +30,7 @@ namespace tair {
   class TairGroup {
   public:
     TairGroup(const std::string &cluster_name, uint64_t master, uint64_t slave,
-        const std::string &group_name);
+        const std::string &group_name, int max_failed_count);
     ~TairGroup();
 
     //inval_server commit the request
@@ -56,7 +56,7 @@ namespace tair {
 
     inline bool is_healthy()
     {
-      return atomic_read(&failed_count) < atomic_read(&max_failed_count);
+      return atomic_read(&healthy) == HEALTHY;
     }
     inline void failed()
     {
@@ -108,9 +108,17 @@ namespace tair {
     uint64_t slave;
 
     atomic_t failed_count;
-    const static int DEFAULT_MAX_FAILED_COUNT = 1000;
-    atomic_t max_failed_count;
+    int max_failed_count;
+    const static int DEFAULT_CONTINUE_MAX_FAILED_COUNT = 5;
+    int continue_failed_count;
     bool connected;
+
+    enum
+    {
+      HEALTHY = 0,
+      SICK = 1
+    };
+    atomic_t healthy;
   };
 }
 #endif

@@ -7,16 +7,19 @@ namespace tair
   TairGroup::TairGroup(const std::string &cluster_name,
       uint64_t master,
       uint64_t slave,
-      const std::string &this_group_name)
+      const std::string &this_group_name,
+      int this_max_failed_count)
     : group_name(this_group_name)
   {
     this->master = master;
     this->slave = slave;
     this->cluster_name = cluster_name;
     //default values.
+    atomic_set(&healthy, HEALTHY);
     atomic_set(&failed_count, 0);
-    atomic_set(&max_failed_count, DEFAULT_MAX_FAILED_COUNT);
+    max_failed_count = this_max_failed_count;
     connected = false;
+    continue_failed_count = 0;
   }
 
   TairGroup::~TairGroup()
@@ -66,7 +69,12 @@ namespace tair
     }
     else if (req->key_count > 1)
     {
+      tair_dataentry_set key_set;
       for (tair_dataentry_set::iterator it = req->key_list->begin(); it != req->key_list->end(); ++it)
+      {
+        key_set.insert(*it);
+      }
+      for (tair_dataentry_set::iterator it = key_set.begin(); it != key_set.end(); ++it)
       {
         SingleWrapper *wrapper = new SingleWrapper(this, shared, *it);
         wrapper->set_needed_return_packet(need_return_packet);
@@ -113,10 +121,27 @@ namespace tair
   //invoked by `inval_loader at regular intervals.
   void TairGroup::sampling(bool connected)
   {
-    if (!is_healthy())
+    if (connected)
     {
-      if (connected)
-        atomic_set(&failed_count, 0);
+      atomic_set(&failed_count, 0);
+    }
+    else
+    {
+      continue_failed_count++;
+      if (continue_failed_count == DEFAULT_CONTINUE_MAX_FAILED_COUNT)
+      {
+        continue_failed_count = 0;
+        atomic_set(&failed_count, max_failed_count);
+      }
+    }
+
+    if (atomic_read(&failed_count) >= max_failed_count)
+    {
+      atomic_set(&healthy, SICK);
+    }
+    else
+    {
+      atomic_set(&healthy, HEALTHY);
     }
   }
 }

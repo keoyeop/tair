@@ -144,7 +144,10 @@ namespace tair {
             retry_times, old_shared->packet->getPCode());
         SharedInfo *new_shared = new SharedInfo(0, old_shared->packet);
         new_shared->set_retry_times(retry_times);
+        //request packet was released by `shared, while the request's status is equ. to COMMITTED_SUCCESS.
+        old_shared->packet = NULL;
         retry_thread->add_packet(new_shared, retry_times);
+        //`old_shared should not be released here, and it will be released by is wrapper.
       }
       else
       {
@@ -156,9 +159,8 @@ namespace tair {
             req->area, inval_area_stat::FINALLY_EXEC);
         //cache request packet
         request_storage->write_request(old_shared->packet);
+        old_shared->packet = NULL;
       }
-      //request packet was released by `shared, while the request's status is equ. to COMMITTED_SUCCESS.
-      old_shared->packet = NULL;
     }
   }
 

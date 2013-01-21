@@ -1575,21 +1575,166 @@ namespace tair {
    int tair_client::do_cmd_inval_retryall(VSTRING &params)
    {
      int ret = TAIR_RETURN_SUCCESS;
+     if (params.size() == 1)
+     {
+       ret = client_helper.retry_all();
+     }
+     else if (params.size() == 2)
+     {
+       std::string ipport = params[1];
+       size_t pos = ipport.find_first_of(':');
+       if (pos == std::string::npos || pos == ipport.size())
+       {
+         fprintf(stderr, "should be ip:port, %s", ipport.c_str());
+         ret = TAIR_RETURN_FAILED;
+       }
+       else
+       {
+         std::string ipstr = ipport.substr(0, pos);
+         std::string portstr = ipport.substr(pos + 1, ipport.size());
+         uint64_t inval_server = tbsys::CNetUtil::strToAddr(ipstr.c_str(), atoi(portstr.c_str()));
+
+         std::vector<uint64_t> inval_server_set;
+         int ret_retrieve = client_helper.retrieve_invalidserver(inval_server_set);
+         if (ret_retrieve == TAIR_RETURN_SUCCESS)
+         {
+           std::vector<uint64_t>::iterator it = std::find(inval_server_set.begin(), inval_server_set.end(), inval_server);
+           if (it == inval_server_set.end())
+           {
+             ret = TAIR_RETURN_FAILED;
+             fprintf(stderr, "inval server: %s is not in the list.\n", params[1]);
+           }
+           else
+           {
+             ret = client_helper.retry_all(inval_server);
+           }
+         }
+         else
+         {
+           ret = TAIR_RETURN_FAILED;
+           fprintf(stderr, "can't got the inval server list.");
+         }
+       }
+     }
+     else
+     {
+       print_help("invalcmd");
+       ret = TAIR_RETURN_FAILED;
+     }
      return ret;
    }
 
    int tair_client::do_cmd_inval_info(VSTRING &params)
    {
      int ret = TAIR_RETURN_SUCCESS;
+     if (params.size() == 2)
+     {
+       std::string ipport = params[1];
+       size_t pos = ipport.find_first_of(':');
+       if (pos == std::string::npos || pos == ipport.size())
+       {
+         fprintf(stderr, "should be ip:port, %s", ipport.c_str());
+         ret = TAIR_RETURN_FAILED;
+       }
+       else
+       {
+         std::string ipstr = ipport.substr(0, pos);
+         std::string portstr = ipport.substr(pos + 1, ipport.size());
+         uint64_t inval_server = tbsys::CNetUtil::strToAddr(ipstr.c_str(), atoi(portstr.c_str()));
+
+         std::vector<uint64_t> inval_server_set;
+         int ret_retrieve = client_helper.retrieve_invalidserver(inval_server_set);
+         if (ret_retrieve == TAIR_RETURN_SUCCESS)
+         {
+           std::vector<uint64_t>::iterator it = std::find(inval_server_set.begin(), inval_server_set.end(), inval_server);
+           if (it == inval_server_set.end())
+           {
+             ret = TAIR_RETURN_FAILED;
+             fprintf(stderr, "can't find the inval server: %s \n", params[1]);
+           }
+           else
+           {
+             std::string buffer;
+             ret = client_helper.get_invalidserver_info(inval_server, buffer);
+             if (ret == TAIR_RETURN_SUCCESS)
+             {
+               fprintf(stdout, "inval server: %s info: %s \n\n", tbsys::CNetUtil::addrToString(inval_server).c_str(),
+                   buffer.c_str());
+             }
+             else
+             {
+               fprintf(stderr, "failed to get inval server: %s info.", tbsys::CNetUtil::addrToString(inval_server).c_str());
+             }
+           }
+         }
+         else
+         {
+           ret = TAIR_RETURN_FAILED;
+           fprintf(stderr, "can't got the inval server list.");
+         }
+       }
+     }
+     else
+     {
+       ret = TAIR_RETURN_FAILED;
+       print_help("invalcmd");
+     }
      return ret;
    }
    int tair_client::do_cmd_inval_retrieve(VSTRING &params)
    {
      int ret = TAIR_RETURN_SUCCESS;
+     std::vector<uint64_t> inval_server_set;
+     ret = client_helper.retrieve_invalidserver(inval_server_set);
+     if (ret == TAIR_RETURN_SUCCESS)
+     {
+       for (size_t i = 0; i < inval_server_set.size(); ++i)
+       {
+         fprintf(stdout, "inval server# %d: %s \n", (int)i, tbsys::CNetUtil::addrToString(inval_server_set[i]).c_str());
+       }
+     }
+     else
+     {
+       ret = TAIR_RETURN_FAILED;
+       fprintf(stdout, "failed to get inval servers.");
+     }
      return ret;
    }
    void tair_client::do_cmd_to_inval(VSTRING &params)
    {
+     if (params.size() < 1)
+     {
+       print_help("invalcmd");
+       return;
+     }
+
+     int ret = TAIR_RETURN_SUCCESS;
+     if (strncmp("retryall", params[0], 8) == 0)
+     {
+       ret = do_cmd_inval_retryall(params);
+     }
+     else if (strncmp("info", params[0], 4) == 0)
+     {
+       ret = do_cmd_inval_info(params);
+     }
+     else if (strncmp("retrieve", params[0], 8) == 0)
+     {
+       ret = do_cmd_inval_retrieve(params);
+     }
+     else
+     {
+       ret = TAIR_RETURN_FAILED;
+       fprintf(stderr, "unknown cmd: %s \n\n", params[0]);
+     }
+
+     if (ret == TAIR_RETURN_SUCCESS)
+     {
+       fprintf(stdout, "success. \n");
+     }
+     else
+     {
+       fprintf(stderr, "failed, ret: %d\n\n", ret);
+     }
    }
 
 } // namespace tair

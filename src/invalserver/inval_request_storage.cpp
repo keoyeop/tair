@@ -349,6 +349,9 @@ namespace tair {
 
   std::string InvalRequestStorage::get_info()
   {
-    return "none implementation";
+    std::stringstream buffer;
+    buffer << " max cached request packet size: " << max_cached_packet_count << endl; 
+    buffer << " cached request packet count: " << get_packet_count() << endl;
+    return buffer.str();
   }
 }
