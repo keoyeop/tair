@@ -2,7 +2,6 @@
 [invalserver]
 port=5196
 process_thread_num=16
-async_thread_num=8
 client_timeout=500
 log_level=warn
 ignore_zero_area=0
