@@ -1,0 +1,18 @@
+AM_CPPFLAGS=-DWITH_TBUTIL -fPIC -I$(TBLIB_ROOT)/include/tbsys -I$(TBLIB_ROOT)/include/tbnet -I${top_builddir}/src/storage/ldb/leveldb/include -I${top_builddir}/src/storage/ldb/leveldb/ -I${top_srcdir}/src -I${top_srcdir}/src/storage -I${top_srcdir}/src/storage/ldb -I${top_srcdir}/src/common -I.
+AM_LDFLAGS=-lpthread ${GCOV_LIB} 
+
+ldb_path=${top_srcdir}/src/storage/ldb
+ldb_libs=${ldb_path}/libldb.a ${ldb_path}/libleveldb.a ${ldb_path}/libsnappy.a \
+	${top_builddir}/src/common/libtair_common.a \
+	${top_builddir}/src/storage/mdb/.libs/libmdb.a \
+	$(TBLIB_ROOT)/lib/libtbsys.a -lrt -lz
+
+util_srcs=ldb_util.cpp ldb_util.hpp
+
+sbin_PROGRAMS=ldb_sst_picker ldb_manifest_merger
+
+ldb_sst_picker_SOURCES=ldb_sst_picker.cpp ${util_srcs}
+ldb_sst_picker_LDADD=${ldb_libs}
+
+ldb_manifest_merger_SOURCES=ldb_manifest_merger.cpp ${util_srcs}
+ldb_manifest_merger_LDADD=${ldb_libs}

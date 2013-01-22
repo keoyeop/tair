@@ -129,6 +129,7 @@ AC_CONFIG_FILES([\
 		 src/storage/kdb/Makefile \
 		 src/storage/kdb/kyotocabinet/Makefile \
 		 src/storage/ldb/Makefile \
+		 src/storage/ldb/tools/Makefile \
 		 src/packets/Makefile \
 		 src/statserver/storage/Makefile \
 		 src/statserver/Makefile \

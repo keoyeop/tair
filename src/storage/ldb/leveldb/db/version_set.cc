@@ -1303,6 +1303,15 @@ int VersionSet::NumLevelFiles(int level) const {
   return current_->files_[level].size();
 }
 
+int64_t VersionSet::NumFiles() const {
+  int64_t count = 0;
+  for (int l = 0; l < config::kNumLevels; ++l)
+  {
+    count += NumLevelFiles(l);
+  }
+  return count;
+}
+
 const char* VersionSet::LevelSummary(LevelSummaryStorage* scratch) const {
   // Update code if kNumLevels changes
   assert(config::kNumLevels == 7);

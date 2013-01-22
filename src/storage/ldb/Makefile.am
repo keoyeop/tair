@@ -1,3 +1,5 @@
+SUBDIRS=. tools
+
 AM_CPPFLAGS=-DWITH_TBUTIL -fPIC -I$(TBLIB_ROOT)/include/tbsys -I$(TBLIB_ROOT)/include/tbnet -I${top_builddir}/src/storage/ldb/leveldb/include -I${top_builddir}/src/storage/ldb/leveldb/ -I${top_srcdir}/src -I${top_srcdir}/src/storage -I${top_srcdir}/src/common -I.
 
 if WITH_TCMALLOC

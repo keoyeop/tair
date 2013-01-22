@@ -112,6 +112,8 @@ class Version {
 
   int NumFiles(int level) const { return files_[level].size(); }
 
+  std::vector<FileMetaData*>* FileMetas() { return files_; }
+
   // return smallest and largest key in level
   bool Range(int level, std::string* smallest, std::string* largest);
 
@@ -217,6 +219,9 @@ class VersionSet {
 
   // Return the number of Table files at the specified level.
   int NumLevelFiles(int level) const;
+
+  // Return the number to Table files of all level
+  int64_t NumFiles() const;
 
   // Return the combined file size of all files at the specified level.
   int64_t NumLevelBytes(int level) const;
