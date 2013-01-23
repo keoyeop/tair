@@ -226,6 +226,9 @@ class VersionSet {
   // Return the combined file size of all files at the specified level.
   int64_t NumLevelBytes(int level) const;
 
+  // Return the combined file size of all files
+  int64_t NumBytes() const;
+
   // Return the last sequence number.
   // uint64_t LastSequence() const { return last_sequence_; }
   uint64_t LastSequence() const { return last_sequence_.Get(); }

@@ -1304,12 +1304,11 @@ int VersionSet::NumLevelFiles(int level) const {
 }
 
 int64_t VersionSet::NumFiles() const {
-  int64_t count = 0;
-  for (int l = 0; l < config::kNumLevels; ++l)
-  {
-    count += NumLevelFiles(l);
+  int64_t sum = 0;
+  for (int l = 0; l < config::kNumLevels; ++l) {
+    sum += NumLevelFiles(l);
   }
-  return count;
+  return sum;
 }
 
 const char* VersionSet::LevelSummary(LevelSummaryStorage* scratch) const {
@@ -1393,6 +1392,14 @@ int64_t VersionSet::NumLevelBytes(int level) const {
   assert(level >= 0);
   assert(level < config::kNumLevels);
   return TotalFileSize(current_->files_[level]);
+}
+
+int64_t VersionSet::NumBytes() const {
+  int64_t sum = 0;
+  for (int l = 0; l < config::kNumLevels; ++l) {
+    sum += NumLevelBytes(l);
+  }
+  return sum;
 }
 
 int64_t VersionSet::MaxNextLevelOverlappingBytes() {

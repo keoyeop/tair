@@ -64,8 +64,9 @@ namespace tair
       void print_range(const leveldb::VersionSet& versions)
       {
         char buf[128];
-        snprintf(buf, sizeof(buf), "sequence: %lu, filenumber: %lu, lognumber: %lu, filecount: %ld\n",
-                 versions.LastSequence(), versions.NextFileNumber(), versions.LogNumber(), versions.NumFiles());
+        snprintf(buf, sizeof(buf), "sequence: %lu, filenumber: %lu, lognumber: %lu, filecount: %ld, filesize: %ld\n",
+                 versions.LastSequence(), versions.NextFileNumber(), versions.LogNumber(),
+                 versions.NumFiles(), versions.NumBytes());
         std::string result;
         result.append(buf);
         versions.current()->GetAllRange(result, ldb_key_printer);

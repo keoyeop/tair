@@ -192,7 +192,7 @@ int merge_manifest(MANIFEST_SET& manifests)
     {
       if (g_verbose)
       {
-        fprintf(stderr, "result db range:\n");
+        fprintf(stderr, "result db range %s:\n", filename.c_str());
         print_range(versions);
       }
     }
@@ -278,7 +278,7 @@ int main(int argc, char* argv[])
 
     if (g_verbose)
     {
-      fprintf(stderr, "db range: %s\n", files[i].c_str());
+      fprintf(stderr, "input db range %s:\n", files[i].c_str());
       print_range(*manifest.versions_);
     }
   }

@@ -49,8 +49,11 @@ int pick_sst(const leveldb::Options& options, const leveldb::VersionSet& version
   for (size_t i = 0; i < bucket_strs.size(); ++i)
   {
     buckets.insert(atoi(bucket_strs[i].c_str()));
-    name_suffix.append("-");
-    name_suffix.append(bucket_strs[i]);
+    if (name_suffix.size() < 10) // not too long
+    {
+      name_suffix.append("-");
+      name_suffix.append(bucket_strs[i]);
+    }
   }
   if (buckets.empty())
   {
@@ -112,7 +115,7 @@ int pick_sst(const leveldb::Options& options, const leveldb::VersionSet& version
     leveldb::log::Writer desc_log(desc_file);
 
     edit.SetComparatorName(options.comparator->Name());
-    edit.SetLogNumber(versions.LogNumber());
+    edit.SetLogNumber(0);         // ignore lognumber
     edit.SetNextFile(filenumber); // real filenumber
     edit.SetLastSequence(versions.LastSequence());
 
@@ -132,6 +135,26 @@ int pick_sst(const leveldb::Options& options, const leveldb::VersionSet& version
   }
 
   fclose(num_map_file);
+
+  if (s.ok())
+  {
+    // check
+    leveldb::InternalKeyComparator icmp(options.comparator);
+    leveldb::VersionSet result_versions("./", &options, NULL, &icmp);
+    s = result_versions.Recover(filename.c_str());
+    if (!s.ok())
+    {
+      fprintf(stderr, "check manifest fail: %s\n", s.ToString().c_str());
+    }
+    else
+    {
+      if (g_verbose)
+      {
+        fprintf(stderr, "result db range %s:\n", filename.c_str());
+        print_range(result_versions);
+      }
+    }
+  }
 
   if (!s.ok())
   {
@@ -204,6 +227,7 @@ int main(int argc, char* argv[])
   {
     if (g_verbose)
     {
+      fprintf(stderr, "input db range %s:\n", manifest);
       print_range(versions);
     }
 
