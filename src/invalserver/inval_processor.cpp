@@ -35,7 +35,7 @@ namespace tair {
     }
     else
     {
-      log_error("FATAL ERROR, the wrapper should be SingleWrapper, pcode: %d", wrapper->get_packet()->getPCode());
+      log_error("the wrapper should be SingleWrapper, pcode: %d", wrapper->get_packet()->getPCode());
     }
   }
 
@@ -48,7 +48,7 @@ namespace tair {
     }
     else
     {
-      log_error("FATAL ERROR, the wrapper should be MultiWrapper, pcode: %d", wrapper->get_packet()->getPCode());
+      log_error("the wrapper should be MultiWrapper, pcode: %d", wrapper->get_packet()->getPCode());
     }
   }
 
@@ -56,7 +56,7 @@ namespace tair {
   {
     if (wrapper == NULL)
     {
-      log_error("FATAL ERROR, wrapper is null.");
+      log_error("wrapper is null.");
     }
     else
     {
@@ -84,7 +84,7 @@ namespace tair {
             break;
           }
         default:
-          log_error("FATAL ERORR, unknown pakcet, pcode: %d", pcode);
+          log_error("unknown pakcet, pcode: %d", pcode);
       }
     }
   }
@@ -136,30 +136,32 @@ namespace tair {
     {
       //retry request.
       SharedInfo *old_shared = wrapper->get_shared_info();
+      request_inval_packet *req = old_shared->packet;
+      old_shared->packet = NULL;
       int retry_times = old_shared->get_retry_times();
       if (retry_times < InvalRetryThread::RETRY_COUNT)
       {
         log_error("REQUEST FAILED, request will be retried to process, cluster name: %s, group name: %s, queue: %d, pcode: %d",
             wrapper->get_group()->get_cluster_name().c_str(), wrapper->get_group()->get_group_name().c_str(),
-            retry_times, old_shared->packet->getPCode());
-        SharedInfo *new_shared = new SharedInfo(0, old_shared->packet);
+            retry_times, req->getPCode());
+        SharedInfo *new_shared = new SharedInfo(0, req);
         new_shared->set_retry_times(retry_times);
         //request packet was released by `shared, while the request's status is equ. to COMMITTED_SUCCESS.
-        old_shared->packet = NULL;
         retry_thread->add_packet(new_shared, retry_times);
         //`old_shared should not be released here, and it will be released by is wrapper.
       }
       else
       {
+        log_error("REQUEST FAILED, request packet will be cached, cluster name: %s, group name: %s, pcode: %d",
+            wrapper->get_group()->get_cluster_name().c_str(), wrapper->get_group()->get_group_name().c_str(),
+            req->getPCode());
         //change the `shared status, the request packet hold by `shared will not be released by disconstructor of `shared.
         old_shared->set_request_status(CACHED_IN_STORAGE);
         //statistic
-        request_inval_packet *req = old_shared->packet;
         TAIR_INVAL_STAT.statistcs(pcode_opname_map[req->getPCode()], std::string(req->group_name),
             req->area, inval_area_stat::FINALLY_EXEC);
         //cache request packet
-        request_storage->write_request(old_shared->packet);
-        old_shared->packet = NULL;
+        request_storage->write_request(req);
       }
     }
   }
@@ -205,7 +207,7 @@ namespace tair {
     else
     {
       //bug: should not be here.
-      log_error("FATAL ERROR, wrapper without tair_client, cluster name: %s, group name: %s",
+      log_error("wrapper without tair_client, cluster name: %s, group name: %s",
           wrapper->get_group()->get_cluster_name().c_str(),
           wrapper->get_group()->get_group_name().c_str());
       delete wrapper;
@@ -222,7 +224,7 @@ namespace tair {
     }
     else
     {
-      log_error("FATAL ERROR, wrapper is null.");
+      log_error("wrapper is null.");
     }
   }
 
@@ -243,7 +245,7 @@ namespace tair {
         if (keys == NULL || keys->empty())
         {
           //bug: request without any key.
-          log_error("FATAL ERROR, request without any key, cluster name: %s, group name: %s, pcode: %d",
+          log_error("request without any key, cluster name: %s, group name: %s, pcode: %d",
               wrapper->get_group()->get_cluster_name().c_str(),
               wrapper->get_group()->get_group_name().c_str(), wrapper->get_packet()->getPCode());
         }
@@ -256,9 +258,9 @@ namespace tair {
                 servers[0].c_str(), wrapper->get_packet()->get_group_name());
           }
           wrapper->set_request_status(COMMITTED_FAILED);
-          //just release the wrapper
-          delete wrapper;
         }
+        //just release the wrapper
+        delete wrapper;
       }
       else
       {
@@ -272,7 +274,7 @@ namespace tair {
     else
     {
       //bug: should not be here.
-      log_error("FATAL ERROR, wrapper without tair_client, cluster name: %s, group name: %s",
+      log_error("wrapper without tair_client, cluster name: %s, group name: %s",
           wrapper->get_group()->get_cluster_name().c_str(),
           wrapper->get_group()->get_group_name().c_str());
       delete wrapper;

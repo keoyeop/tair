@@ -38,10 +38,6 @@ namespace tair {
     bool handlePacketQueue(tbnet::Packet *packet, void *args);
     bool push_task(tbnet::Packet *packet);
     int task_queue_size();
-    inline void start_retry_work()
-    {
-      atomic_set(&retry_work_status, RETRY_START);
-    }
     inline void stop_retry_work()
     {
       atomic_set(&retry_work_status, RETRY_STOP);
@@ -72,22 +68,15 @@ namespace tair {
       do_request(req, 1, InvalStatHelper::PREFIX_INVALID, true);
     }
 
-    int do_request_stat(request_inval_stat *req, response_inval_stat *resp);
-    int do_retry_all(request_retry_all* req);
-    bool init();
-    bool destroy();
-
-    //debug support
+    void do_request_stat(request_inval_stat *req);
+    void do_retry_all(request_retry_all* req);
     void do_inval_server_cmd(request_op_cmd *rq);
-    int parse_params(const std::vector<std::string>& params,
-        std::string& group_name, int32_t& area, int32_t& add_request_storage);
-    void construct_debug_infos(std::vector<std::string>& infos);
-  private:
     std::string get_info();
     void process_unknown_groupname_request(tbnet::Packet *packet);
+    bool init();
+    bool destroy();
+  private:
     bool _stop;
-    bool ignore_zero_area;
-
     tair_packet_factory packet_factory;
     tair_packet_streamer streamer;
     tbnet::Transport transport;
@@ -103,10 +92,18 @@ namespace tair {
     int sync_task_thread_count;
     enum
     {
-      RETRY_START = 0,
-      RETRY_STOP = 1
+      RETRY_STOP = 0,
+      RETRY_START = 1
     };
     atomic_t retry_work_status;
+
+    //do not cache sufficient request packets in memory. the `lower_limit_ratio and `upper_limit_ratio control
+    //the count of request packets cached in memory. in other words, read packets from disk to memroy, while
+    //the count of request packets is less than the value of `lower_limit_ratio * MAX_CACHED_PACKET_COUNT, and
+    //write the packets in memory to disk, while the count of request packets is more than the value of
+    //'upper_limit_ratio * MAX_CACHED_PACKET_COUNT;
+    static const float upper_limit_ratio = 0.8;
+    static const float lower_limit_ratio = 0.2;
   };
 
   class RetryWorkThread : public tbsys::CDefaultRunnable {
@@ -118,7 +115,10 @@ namespace tair {
     ~RetryWorkThread();
     InvalRequestStorage *request_storage;
     InvalServer* inval_server;
+    //to avoid to process the rety-working without end, it's necessary to limit the exected times of retry-working.
     static const int MAX_EXECUTED_COUNT = 100;
+    //the `retry_worker_thread will push the cached packet into the queue of task thread pool. the value of
+    //`MAX_TASK_QUEUE_SIZE is the upper bound of queue's size while `retry_worker_thread is running.
     static const int MAX_TASK_QUEUE_SIZE = 10000;
   };
 }

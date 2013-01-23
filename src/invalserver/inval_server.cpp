@@ -5,7 +5,6 @@
     InvalServer::InvalServer()
     {
       _stop = false;
-      ignore_zero_area = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_IGNORE_ZERO_AREA, 0);
       sync_task_thread_count = 0;
       stop_retry_work();
     }
@@ -136,7 +135,7 @@
             }
             else
             {
-              log_error("[FATAL ERROR] packet could not be casted to request_invalid packet.");
+              log_error("packet could not be casted to request_invalid packet.");
             }
             break;
           }
@@ -150,7 +149,7 @@
             }
             else
             {
-              log_error("[FATAL ERROR] packet could not be casted to request_hide_by_proxy packet.");
+              log_error("packet could not be casted to request_hide_by_proxy packet.");
             }
             break;
           }
@@ -164,7 +163,7 @@
             }
             else
             {
-              log_error("[FATAL ERROR] packet could not be casted to request_prefix_hides_by_proxy packet.");
+              log_error("packet could not be casted to request_prefix_hides_by_proxy packet.");
             }
             break;
           }
@@ -178,7 +177,7 @@
             }
             else
             {
-              log_error("[FATAL ERROR] packet could not be casted to request_prefix_invalids packet.");
+              log_error("packet could not be casted to request_prefix_invalids packet.");
             }
             break;
           }
@@ -186,7 +185,7 @@
           {
             if (invalid_loader.is_loading())
             {
-              log_info("ping packet received, but clients are still not ready");
+              log_warn("ping packet received, but clients are still not ready");
               ret = TAIR_RETURN_FAILED;
               msg = "iv not ready";
               break;
@@ -194,7 +193,7 @@
             request_ping *req = dynamic_cast<request_ping*>(bp);
             if (req != NULL)
             {
-              log_info("ping packet received, config_version: %u, value: %d", req->config_version, req->value);
+              log_warn("ping packet received, config_version: %u, value: %d", req->config_version, req->value);
               ret = TAIR_RETURN_SUCCESS;
             }
             else
@@ -206,18 +205,14 @@
         case TAIR_REQ_INVAL_STAT_PACKET:
           {
             request_inval_stat *req = dynamic_cast<request_inval_stat*>(bp);
-            response_inval_stat *resp = new response_inval_stat();
             if (req != NULL)
             {
-              ret = do_request_stat(req, resp);
-              if (ret != TAIR_RETURN_SUCCESS)
-              {
-                send_ret = false;
-              }
+              do_request_stat(req);
+              send_ret = false;
             }
             else
             {
-              log_error("[FATAL ERROR] the request should be request_stat.");
+              log_error("the request should be request_stat.");
               ret = TAIR_RETURN_FAILED;
             }
             break;
@@ -227,11 +222,12 @@
             request_retry_all *req = dynamic_cast<request_retry_all*>(bp);
             if (req != NULL)
             {
-              ret = do_retry_all(req);
+              do_retry_all(req);
+              send_ret = false;
             }
             else
             {
-              log_error("[FATAL ERROR] packet could not be casted to request_retry_all packet.");
+              log_error("packet could not be casted to request_retry_all packet.");
               ret = TAIR_RETURN_FAILED;
             }
             break;
@@ -246,19 +242,18 @@
             }
             else
             {
-              log_error("[FATAL ERROR] packet could not be casted to requet_op_cmd packet.");
+              log_error("packet could not be casted to requet_op_cmd packet.");
               ret = TAIR_RETURN_FAILED;
             }
             break;
           }
         default:
           {
-            log_error("[FATAL ERROR] packet not recognized, pcode: %d.", pcode);
+            log_error("packet not recognized, pcode: %d.", pcode);
             ret = TAIR_RETURN_FAILED;
           }
       }
       //~ set and send the general return_packet.
-      // if packet->is_sync == SYNC_INVALID, send the return_packet.
       if (send_ret && bp->get_direction() == DIRECTION_RECEIVE)
       {
         tair_packet_factory::set_return_packet(bp, ret, msg, 0);
@@ -302,177 +297,159 @@
       return task_queue_thread.size();
     }
 
+    //return packet sent by `request_processor.
     void InvalServer::do_request(request_inval_packet *req, int factor, int request_type, bool merged)
     {
-      if (ignore_zero_area && req->area == 0)
+      if (req->key_count <= 0)
       {
-        log_info("ignoring packet of area 0");
+        delete req;
+        log_error("the key count's value is not illegal, key count: %d", req->key_count);
       }
       else
       {
-        if (req->key_count <= 0)
+        vector<TairGroup*>* tair_groups = invalid_loader.find_groups(req->group_name);
+
+        if (tair_groups == NULL || tair_groups->empty())
         {
-          delete req;
-          log_error("FATAL ERROR, the key count's value is not illegal, key count: %d", req->key_count);
+          process_unknown_groupname_request(req);
         }
         else
         {
-          vector<TairGroup*>* tair_groups = invalid_loader.find_groups(req->group_name);
+          bool need_return_packet = true;
+          size_t request_reference_count = tair_groups->size() * factor;
+          SharedInfo *shared = new SharedInfo(request_reference_count, req);
 
-          if (tair_groups == NULL || tair_groups->empty())
+          //request packet was cached in the momery, when the request failedkk.
+          //return packet should be send to client before packet cached, and set the `request_time to be -1.
+          //when re-processing the request packet cached, do not to send return packet anymore.
+          if (req->request_time < 0)
           {
-            process_unknown_groupname_request(req);
+            req->request_time = 0;
+            need_return_packet = false;
           }
-          else
+
+          for (size_t i = 0; i < tair_groups->size(); ++i)
           {
-            bool need_return_packet = true;
-            size_t request_reference_count = tair_groups->size() * factor;
-            SharedInfo *shared = new SharedInfo(request_reference_count, req);
-
-            if (req->request_time < 0)
-            {
-              req->request_time = 0;
-              need_return_packet = false;
-            }
-
-            if (tair_groups->size() != 0)
-            {
-              for (size_t i = 0; i < tair_groups->size(); ++i)
-              {
-                (*tair_groups)[i]->commit_request(shared, merged, need_return_packet);
-              }
-            }
-            else
-            {
-              //just release `shared
-              delete shared;
-            }
-
-            TAIR_INVAL_STAT.statistcs(request_type,
-                std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
+            (*tair_groups)[i]->commit_request(shared, merged, need_return_packet);
           }
+
+          TAIR_INVAL_STAT.statistcs(request_type,
+              std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
         }
       }
     }
 
-    int InvalServer::do_retry_all(request_retry_all* req)
+    void InvalServer::do_retry_all(request_retry_all* req)
     {
       int ret = TAIR_RETURN_SUCCESS;
-      if (atomic_read(&retry_work_status) == RETRY_STOP)
+      if (atomic_add_return(1, &retry_work_status) == RETRY_START)
       {
-        start_retry_work();
         RetryWorkThread *worker = new RetryWorkThread(&request_storage, this);
         //the worker release by the the function RetryWorkThreadrun
         //never block this thread.
         if (worker == NULL)
         {
+          log_error("failed to create retry worker thread.");
           ret = TAIR_RETURN_FAILED;
         }
       }
       else
       {
+        //here, the value of retry_work_status is more then 1.
+        atomic_dec(&retry_work_status);
         log_warn("retry thread is already working ....");
       }
-      return ret;
+
+      //return response
+      if (req->get_direction() == DIRECTION_RECEIVE)
+      {
+        tair_packet_factory::set_return_packet(req, ret, "", 0);
+      }
+      delete req;
     }
 
-    int InvalServer::do_request_stat(request_inval_stat *req, response_inval_stat *resp)
+    void InvalServer::do_request_stat(request_inval_stat *req)
     {
       int ret = TAIR_RETURN_SUCCESS;
-      if (ignore_zero_area && req->area == 0)
+      response_inval_stat *resp = new response_inval_stat();
+      unsigned long buffer_size = 0;
+      unsigned long uncompressed_data_size = 0;
+      int group_count = 0;
+      char *buffer = 0;
+      TAIR_INVAL_STAT.get_stat_buffer(buffer, buffer_size, uncompressed_data_size, group_count);
+      if (buffer_size == 0 || buffer == NULL)
       {
-        log_info("ignoring packet of area 0.");
+        log_error("NONE stat info at all");
+        ret = TAIR_RETURN_FAILED;
       }
       else
       {
-        unsigned long buffer_size = 0;
-        unsigned long uncompressed_data_size = 0;
-        int group_count = 0;
-        char *buffer = 0;
-        TAIR_INVAL_STAT.get_stat_buffer(buffer, buffer_size, uncompressed_data_size, group_count);
-        if (buffer_size == 0 || buffer == NULL) 
-        {
-          log_error("NONE stat info at all");
-          delete resp;
-          ret = TAIR_RETURN_FAILED;
-        }
-        else
-        {
-          std::string key("inval_stats");
-          resp->key = new data_entry(key.c_str());
-          resp->stat_value = new data_entry(buffer, buffer_size, true); //alloc the new memory
-          resp->uncompressed_data_size = uncompressed_data_size;
-          resp->group_count = group_count;
-          resp->setChannelId(req->getChannelId());
-          if (req->get_connection()->postPacket(resp) == false) 
-          {
-            log_error("[FATAL ERROR] fail to send stat info to client.");
-            delete resp;
-            ret = TAIR_RETURN_FAILED;
-          }
-          delete [] buffer; // alloced by `inval_stat_helper
-          buffer = NULL;
-        }
+        std::string key("inval_stats");
+        resp->key = new data_entry(key.c_str());
+        resp->stat_value = new data_entry(buffer, buffer_size, true); //alloc the new memory
+        resp->uncompressed_data_size = uncompressed_data_size;
+        resp->group_count = group_count;
       }
-      return ret;
-    }
 
-    std::string InvalServer::get_info()
-    {
-      stringstream buffer;
-      buffer << " retry thread is working: " << (atomic_read(&retry_work_status) == RETRY_START ? "YES" : "NO") << endl;
-      return buffer.str();
+      resp->set_code(ret);
+      resp->setChannelId(req->getChannelId());
+      if (req->get_connection()->postPacket(resp) == false)
+      {
+        log_error("fail to send stat info to client.");
+        delete resp;
+        ret = TAIR_RETURN_FAILED;
+      }
+      delete [] buffer; // alloced by `inval_stat_helper
+      buffer = NULL;
+      delete req;
     }
 
     void InvalServer::do_inval_server_cmd(request_op_cmd *req)
     {
-      if (req != NULL)
+      int ret = TAIR_RETURN_SUCCESS;
+      response_op_cmd *resp = new response_op_cmd ();
+      std::vector<std::string> &cmd_set = req->params;
+      if (cmd_set.size() < 1)
       {
-        response_op_cmd *resp = new response_op_cmd ();
-        std::vector<std::string> &cmd_set = req->params;
-        if (cmd_set.size() < 1)
-        {
-          log_error("none cmd at all");
-          resp->infos.push_back("none cmd");
-        }
-        else
-        {
-          std::string cmd = cmd_set[0];
-          if (strncmp(cmd.c_str(), "info", 4) == 0)
-          {
-            stringstream buffer;
-            buffer << endl << " INVAL SERVER" << endl;
-            buffer << get_info() << endl;
-
-            buffer << endl << " INVAL LOADER" << endl;
-            buffer << invalid_loader.get_info() << endl;
-
-            buffer << endl << " REQUEST STORAGE" << endl;
-            buffer << request_storage.get_info() << endl;
-
-            buffer << endl << " RETRY THREADS" << endl;
-            buffer << retry_thread.get_info() << endl;
-
-            resp->infos.push_back(buffer.str());
-          }
-          else
-          {
-            log_error("unknown cmd: %s", cmd.c_str());
-            resp->infos.push_back("unknown cmd");
-          }
-        }
-        resp->setChannelId(req->getChannelId());
-        if (req->get_connection()->postPacket(resp) == false) 
-        {
-          log_error("[FATAL ERROR] fail to send stat info to client.");
-          delete resp;
-        }
-        delete req;
+        log_error("none cmd at all");
+        resp->infos.push_back("none cmd");
+        ret = TAIR_RETURN_FAILED;
       }
       else
       {
-        log_error("cmd request packet is null.");
+        std::string cmd = cmd_set[0];
+        if (strncmp(cmd.c_str(), "info", 4) == 0)
+        {
+          stringstream buffer;
+          buffer << endl << " INVAL SERVER" << endl;
+          buffer << get_info() << endl;
+
+          buffer << endl << " INVAL LOADER" << endl;
+          buffer << invalid_loader.get_info() << endl;
+
+          buffer << endl << " REQUEST STORAGE" << endl;
+          buffer << request_storage.get_info() << endl;
+
+          buffer << endl << " RETRY THREADS" << endl;
+          buffer << retry_thread.get_info() << endl;
+
+          resp->infos.push_back(buffer.str());
+        }
+        else
+        {
+          log_error("unknown cmd: %s", cmd.c_str());
+          resp->infos.push_back("unknown cmd");
+          ret = TAIR_RETURN_FAILED;
+        }
       }
+      resp->set_code(ret);
+      resp->setChannelId(req->getChannelId());
+      if (req->get_connection()->postPacket(resp) == false)
+      {
+        log_error("fail to send stat info to client.");
+        delete resp;
+      }
+      delete req;
     }
 
     bool InvalServer::init()
@@ -491,15 +468,14 @@
       //the packet's count default value is 10,000.
       const int cached_packet_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_INVAL_CACHED_PACKET_COUNT,
           TAIR_INVAL_DEFAULT_CACHED_PACKET_COUNT);
-      log_info("invalid server cached packet's count: %d", cached_packet_count);
-      request_storage.setThreadParameter(data_dir, queue_name, 0.2, 0.8, cached_packet_count, &packet_factory);
+      request_storage.setThreadParameter(data_dir, queue_name, lower_limit_ratio, upper_limit_ratio,
+          cached_packet_count, &packet_factory);
       //~ set packet factory for packet streamer.
       streamer.setPacketFactory(&packet_factory);
       int thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_PROCESS_THREAD_COUNT, 4);
       //~ set the number of threads to handle the requests.
       task_queue_thread.setThreadParameter(thread_count, this, NULL);
       retry_thread.setThreadParameter(&invalid_loader, &request_storage);
-      thread_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, "async_thread_num", 8);
       sync_task_thread_count = thread_count;
       REQUEST_PROCESSOR.setThreadParameter(&retry_thread, &request_storage);
       int max_failed_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION,
@@ -513,6 +489,14 @@
     bool InvalServer::destroy()
     {
       return true;
+    }
+
+    std::string InvalServer::get_info()
+    {
+      stringstream buffer;
+      buffer << " task thread count: " << sync_task_thread_count << endl;
+      buffer << " retry thread is working: " << (atomic_read(&retry_work_status) == RETRY_START ? "YES" : "NO") << endl;
+      return buffer.str();
     }
 
     //begin retry_worker_thread
@@ -554,8 +538,7 @@
           else
           {
             std::vector<base_packet*> packet_vector;
-            int left_packet_count = 0;
-            left_packet_count = request_storage->read_request(packet_vector, retry_packet_count);
+            request_storage->read_request(packet_vector, retry_packet_count);
             //push packet to the task_queue
             for (size_t i = 0; i < packet_vector.size(); ++i)
             {

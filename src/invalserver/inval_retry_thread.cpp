@@ -34,14 +34,14 @@
       request_inval_packet *packet = NULL;
       if ((packet = shared->packet) == NULL)
       {
-        log_error("FATAL ERROR, packet is null.");
+        log_error("packet is null.");
         ret = TAIR_RETURN_FAILED;
       }
 
       vector<TairGroup*>* groups = NULL;
       if (ret == TAIR_RETURN_SUCCESS && (groups = invalid_loader->find_groups(packet->group_name)) == NULL)
       {
-        log_error("FATAL ERROR, can't find the group according the group name: %s", packet->group_name);
+        log_error("can't find the group according the group name: %s", packet->group_name);
         ret = TAIR_RETURN_FAILED;
       }
 
@@ -165,7 +165,7 @@
     {
       if (index < 0 || index >= RETRY_COUNT)
       {
-        log_error("FATAL ERROR, should not be here, index: %d, mast be in the range of [0, %d]", index, RETRY_COUNT);
+        log_error("should not be here, index: %d, mast be in the range of [0, %d]", index, RETRY_COUNT);
       }
       else
       {

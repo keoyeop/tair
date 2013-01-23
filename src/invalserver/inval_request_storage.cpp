@@ -94,7 +94,7 @@ namespace tair {
       //encode
       if (packet->encode(buffer) == false)
       {
-        log_error("[FATAL ERROR] failed to encode packet, pcode: %d", packet->getPCode());
+        log_error("failed to encode packet, pcode: %d", packet->getPCode());
         ret = RETURN_FAILED;
       }
     }
@@ -123,7 +123,7 @@ namespace tair {
       {
         if (packet->decode(data_buffer, packet_header) == false)
         {
-          log_error("[FATAL ERROR] failed decode packet, packet pcode: %d", pcode);
+          log_error("failed decode packet, packet pcode: %d", pcode);
           ret = RETURN_FAILED;
         }
       }
@@ -146,7 +146,7 @@ namespace tair {
     log_info("inval_request_storage thread start...");
     if (open_disk_queue() == RETURN_FAILED)
     {
-      log_error("[FATAL ERROR] failed open the disk_queue, stop the thread.");
+      log_error("failed open the disk_queue, stop the thread.");
       _stop = true;
     }
     while (!_stop)
@@ -207,7 +207,7 @@ namespace tair {
       }
       else if (ret == RETURN_FAILED)
       {
-        log_error("[FATAL ERROR] failed to decode the packet.");
+        log_error("failed to decode the packet.");
       }
       free(item);
       item = NULL;
@@ -258,7 +258,7 @@ namespace tair {
         }
         else
         {
-          log_error("[FATAL ERROR] failed to push data to disk queue, packet's pcode: %d", packet->getPCode());
+          log_error("failed to push data to disk queue, packet's pcode: %d", packet->getPCode());
         }
         //need virtual destructor.
         if (packet != NULL )
@@ -268,7 +268,7 @@ namespace tair {
       }
       else
       {
-        log_error("[FATAL ERROR], failed to encode the packet to the buffer. packet pcode: %d",packet->getPCode());
+        log_error("failed to encode the packet to the buffer. packet pcode: %d",packet->getPCode());
       }
       i++;
     }
@@ -286,7 +286,7 @@ namespace tair {
     }
     else
     {
-      log_error("exceptin, packet is null");
+      log_error("exception, packet is null");
     }
     rest_packet_count = request_queue.size();
     queue_cond.unlock();
@@ -341,10 +341,7 @@ namespace tair {
   // get the count of packet on the disk.
   int InvalRequestStorage::get_packet_count_on_disk()
   {
-    queue_cond.lock();
-    int size = packet_count_on_disk;
-    queue_cond.unlock();
-    return size;
+    return packet_count_on_disk;
   }
 
   std::string InvalRequestStorage::get_info()

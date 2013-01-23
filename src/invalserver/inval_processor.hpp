@@ -87,14 +87,14 @@ namespace tair {
   {
     if (args == NULL)
     {
-      log_error("FATAL ERROR, the args is null, rcode: %d", rcode);
+      log_error("the args is null, rcode: %d", rcode);
     }
     else
     {
       PacketWrapper *wrapper = (PacketWrapper*)args;
       if (wrapper == NULL)
       {
-        log_error("FATAL ERROR, the callback's parameter is not instance of PacketWrapper, rcode: %d", rcode);
+        log_error("the callback's parameter is not instance of PacketWrapper, rcode: %d", rcode);
       }
       else
       {

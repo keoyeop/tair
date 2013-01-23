@@ -46,7 +46,7 @@ namespace tair {
     void setThreadParameter(int max_failed_count);
 
   protected:
-    //map `group_name to `TairGroup
+    //map group name to `TairGroup
     typedef __gnu_cxx::hash_map<std::string, TairGroup*, tbsys::str_hash > group_info_map_t;
     struct ClusterInfo
     {

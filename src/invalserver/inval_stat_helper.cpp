@@ -143,7 +143,7 @@ namespace tair {
       compressed_data = new char [data_size];
       if (compressed_data == NULL)
       {
-        log_error("[FATAL ERROR] failed to allocate compressed_data.");
+        log_error("failed to allocate compressed_data.");
         return false;
       }
       else
@@ -155,7 +155,7 @@ namespace tair {
     }
     else
     {
-      log_error("[FATAL ERROR] failed to uncompress the data.");
+      log_error("failed to uncompress the data.");
       return false;
     }
     //set flag
@@ -184,7 +184,7 @@ namespace tair {
     {
       if (do_compress() == false)
       {
-        log_error("[FATAL ERROR] failed to compress the statistic data!");
+        log_error("failed to compress the statistic data!");
         return false;
       }
     }
@@ -201,7 +201,7 @@ namespace tair {
     {
       buffer_size = 0;
       buffer= NULL;
-      log_error("[FATAL ERROR] fail to alloc memory .");
+      log_error("fail to alloc memory .");
       return false;
     }
     memcpy(buffer, compressed_data, compressed_data_size);
@@ -215,7 +215,7 @@ namespace tair {
   {
     if (group_names_input.empty() )
     {
-      log_error("[FATAL ERROR] group_count must be more than 0.");
+      log_error("group_count must be more than 0.");
       return false;
     }
     tbsys::CThreadGuard guard(&mutex);
@@ -249,7 +249,7 @@ namespace tair {
     inval_group_stat *stat_tmp = new inval_group_stat[group_count_tmp];
     if (stat_tmp == NULL)
     {
-      log_error("[FATAL ERROR] fail to alloc memory for 'stat' ");
+      log_error("fail to alloc memory for 'stat' ");
       if (group_names.empty() == false)
       {
         atomic_set(&work_now, WORK);
@@ -261,7 +261,7 @@ namespace tair {
     {
       //release the stat
       delete [] stat_tmp;
-      log_error("[FATAL ERROR] fail to alloc memory for 'current_stat'");
+      log_error("fail to alloc memory for 'current_stat'");
       if (group_names.empty() == false)
       {
         atomic_set(&work_now, WORK);
@@ -277,7 +277,7 @@ namespace tair {
       //release memory allocated
       delete [] stat_tmp;
       delete [] current_stat_tmp;
-      log_error("[FATAL ERROR] fail to alloc memory for 'compressed_data_buffer_tmp'");
+      log_error("fail to alloc memory for 'compressed_data_buffer_tmp'");
       if (group_names.empty() == false)
       {
         atomic_set(&work_now, WORK);
@@ -350,12 +350,12 @@ namespace tair {
           it->second->get_area_stat(area).inc_prefix_hide_count(op_type);
           break;
         default:
-          log_error("[FATAL ERROR] unknown operation_name=%d,area=%d,op_type=%d", operation_name, area, op_type);
+          log_error("unknown operation_name=%d,area=%d,op_type=%d", operation_name, area, op_type);
       }
     } //end of if
     else
     {
-      log_error("[FATAL ERROR] can't find the group name: %s ,in stat.", group_name.c_str());
+      log_error("can't find the group name: %s ,in stat.", group_name.c_str());
     }
   }
 }

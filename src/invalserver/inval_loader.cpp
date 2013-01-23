@@ -262,7 +262,7 @@
         int group_name_count = 0;
         for (size_t i = 0; i < group_name_list.size(); ++i)
         {
-          if (group_name_list[i].size() == 0)
+          if (group_name_list[i].empty())
             continue;
           group_name_count++;
           //collect all group names for INVAL_STAT_HELPER
