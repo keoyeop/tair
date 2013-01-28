@@ -243,7 +243,7 @@ void DBImpl::DeleteObsoleteFiles() {
   has_limited_delete_obsolete_file_count_ = 0;
   // Make a set of all of the live files
   std::set<uint64_t> live = pending_outputs_;
-  versions_->AddLiveFiles(&live, &mutex_);
+  versions_->AddLiveFiles(&live);
 
   std::vector<std::string> filenames;
   PROFILER_BEGIN("del addchild+");

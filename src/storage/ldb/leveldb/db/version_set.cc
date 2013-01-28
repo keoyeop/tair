@@ -418,6 +418,10 @@ bool Version::UpdateStats(const GetStats& stats) {
   return false;
 }
 
+uint32_t Version::GetRef() {
+  return refs_.Get();
+}
+
 void Version::Ref() {
   refs_.Inc();
 }
@@ -425,9 +429,8 @@ void Version::Ref() {
 void Version::Unref() {
   assert(this != &vset_->dummy_versions_);
   assert((int32_t)refs_.Get() >= 1);
-  if (refs_.Dec() == 0) {
-    delete this;
-  }
+  // to update dummy_version_ list lock-freely, we delete Version lazily
+  refs_.Dec();
 }
 
 bool Version::Range(int level, std::string* smallest, std::string* largest) {
@@ -801,7 +804,7 @@ VersionSet::~VersionSet() {
 
 void VersionSet::AppendVersion(Version* v) {
   // Make "v" current
-  assert((int32_t)v->refs_.Get() == 0);
+  assert(v->GetRef() == 0);
   assert(v != current_);
   if (current_ != NULL) {
     current_->Unref();
@@ -814,6 +817,23 @@ void VersionSet::AppendVersion(Version* v) {
   v->next_ = &dummy_versions_;
   v->prev_->next_ = v;
   v->next_->prev_ = v;
+}
+
+void VersionSet::CleanupVersion() {
+  std::vector<Version*> zombies;
+  size_t sum = 0;
+  for (Version* v = dummy_versions_.next_; v != &dummy_versions_; v = v->next_) {
+    // once refs_ got 0, it will not be increased any more.
+    if (v->GetRef() <= 0) {
+      zombies.push_back(v);
+    }
+    sum++;
+  }
+
+  Log(options_->info_log, "clean version %lu@%lu", zombies.size(), sum);
+  for (size_t i = 0; i < zombies.size(); ++i) {
+    delete zombies[i];
+  }
 }
 
 // LogAndApply() have no thread-safe protection
@@ -916,6 +936,9 @@ Status VersionSet::LogAndApply(VersionEdit* edit, port::Mutex* mu) {
       pending_restart_manifest_ = false;
     }
     mu->Unlock();
+    // cleanup unused Version.
+    // no need lock, 'cause dummy_version list is only updated here.
+    CleanupVersion();
   } else {
     delete v;
     // cleanup
@@ -1358,34 +1381,19 @@ uint64_t VersionSet::ApproximateOffsetOf(Version* v, const InternalKey& ikey) {
   return result;
 }
 
-void VersionSet::AddLiveFiles(std::set<uint64_t>* live, port::Mutex* mu) {
-  // we need lock here to avoid version of dummy_versions_ has been Unref() to destory point
-  // just when iterating.
+void VersionSet::AddLiveFiles(std::set<uint64_t>* live) {
   PROFILER_BEGIN("addtmplive");
-  std::vector<Version*> all_versions;
-  {
-    mu->Lock();
-    for (Version* v = dummy_versions_.next_;
-         v != &dummy_versions_;
-         v = v->next_) {
-      assert((int32_t)v->refs_.Get() > 0);
-      v->Ref();
-      all_versions.push_back(v);
-    }
-    mu->Unlock();
-  }
-  PROFILER_END();
-  Log(options_->info_log, "addlivefile %zd", all_versions.size());
-
-  for (std::vector<Version*>::iterator it = all_versions.begin(); it != all_versions.end(); ++it) {
+  for (Version* v = dummy_versions_.next_;
+       v != &dummy_versions_;
+       v = v->next_) {
     for (int level = 0; level < config::kNumLevels; level++) {
-      const std::vector<FileMetaData*>& files = (*it)->files_[level];
+      const std::vector<FileMetaData*>& files = v->files_[level];
       for (size_t i = 0; i < files.size(); i++) {
         live->insert(files[i]->number);
       }
     }
-    (*it)->Unref();
   }
+  PROFILER_END();
 }
 
 int64_t VersionSet::NumLevelBytes(int level) const {

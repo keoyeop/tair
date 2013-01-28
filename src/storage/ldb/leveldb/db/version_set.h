@@ -80,6 +80,7 @@ class Version {
 
   // Reference count management (so Versions do not disappear out from
   // under live iterators)
+  uint32_t GetRef();
   void Ref();
   void Unref();
 
@@ -133,11 +134,6 @@ class Version {
   VersionSet* vset_;            // VersionSet to which this Version belongs
   Version* next_;               // Next version in linked list
   Version* prev_;               // Previous version in linked list
-  // refs_ is port::AtomicCount but we still need mutex protect refs_/dummy_versions
-  // to avoid that version has been Unref() to destroy point when iteratoring
-  // dummy_versions_(addLiveFiles()).
-  // We can modify refs_ when doing compaction freely because addLiveFiles() is just in
-  // this process.
   // int refs_;                    // Number of live refs to this version
   port::AtomicCount<uint32_t> refs_; // Number of live refs to this version
 
@@ -292,7 +288,7 @@ class VersionSet {
 
   // Add all files listed in any live version to *live.
   // May also mutate some internal state.
-  void AddLiveFiles(std::set<uint64_t>* live, port::Mutex* mu);
+  void AddLiveFiles(std::set<uint64_t>* live);
 
   // Return the approximate offset in the database of the data for
   // "key" as of version "v".
@@ -341,6 +337,7 @@ class VersionSet {
   Status WriteSnapshot(log::Writer* log);
 
   void AppendVersion(Version* v);
+  void CleanupVersion();
 
   Env* const env_;
   const std::string dbname_;
