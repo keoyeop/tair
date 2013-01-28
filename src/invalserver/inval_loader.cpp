@@ -158,7 +158,7 @@
               }
               else
               {
-                log_warn("cluster: %s, group name: %s, sick.",
+                log_error("cluster: %s, group name: %s, sick.",
                     tair_groups[i]->get_cluster_name().c_str(), tair_groups[i]->get_group_name().c_str());
               }
             }
