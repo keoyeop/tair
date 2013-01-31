@@ -797,6 +797,7 @@ VersionSet::VersionSet(const std::string& dbname,
 
 VersionSet::~VersionSet() {
   current_->Unref();
+  CleanupVersion();
   // assert(dummy_versions_.next_ == &dummy_versions_);  // List must be empty
   delete descriptor_log_;
   delete descriptor_file_;

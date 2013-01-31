@@ -9,12 +9,12 @@ ldb_libs=${ldb_path}/libldb.a ${ldb_path}/libleveldb.a ${ldb_path}/libsnappy.a \
 
 util_srcs=ldb_util.cpp ldb_util.hpp
 
-sbin_PROGRAMS=view_cache_stat ldb_rsync ldb_sst_picker ldb_manifest_merger
+sbin_PROGRAMS=view_cache_stat ldb_rsync ldb_sst_picker ldb_manifest_merger ldb_dump
 
 view_cache_stat_SOURCES=view_cache_stat.cpp
 view_cache_stat_LDADD=${ldb_path}/libldb.a ${top_builddir}/src/common/libtair_common.a $(TBLIB_ROOT)/lib/libtbsys.a -lrt
 
-ldb_rsync_SOURCES=ldb_rsync.cpp
+ldb_rsync_SOURCES=ldb_rsync.cpp ${util_srcs}
 ldb_rsync_CPPFLAGS=${AM_CPPFLAGS} -I${top_srcdir}/src/packets -I${top_srcdir}/src/dataserver \
 		  -I${top_srcdir}/src/plugin -I${top_srcdir}/src/statserver/include
 ldb_rsync_LDADD=${top_builddir}/src/client/.libs/libtairclientapi.a $(TBLIB_ROOT)/lib/libtbnet.a ${ldb_libs}
@@ -24,3 +24,6 @@ ldb_sst_picker_LDADD=${ldb_libs}
 
 ldb_manifest_merger_SOURCES=ldb_manifest_merger.cpp ${util_srcs}
 ldb_manifest_merger_LDADD=${ldb_libs}
+
+ldb_dump_SOURCES=ldb_dump.cpp ${util_srcs}
+ldb_dump_LDADD=${ldb_libs}

@@ -29,6 +29,8 @@
 #include "ldb_define.hpp"
 #include "ldb_comparator.hpp"
 
+#include "ldb_util.hpp"
+
 using namespace tair::storage::ldb;
 using tair::data_entry;
 using tair::common::RecordLogger;
@@ -36,173 +38,6 @@ using tair::common::SequentialFileRecordLogger;
 using tair::ClusterHandler;
 using tair::FailRecord;
 using tair::tair_operc_vector;
-
-class DataStat
-{
-  typedef struct Stat
-  {
-    Stat() : count_(0), suc_count_(0), suc_size_(0), skip_count_(0), fail_count_(0) {}
-    void add(Stat& stat)
-    {
-      count_ += stat.count_;
-      suc_count_ += stat.suc_count_;
-      suc_size_ += stat.suc_size_;
-      skip_count_ += stat.skip_count_;
-      fail_count_ += stat.fail_count_;
-    }
-    int64_t count_;
-    int64_t suc_count_;
-    int64_t suc_size_;
-    // skip count indicates count of data that exists but suffers no expected operation.
-    int64_t skip_count_;
-    int64_t fail_count_;
-  } Stat;
-
-public:
-  DataStat() {}
-  ~DataStat()
-  {
-    do_destroy(bucket_stats_);
-    do_destroy(area_stats_);
-  }
-
-  void dump(int32_t bucket, int32_t area)
-  {
-    if (bucket >= 0)
-    {
-      do_dump(bucket_stats_, bucket, "=== one bucket stats ===");
-    }
-    if (area >= 0)
-    {
-      do_dump(area_stats_, area, "=== one area stats ===");
-    }
-  }
-  void dump_all()
-  {
-    do_dump(bucket_stats_, -1, "=== all bucket stats ===");
-    do_dump(area_stats_, -1, "=== all area stats ===");
-  }
-  void update(int32_t bucket, int32_t area, int64_t size, bool skip, bool suc)
-  {
-    do_update(bucket_stats_, bucket, size, skip, suc);
-    do_update(area_stats_, area, size, skip, suc);
-  }
-
-private:
-  void do_destroy(std::map<int32_t, Stat*>& stats)
-  {
-    for (std::map<int32_t, Stat*>::iterator it = stats.begin(); it != stats.end(); ++it)
-    {
-      delete it->second;
-    }
-    stats.clear();
-  }
-  void do_dump(std::map<int32_t, Stat*>& stats, int32_t key, const char* desc)
-  {
-    Stat* stat = NULL;
-    fprintf(stderr, "%s\n", desc);
-    fprintf(stderr, "%5s%12s%12s%12s%12s%12s\n", "key", "totalCount", "sucCount", "sucSize", "failCount", "skipCount");
-    // dump specified key stat
-    if (key >= 0)
-    {
-      std::map<int32_t, Stat*>::iterator it = stats.find(key);
-      if (it == stats.end())
-      {
-        fprintf(stderr, "NONE STATS\n");
-      }
-      else
-      {
-        stat = it->second;
-        fprintf(stderr, "%5d%12ld%12ld%12ld%12ld%12ld\n", it->first, stat->count_, stat->suc_count_, stat->suc_size_,
-                stat->fail_count_, stat->skip_count_);
-      }
-    }
-    else                        // dump all stats
-    {
-      Stat total_stat;
-      for (std::map<int32_t, Stat*>::iterator it = stats.begin(); it != stats.end(); ++it)
-      {
-        stat = it->second;
-        total_stat.add(*stat);
-        fprintf(stderr, "%5d%12ld%12ld%12ld%12ld%12ld\n", it->first, stat->count_, stat->suc_count_, stat->suc_size_,
-                stat->fail_count_, stat->skip_count_);
-      }
-      fprintf(stderr, "%5s%12ld%12ld%12ld%12ld%12ld\n", "total", total_stat.count_, total_stat.suc_count_, total_stat.suc_size_,
-              total_stat.fail_count_, total_stat.skip_count_);
-    }
-  }
-  void do_update(std::map<int32_t, Stat*>& stats, int key, int64_t size, bool skip, bool suc)
-  {
-    if (key >= 0)
-    {
-      std::map<int32_t, Stat*>::iterator it = stats.find(key);
-      Stat* stat = NULL;
-      if (it == stats.end())
-      {
-        stat = new Stat();
-        stats[key] = stat;
-      }
-      else
-      {
-        stat = it->second;
-      }
-      ++stat->count_;
-      if (skip)                 // skip ignore success or failure
-      {
-        ++stat->skip_count_;
-      }
-      else if (suc)
-      {
-        ++stat->suc_count_;
-        stat->suc_size_ += size;
-      }
-      else
-      {
-        ++stat->fail_count_;
-      }
-    }
-  }
-
-private:
-  std::map<int32_t, Stat*> bucket_stats_;
-  std::map<int32_t, Stat*> area_stats_;
-};
-
-class DataFilter
-{
-public:
-  DataFilter(const char* yes_keys, const char* no_keys)
-  {
-    init_set(yes_keys, yes_keys_);
-    init_set(no_keys, no_keys_);
-  }
-
-  void init_set(const char* keys, std::set<int32_t>& key_set)
-  {
-    if (keys != NULL)
-    {
-      std::vector<std::string> tmp_keys;
-      tair::util::string_util::split_str(keys, ", ", tmp_keys);
-      for (size_t i = 0; i < tmp_keys.size(); ++i)
-      {
-        key_set.insert(atoi(tmp_keys[i].c_str()));
-      }
-    }
-  }
-
-  bool ok(int32_t key)
-  {
-    // yes_keys is not empty and match specified key, then no_keys will be ignored
-    bool empty = false;
-    return ((empty = yes_keys_.empty()) || yes_keys_.find(key) != yes_keys_.end()) &&
-      (!empty || no_keys_.empty() || no_keys_.find(key) == no_keys_.end());
-  }
-
-private:
-  std::set<int32_t> yes_keys_;
-  std::set<int32_t> no_keys_;
-};
-
 
 // global stop sentinel
 static bool g_stop = false;
@@ -296,29 +131,11 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
   // open db with specified manifest(read only)
   leveldb::DB* db = NULL;
   leveldb::Options open_options;
-  open_options.error_if_exists = false; // exist is ok
-  open_options.create_if_missing = true; // create if not exist
-  open_options.comparator = LdbComparator(NULL); // self-defined comparator
-  open_options.env = leveldb::Env::Instance();
-
-  char buf[32];
-  snprintf(buf, sizeof(buf), "./rsync_db_log.%d", getpid());
-  leveldb::Status s = open_options.env->NewLogger(buf, &open_options.info_log);
-  if (s.ok())
-  {
-    s = leveldb::DB::Open(open_options, db_path, manifest_file, &db);
-  }
-
+  leveldb::Status s = open_db_readonly(db_path, manifest_file, "bitcmp"/* TODO */, open_options, db);
   if (!s.ok())
   {
-    log_error("open db with mainfest fail: %s", s.ToString().c_str());
-    delete open_options.comparator;
-    delete open_options.env;
-    if (open_options.info_log != NULL)
-    {
-      delete open_options.info_log;
-    }
-    return TAIR_RETURN_FAILED;
+    fprintf(stderr, "open db fail: %s\n", s.ToString().c_str());
+    return 1;
   }
 
   // get db iterator
@@ -523,10 +340,10 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
   if (db != NULL)
   {
     delete db;
+    delete open_options.comparator;
+    delete open_options.env;
+    delete open_options.info_log;
   }
-  delete open_options.comparator;
-  delete open_options.env;
-  delete open_options.info_log;
 
   return ret;
 }

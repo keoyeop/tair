@@ -14,6 +14,7 @@
  *
  */
 
+#include "leveldb/env.h"
 #include "db/version_set.h"
 
 #include "common/util.hpp"
@@ -71,6 +72,178 @@ namespace tair
         result.append(buf);
         versions.current()->GetAllRange(result, ldb_key_printer);
         fprintf(stderr, "%s\n", result.c_str());
+      }
+
+      leveldb::Status open_db_readonly(const char* db_path, const char* manifest,
+                                       const char* cmp_desc, leveldb::Options& options, leveldb::DB*& db)
+      {
+        options.comparator = new_comparator(cmp_desc);
+        if (options.comparator == NULL)
+        {
+          return leveldb::Status::InvalidArgument("invalid comparator description");
+        }
+
+        options.error_if_exists = false; // exist is ok
+        options.create_if_missing = false;
+        options.env = leveldb::Env::Instance();
+
+        char buf[32];
+        snprintf(buf, sizeof(buf), "./tmp_ldb_log.%d", getpid());
+        leveldb::Status s = options.env->NewLogger(buf, &options.info_log);
+        if (s.ok())
+        {
+          s = leveldb::DB::Open(options, db_path, manifest, &db);
+        }
+
+        if (!s.ok())
+        {
+          log_error("open db with mainfest fail: %s", s.ToString().c_str());
+          delete options.comparator;
+          delete options.env;
+          if (options.info_log != NULL)
+          {
+            delete options.info_log;
+          }
+        }
+
+        return s;
+      }
+
+
+      DataStat::DataStat()
+      {
+      }
+      DataStat::~DataStat()
+      {
+        do_destroy(bucket_stats_);
+        do_destroy(area_stats_);
+      }
+
+      void DataStat::dump(int32_t bucket, int32_t area)
+      {
+        if (bucket >= 0)
+        {
+          do_dump(bucket_stats_, bucket, "=== one bucket stats ===");
+        }
+        if (area >= 0)
+        {
+          do_dump(area_stats_, area, "=== one area stats ===");
+        }
+      }
+      void DataStat::dump_all()
+      {
+        do_dump(bucket_stats_, -1, "=== all bucket stats ===");
+        do_dump(area_stats_, -1, "=== all area stats ===");
+      }
+      void DataStat::update(int32_t bucket, int32_t area, int64_t size, bool skip, bool suc)
+      {
+        do_update(bucket_stats_, bucket, size, skip, suc);
+        do_update(area_stats_, area, size, skip, suc);
+      }
+
+      void DataStat::do_destroy(std::map<int32_t, Stat*>& stats)
+      {
+        for (std::map<int32_t, Stat*>::iterator it = stats.begin(); it != stats.end(); ++it)
+        {
+          delete it->second;
+        }
+        stats.clear();
+      }
+      void DataStat::do_dump(std::map<int32_t, Stat*>& stats, int32_t key, const char* desc)
+      {
+        Stat* stat = NULL;
+        fprintf(stderr, "%s\n", desc);
+        fprintf(stderr, "%5s%12s%12s%12s%12s%12s\n", "key", "totalCount", "sucCount", "sucSize", "failCount", "skipCount");
+        // dump specified key stat
+        if (key >= 0)
+        {
+          std::map<int32_t, Stat*>::iterator it = stats.find(key);
+          if (it == stats.end())
+          {
+            fprintf(stderr, "NONE STATS\n");
+          }
+          else
+          {
+            stat = it->second;
+            fprintf(stderr, "%5d%12ld%12ld%12ld%12ld%12ld\n", it->first, stat->count_, stat->suc_count_, stat->suc_size_,
+                    stat->fail_count_, stat->skip_count_);
+          }
+        }
+        else                        // dump all stats
+        {
+          Stat total_stat;
+          for (std::map<int32_t, Stat*>::iterator it = stats.begin(); it != stats.end(); ++it)
+          {
+            stat = it->second;
+            total_stat.add(*stat);
+            fprintf(stderr, "%5d%12ld%12ld%12ld%12ld%12ld\n", it->first, stat->count_, stat->suc_count_, stat->suc_size_,
+                    stat->fail_count_, stat->skip_count_);
+          }
+          fprintf(stderr, "%5s%12ld%12ld%12ld%12ld%12ld\n", "total", total_stat.count_, total_stat.suc_count_, total_stat.suc_size_,
+                  total_stat.fail_count_, total_stat.skip_count_);
+        }
+      }
+      void DataStat::do_update(std::map<int32_t, Stat*>& stats, int key, int64_t size, bool skip, bool suc)
+      {
+        if (key >= 0)
+        {
+          std::map<int32_t, Stat*>::iterator it = stats.find(key);
+          Stat* stat = NULL;
+          if (it == stats.end())
+          {
+            stat = new Stat();
+            stats[key] = stat;
+          }
+          else
+          {
+            stat = it->second;
+          }
+          ++stat->count_;
+          if (skip)                 // skip ignore success or failure
+          {
+            ++stat->skip_count_;
+          }
+          else if (suc)
+          {
+            ++stat->suc_count_;
+            stat->suc_size_ += size;
+          }
+          else
+          {
+            ++stat->fail_count_;
+          }
+        }
+      }
+
+
+      DataFilter::DataFilter(const char* yes_keys, const char* no_keys)
+      {
+        init_set(yes_keys, yes_keys_);
+        init_set(no_keys, no_keys_);
+      }
+      DataFilter::~DataFilter()
+      {
+      }
+
+      void DataFilter::init_set(const char* keys, std::set<int32_t>& key_set)
+      {
+        if (keys != NULL)
+        {
+          std::vector<std::string> tmp_keys;
+          tair::util::string_util::split_str(keys, ", ", tmp_keys);
+          for (size_t i = 0; i < tmp_keys.size(); ++i)
+          {
+            key_set.insert(atoi(tmp_keys[i].c_str()));
+          }
+        }
+      }
+
+      bool DataFilter::ok(int32_t key)
+      {
+        // yes_keys is not empty and match specified key, then no_keys will be ignored
+        bool empty = false;
+        return ((empty = yes_keys_.empty()) || yes_keys_.find(key) != yes_keys_.end()) &&
+          (!empty || no_keys_.empty() || no_keys_.find(key) == no_keys_.end());
       }
 
     }
