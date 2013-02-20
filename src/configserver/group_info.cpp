@@ -50,6 +50,7 @@ namespace tair {
       server_down_time = TAIR_SERVER_DOWNTIME;
       min_data_server_count = 0;
       pre_load_flag = 0;
+      always_update_capacity_info = false;
       tmp_down_server.clear();
       // server table name
       char server_table_file_name[256];
@@ -289,7 +290,7 @@ namespace tair {
         }
       }
       bool need_update = false;
-      if(area_capacity_info.size() != area_capacity_info_tmp.size()) {
+      if(always_update_capacity_info || (area_capacity_info.size() != area_capacity_info_tmp.size())) {
         need_update = true;
       }
       else {
@@ -466,6 +467,8 @@ namespace tair {
       if(pos_mask == 0)
         pos_mask = TAIR_POS_MASK;
       log_info(" %s = %llX", TAIR_STR_POS_MASK, pos_mask);
+
+      always_update_capacity_info = config.getInt(group_name, TAIR_ALWAYS_UPDATE_CAPACITY_INFO, 0) > 0;
 
       pre_load_flag = config.getInt(group_name, TAIR_PRE_LOAD_FLAG, 0);
       const char* down_servers = config.getString(group_name, TAIR_TMP_DOWN_SERVER, "");

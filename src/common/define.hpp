@@ -278,6 +278,7 @@
 #define TAIR_GROUP_STATUS               "group_status"
 #define TAIR_GROUP_STATUS_ON            "on"
 #define TAIR_PRE_LOAD_FLAG              "_pre_load_flag" // 1: need preload; 0: no need; default 0
+#define TAIR_ALWAYS_UPDATE_CAPACITY_INFO "_always_update_capacity_info"
 #define TAIR_TMP_DOWN_SERVER            "tmp_down_server"
 #define TAIR_CONFIG_VALUE_DELIMITERS    " ;"
 

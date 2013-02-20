@@ -212,6 +212,7 @@ namespace tair {
 
       std::set<uint64_t> reported_serverid;
       std::map<uint32_t, uint64_t> area_capacity_info;        //<area, capacity>
+      bool always_update_capacity_info;                       // whether update capacity info everytime
 
       std::map<uint64_t, node_stat_info> stat_info;        //<server_id, statInfo>
       mutable tbsys::CRWSimpleLock stat_info_rw_locker;        //node_stat_info has its own lock, this only for the map stat_info
