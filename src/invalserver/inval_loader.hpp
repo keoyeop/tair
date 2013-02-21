@@ -55,6 +55,7 @@ namespace tair {
       std::string cluster_name;
       std::vector<std::string> group_name_list;
       group_info_map_t groups;
+      int mode;
       bool all_connected;
       ClusterInfo();
       ~ClusterInfo();
@@ -74,6 +75,11 @@ namespace tair {
 
     //reload the group names.
     void do_reload_work();
+
+    //read config info for the cluster named `cluster_name
+    void fetch_info(const std::string &cluster_name);
+    //parse the cluster's name list in the config file
+    void parse_cluster_list(const char *p_cluster_list, std::vector<std::string> &cluster_name_list);
   protected:
     bool loading;
     CLIENT_HELPER_MAP client_helper_map;
@@ -83,6 +89,14 @@ namespace tair {
     typedef __gnu_cxx::hash_map<std::string, ClusterInfo*, tbsys::str_hash > cluster_info_map_t;
     cluster_info_map_t clusters;
     int max_failed_count;
+    enum
+    {
+      //local cluster
+      LOCAL_MODE = 0,
+      //remote cluster
+      REMOTE_MODE = 1
+    };
+
   };
 }
 #endif

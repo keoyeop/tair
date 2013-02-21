@@ -7,6 +7,7 @@
   namespace tair {
     InvalLoader::ClusterInfo::ClusterInfo() : master(0), slave(0), all_connected(false)
     {
+      mode = LOCAL_MODE;
     }
 
     InvalLoader::ClusterInfo::~ClusterInfo()
@@ -186,45 +187,117 @@
       }
     }
 
+    //parse the cluster list, cluster name was separated by ','
+    void InvalLoader::parse_cluster_list(const char *p_cluster_list, std::vector<std::string> &cluster_name_list)
+    {
+      size_t begin = 0;
+      size_t end = 0;
+      size_t pos = 0;
+      cluster_name_list.clear();
+      std::string cluster_list(p_cluster_list);
+      while (pos != std::string::npos && pos < cluster_list.size())
+      {
+        begin = pos;
+        pos = cluster_list.find_first_of(',', pos);
+        if (pos == std::string::npos)
+        {
+          end = cluster_list.size();
+        }
+        else
+        {
+          end = pos;
+          pos += 1;
+        }
+        //get the cluster name
+        std::string tmp = cluster_list.substr(begin, end - begin);
+        //remove the space character at the both ends of the `tmp
+        string cluster_name = util::string_util::trim_str(tmp, " ");;
+        if (!cluster_name.empty())
+        {
+          cluster_name_list.push_back(cluster_name);
+          log_debug("got cluster name: %s", cluster_name.c_str());
+        }
+      }
+    }
+
     void InvalLoader::fetch_cluster_infos()
     {
       log_info("start loading groupnames.");
-      int defaultPort = TBSYS_CONFIG.getInt(CONFSERVER_SECTION,
-          TAIR_PORT, TAIR_CONFIG_SERVER_DEFAULT_PORT);
       //collect all group names
-      std::vector<std::string> keylist;
-      TBSYS_CONFIG.getSectionKey(INVALSERVER_SECTION, keylist);
-      cluster_info_map_t::iterator it;
-      for (size_t i = 0; i < keylist.size(); ++i)
+      const char* p_cluster_list = TBSYS_CONFIG.getString(INVALSERVER_SECTION, "cluster_list", NULL);
+      if (p_cluster_list != NULL)
       {
-        const char *key = keylist[i].c_str();
-        if (key == NULL || strncmp(key, "config_server", 13) != 0)
+        //get the cluster name list from the config file
+        vector<std::string> cluster_name_list;
+        parse_cluster_list(p_cluster_list, cluster_name_list);
+        for (size_t i = 0; i < cluster_name_list.size(); ++i)
         {
-          continue;
+          //fetch info for cluster
+          fetch_info(cluster_name_list[i]);
         }
-        std::vector<const char*> strList = TBSYS_CONFIG.getStringList(INVALSERVER_SECTION, key);
-        for (size_t j = 0; j < strList.size(); ++j)
-        {
-          uint64_t id = tbsys::CNetUtil::strToAddr(strList[j], defaultPort);
-          log_info("got configserver: %s", tbsys::CNetUtil::addrToString(id).c_str());
-          if (id == 0)
-          {
-            continue;
-          }
-          it = clusters.find(key);
+      }
+    }
 
-          if (it == clusters.end())
+    void InvalLoader::fetch_info(const std::string &cluster_name)
+    {
+      uint64_t master_id = 0;
+      uint64_t slave_id = 0;
+      int mode = LOCAL_MODE;
+      int defaultPort = TBSYS_CONFIG.getInt(CONFSERVER_SECTION, TAIR_PORT, TAIR_CONFIG_SERVER_DEFAULT_PORT);
+      const char *p_master = TBSYS_CONFIG.getString(cluster_name.c_str(), TAIR_INVAL_CLUSTER_MASTER_CFG);
+      if (p_master != NULL)
+      {
+        //read master
+        master_id = tbsys::CNetUtil::strToAddr(p_master, defaultPort);
+        if (master_id != 0)
+        {
+          log_info("cluster: %s, got master configserver: %s",
+              cluster_name.c_str(), tbsys::CNetUtil::addrToString(master_id).c_str());
+          //read slave
+          const char *p_slave = TBSYS_CONFIG.getString(cluster_name.c_str(), TAIR_INVAL_CLUSTER_SLAVE_CFG);
+          if (p_slave != NULL)
           {
-            //create the `cluster_info
-            ClusterInfo *ci = new ClusterInfo();
-            ci->master = id;
-            ci->cluster_name = key;
-            clusters.insert(cluster_info_map_t::value_type(key, ci));
+            slave_id = tbsys::CNetUtil::strToAddr(p_slave, defaultPort);
+            log_info("cluster: %s, got slave configserver: %s",
+                cluster_name.c_str(), tbsys::CNetUtil::addrToString(slave_id).c_str());
+          }
+          //read mode
+          const char *p_mode = TBSYS_CONFIG.getString(cluster_name.c_str(), TAIR_INVAL_CLUSTER_MODE,
+              TAIR_INVAL_CLUSTER_LOCAL_MODE);
+          if (p_mode != NULL)
+          {
+            if (strncmp(p_mode, TAIR_INVAL_CLUSTER_REMOTE_MODE, strlen(TAIR_INVAL_CLUSTER_REMOTE_MODE)) == 0)
+            {
+              mode = REMOTE_MODE;
+            }
+          }
+
+          ClusterInfo *ci = NULL;
+          cluster_info_map_t::iterator it = clusters.find(cluster_name);
+          if (it != clusters.end())
+          {
+            ci = it->second;
           }
           else
           {
-            it->second->slave = id;
+            ci = new ClusterInfo();
           }
+
+          if (ci != NULL)
+          {
+            ci->master = master_id;
+            ci->slave = slave_id;
+            ci->cluster_name = cluster_name;
+            ci->mode = mode;
+            if (it == clusters.end())
+            {
+              clusters.insert(cluster_info_map_t::value_type(cluster_name, ci));
+            }
+          }
+        }
+        else
+        {
+          log_error("not find the cluster: %s's config info.", cluster_name.c_str());
         }
       }
     }
@@ -341,6 +414,9 @@
            buffer << " cluster# " << idx << " name: " << ci.cluster_name << endl;
             buffer << "  got group name: " << (!ci.group_name_list.empty() ? "YES" : "NO") << endl;
             buffer << "  all connected: " << (ci.all_connected ? "YES" : "NO") << endl;
+            std::string mode_str = ci.mode == LOCAL_MODE ? TAIR_INVAL_CLUSTER_LOCAL_MODE :
+              TAIR_INVAL_CLUSTER_REMOTE_MODE;
+            buffer << "  mode: " << mode_str << endl;
           group_info_map_t &gi = ci.groups;
           int gidx = 0;
           for (group_info_map_t::iterator git = gi.begin(); git != gi.end(); ++git)
