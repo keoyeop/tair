@@ -52,8 +52,10 @@ namespace tair {
 
     //process the failed request
     void process_failed_request(PacketWrapper *wrapper);
+
+    //send return packet to client
+    void send_return_packet(PacketWrapper *wrapper, const int ret, const char *msg);
   protected:
-    void send_return_packet(PacketWrapper *wrapper, const int ret);
 
     //defination of function type.
     typedef int (tair_client_impl::*PROCESS_RH_FUNC_T) (int area, const data_entry &key, TAIRCALLBACKFUNC pfunc, void *parg);

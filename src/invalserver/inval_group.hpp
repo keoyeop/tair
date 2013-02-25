@@ -30,7 +30,7 @@ namespace tair {
   class TairGroup {
   public:
     TairGroup(const std::string &cluster_name, uint64_t master, uint64_t slave,
-        const std::string &group_name, int max_failed_count);
+        const std::string &group_name, int max_failed_count, int8_t mode);
     ~TairGroup();
 
     //inval_server commit the request
@@ -90,6 +90,10 @@ namespace tair {
         connected = true;
       }
     }
+    inline int8_t get_mode()
+    {
+      return mode;
+    }
   protected:
 
     typedef void (RequestProcessor::*PROC_FUNC_T) (PacketWrapper *wrapper);
@@ -111,6 +115,7 @@ namespace tair {
     int max_failed_count;
     const static int DEFAULT_CONTINUE_MAX_FAILED_COUNT = 5;
     int continue_failed_count;
+    int8_t mode;
     bool connected;
 
     enum

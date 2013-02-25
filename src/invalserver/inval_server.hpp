@@ -72,7 +72,8 @@ namespace tair {
     void do_retry_all(request_retry_all* req);
     void do_inval_server_cmd(request_op_cmd *rq);
     std::string get_info();
-    void process_unknown_groupname_request(tbnet::Packet *packet);
+    void process_unknown_groupname_request(request_inval_packet *packet);
+    void send_return_packet(request_inval_packet *req, int code, const char* msg);
     bool init();
     bool destroy();
   private:

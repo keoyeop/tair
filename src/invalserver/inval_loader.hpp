@@ -25,11 +25,12 @@ namespace tair {
     InvalLoader();
     virtual ~InvalLoader();
 
-    std::vector<TairGroup*>* find_groups(const char *groupname);
+    bool find_groups(const char *groupname, std::vector<TairGroup*>* &groups, int* p_local_cluster_count);
     inline int get_client_count(const char *groupname)
     {
-      vector<TairGroup*>* groups = find_groups(groupname);
-      return groups != NULL ? groups->size() : 0;
+      vector<TairGroup*>* groups = NULL;
+      bool got = find_groups(groupname, groups, NULL);
+      return (got && groups != NULL) ? groups->size() : 0;
     }
 
     void run(tbsys::CThread *thread, void *arg);
@@ -55,11 +56,13 @@ namespace tair {
       std::string cluster_name;
       std::vector<std::string> group_name_list;
       group_info_map_t groups;
-      int mode;
+      int8_t mode;
       bool all_connected;
       ClusterInfo();
       ~ClusterInfo();
     };
+    typedef __gnu_cxx::hash_map<std::string, int, tbsys::str_hash > local_count_map_t;
+    local_count_map_t local_count_map;
 
   protected:
     void load_group_name();
@@ -89,14 +92,6 @@ namespace tair {
     typedef __gnu_cxx::hash_map<std::string, ClusterInfo*, tbsys::str_hash > cluster_info_map_t;
     cluster_info_map_t clusters;
     int max_failed_count;
-    enum
-    {
-      //local cluster
-      LOCAL_MODE = 0,
-      //remote cluster
-      REMOTE_MODE = 1
-    };
-
   };
 }
 #endif

@@ -54,8 +54,11 @@ namespace tair {
   //reference counter, delay count and request status
   struct SharedInfo
   {
-    //when the value of `reference_count was equ. 0, the return packet whould be send to client, except retry request.
-    atomic_t reference_count;
+    //when the value of `reference_count was equ. to 0,  retry the request if failed, and clean the resource.
+    atomic_t global_reference_count;
+
+    //when the value of `local_reference_count was equ. to 0, send return packet to the client, except retry request.
+    atomic_t local_reference_count;
 
     //the state of the request.
     atomic_t request_status;
@@ -66,9 +69,10 @@ namespace tair {
     //request packet.
     request_inval_packet *packet;
 
-    SharedInfo(int init_reference_count, request_inval_packet *packet)
+    SharedInfo(int init_global_reference_count, int init_local_reference_count, request_inval_packet *packet)
     {
-      atomic_set(&reference_count, init_reference_count);
+      atomic_set(&global_reference_count, init_global_reference_count);
+      atomic_set(&local_reference_count, init_local_reference_count);
       atomic_set(&retry_times, 0);
       atomic_set(&request_status, PREPARE_COMMIT);
       this->packet = packet;
@@ -86,12 +90,17 @@ namespace tair {
 
     inline void set_request_reference_count(int ref_count)
     {
-      atomic_set(&reference_count, ref_count);
+      atomic_set(&global_reference_count, ref_count);
     }
 
     inline int dec_and_return_reference_count(int c)
     {
-      return atomic_sub_return(c, &reference_count);
+      return atomic_sub_return(c, &global_reference_count);
+    }
+
+    inline int dec_and_return_local_reference_count(int c)
+    {
+      return atomic_sub_return(c, &local_reference_count);
     }
 
     inline void set_request_status(int status)
@@ -131,11 +140,19 @@ namespace tair {
 
     virtual ~PacketWrapper()
     {
+      //send return packet
+      if (is_need_return_packet && group != NULL && group->get_mode() == LOCAL_MODE
+          && dec_and_return_local_reference_count(1) == 0)
+      {
+        //send return packet to  client.
+        REQUEST_PROCESSOR.send_return_packet(this, TAIR_RETURN_SUCCESS, "success");
+        log_debug("send return packet, local reference count is equ. to zero.");
+      }
       if (dec_and_return_reference_count(1) == 0)
       {
-        //finish the request, first of all, send return packet to client if necessary,
-        //second, retry the request if failed.
+        //finish the request, retry the request if failed.
         REQUEST_PROCESSOR.end_request(this);
+        log_debug("finish the request, global reference count is equ. to zero.");
         //release the shared.
         delete shared;
       }
@@ -143,12 +160,12 @@ namespace tair {
 
     inline int get_request_reference_count()
     {
-      return atomic_read(&(shared->reference_count));
+      return atomic_read(&(shared->global_reference_count));
     }
 
     inline void set_request_reference_count(int this_reference_count)
     {
-      atomic_set(&(shared->reference_count), this_reference_count);
+      atomic_set(&(shared->global_reference_count), this_reference_count);
     }
 
     inline int dec_and_return_reference_count(int c)
@@ -156,14 +173,19 @@ namespace tair {
       return shared->dec_and_return_reference_count(c);
     }
 
+    inline int dec_and_return_local_reference_count(int c)
+    {
+      return shared->dec_and_return_local_reference_count(c);
+    }
+
     inline void inc_request_reference_count()
     {
-      atomic_inc(&(shared->reference_count));
+      atomic_inc(&(shared->global_reference_count));
     }
 
     inline void dec_request_reference_count()
     {
-      atomic_dec(&(shared->reference_count));
+      atomic_dec(&(shared->global_reference_count));
     }
 
     inline void set_request_status(int rs)

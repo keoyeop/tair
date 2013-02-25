@@ -313,6 +313,11 @@ enum {
   SYNC_INVALID,
   ASYNC_INVALID,
 };
+enum
+{
+  LOCAL_MODE = 0,
+  REMOTE_MODE = 1,
+};
 //////////////////////////////////////////////
 enum {
    TAIR_ITEM_FLAG_ADDCOUNT = 0x1,

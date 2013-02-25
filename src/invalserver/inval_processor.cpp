@@ -126,12 +126,7 @@ namespace tair {
 
   void RequestProcessor::end_request(PacketWrapper *wrapper)
   {
-    if (wrapper->get_needed_return_packet())
-    {
-      log_debug("request finished");
-      send_return_packet(wrapper, TAIR_RETURN_SUCCESS);
-    }
-
+    //if the request' status is COMMITTED_SUCCESS, to do nothing here.
     if (wrapper->get_request_status() == COMMITTED_FAILED)
     {
       //retry request.
@@ -144,12 +139,13 @@ namespace tair {
         log_error("REQUEST FAILED, request will be retried to process, cluster name: %s, group name: %s, queue: %d, pcode: %d",
             wrapper->get_group()->get_cluster_name().c_str(), wrapper->get_group()->get_group_name().c_str(),
             retry_times, req->getPCode());
-        SharedInfo *new_shared = new SharedInfo(0, req);
+        SharedInfo *new_shared = new SharedInfo(0, 0, req);
         new_shared->set_retry_times(retry_times);
         //request packet was released by `shared, while the request's status is equ. to COMMITTED_SUCCESS.
         retry_thread->add_packet(new_shared, retry_times);
         //`old_shared should not be released here, and it will be released by is wrapper.
       }
+      //cache the request packet.
       else
       {
         log_error("REQUEST FAILED, request packet will be cached, cluster name: %s, group name: %s, pcode: %d",
@@ -166,11 +162,11 @@ namespace tair {
     }
   }
 
-  void RequestProcessor::send_return_packet(PacketWrapper *wrapper, const int ret)
+  void RequestProcessor::send_return_packet(PacketWrapper *wrapper, const int ret, const char *msg)
   {
     if (wrapper->get_packet()->get_direction() == DIRECTION_RECEIVE)
     {
-      tair_packet_factory::set_return_packet(wrapper->get_packet(), ret, "success.", 0);
+      tair_packet_factory::set_return_packet(wrapper->get_packet(), ret, msg, 0);
     }
   }
 

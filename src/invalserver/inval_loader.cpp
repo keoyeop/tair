@@ -45,23 +45,30 @@
       this->max_failed_count = max_failed_count;
     }
 
-    std::vector<TairGroup*>* InvalLoader::find_groups(const char *groupname)
+    bool InvalLoader::find_groups(const char *groupname, std::vector<TairGroup*>* &groups, int* p_local_cluster_count)
     {
+      groups = NULL;
       if (groupname == NULL)
       {
         log_error("groupname is NULL!");
-        return NULL;
+        return false;
       }
       if (loading)
       {
-        return NULL;
+        return false;
       }
       CLIENT_HELPER_MAP::iterator it = client_helper_map.find(groupname);
-      if ( it == client_helper_map.end())
+      local_count_map_t::iterator lit = local_count_map.find(groupname);
+      if (it == client_helper_map.end() || lit == local_count_map.end())
       {
-        return NULL;
+        return false;
       }
-      return &(it->second);
+      groups = &(it->second);
+      if (p_local_cluster_count != NULL)
+      {
+        *p_local_cluster_count = lit->second;
+      }
+      return true;
     }
 
     void InvalLoader::load_group_name()
@@ -104,6 +111,29 @@
 
       if (finished_count == cluster_count)
       {
+        //build the `local_count_map
+        for (CLIENT_HELPER_MAP::iterator it = client_helper_map.begin(); it != client_helper_map.end(); ++it)
+        {
+          std::vector<TairGroup*> &groups = it->second;
+          int local_cluster_count = 0;
+          for (size_t i = 0; i < groups.size(); ++i)
+          {
+            if (groups[i] != NULL && groups[i]->get_mode() == LOCAL_MODE)
+            {
+              local_cluster_count++;
+            }
+          }
+
+          local_count_map_t::iterator lit = local_count_map.find(it->first);
+          if (lit == local_count_map.end())
+          {
+            local_count_map.insert(local_count_map_t::value_type(it->first, local_cluster_count));
+          }
+          else
+          {
+            lit->second = local_cluster_count;
+          }
+        }
         //finish the loading group name task
         loading = false;
         //set the group name to `stat_helper.
@@ -350,7 +380,8 @@
           TairGroup *tair_group = NULL;
           if (gt == ci.groups.end())
           {
-            TairGroup *tg = new TairGroup(ci.cluster_name, ci.master, ci.slave, group_name_list[i], max_failed_count);
+            TairGroup *tg = new TairGroup(ci.cluster_name, ci.master, ci.slave,
+                group_name_list[i], max_failed_count, ci.mode);
             ci.groups.insert(group_info_map_t::value_type(group_name_list[i], tg));
             tair_group = tg;
           }

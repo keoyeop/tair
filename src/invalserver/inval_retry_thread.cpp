@@ -39,7 +39,8 @@
       }
 
       vector<TairGroup*>* groups = NULL;
-      if (ret == TAIR_RETURN_SUCCESS && (groups = invalid_loader->find_groups(packet->group_name)) == NULL)
+      bool got = invalid_loader->find_groups(packet->group_name, groups, NULL);
+      if (ret == TAIR_RETURN_SUCCESS && (!got || groups == NULL))
       {
         log_error("can't find the group according the group name: %s", packet->group_name);
         ret = TAIR_RETURN_FAILED;

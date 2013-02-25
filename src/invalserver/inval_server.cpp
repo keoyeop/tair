@@ -262,16 +262,23 @@
       return false;
     }
 
-    void InvalServer::process_unknown_groupname_request(tbnet::Packet *packet)
+    void InvalServer::send_return_packet(request_inval_packet* req, int code, const char* msg)
+    {
+      if (req != NULL && req->get_direction() == DIRECTION_RECEIVE)
+      {
+        tair_packet_factory::set_return_packet(req, code, msg, 0);
+      }
+    }
+
+    void InvalServer::process_unknown_groupname_request(request_inval_packet* req)
     {
       //can't find the instance of TairGroup, according to the `req->group_name.
       //just send the return packet to client
-      request_inval_packet *req = dynamic_cast<request_inval_packet*>(packet);
-      if (req != NULL && req->request_time > 0 && req->get_direction() == DIRECTION_RECEIVE)
+      if (req != NULL && req->request_time > 0)
       {
         if (invalid_loader.is_loading())
         {
-          tair_packet_factory::set_return_packet(req, TAIR_RETURN_SUCCESS, "inval server is not ready.", 0);
+          send_return_packet(req, TAIR_RETURN_FAILED, "inval server is not ready.");
           log_warn("inval server is still loading group name, request packet will be cached. pcode: %d, group name: %s",
               req->getPCode(), req->group_name);
           //write the request to `request_storage
@@ -280,7 +287,7 @@
         else
         {
           log_warn("unknown request packet, pcode: %d, group name: %s", req->getPCode(), req->group_name);
-          tair_packet_factory::set_return_packet(req, TAIR_RETURN_FAILED, "unknown group name.", 0);
+          send_return_packet(req, TAIR_RETURN_FAILED, "unknown group name.");
           //packet should be released.
           delete req;
         }
@@ -307,17 +314,18 @@
       }
       else
       {
-        vector<TairGroup*>* tair_groups = invalid_loader.find_groups(req->group_name);
-
-        if (tair_groups == NULL || tair_groups->empty())
+        vector<TairGroup*>* tair_groups = NULL;
+        int local_cluster_count = 0;
+        bool got = invalid_loader.find_groups(req->group_name, tair_groups, &local_cluster_count);
+        if (!got || tair_groups == NULL || tair_groups->empty())
         {
           process_unknown_groupname_request(req);
         }
         else
         {
           bool need_return_packet = true;
-          size_t request_reference_count = tair_groups->size() * factor;
-          SharedInfo *shared = new SharedInfo(request_reference_count, req);
+          size_t global_reference_count = tair_groups->size() * factor;
+          int local_reference_count = local_cluster_count * factor;
 
           //request packet was cached in the momery, when the request failedkk.
           //return packet should be send to client before packet cached, and set the `request_time to be -1.
@@ -327,7 +335,14 @@
             req->request_time = 0;
             need_return_packet = false;
           }
+          if (local_reference_count == 0)
+          {
+            //send return packet to the client;
+            send_return_packet(req, TAIR_RETURN_SUCCESS, "success");
+            need_return_packet = false;
+          }
 
+          SharedInfo *shared = new SharedInfo(global_reference_count, local_reference_count, req);
           for (size_t i = 0; i < tair_groups->size(); ++i)
           {
             (*tair_groups)[i]->commit_request(shared, merged, need_return_packet);

@@ -8,7 +8,8 @@ namespace tair
       uint64_t master,
       uint64_t slave,
       const std::string &this_group_name,
-      int this_max_failed_count)
+      int this_max_failed_count,
+      int8_t mode)
     : group_name(this_group_name)
   {
     this->master = master;
@@ -18,6 +19,7 @@ namespace tair
     atomic_set(&healthy, HEALTHY);
     atomic_set(&failed_count, 0);
     max_failed_count = this_max_failed_count;
+    this->mode = mode;
     connected = false;
     continue_failed_count = 0;
   }
