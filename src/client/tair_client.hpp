@@ -56,6 +56,7 @@ namespace tair {
     private:
       void print_usage(char *prog_name);
       uint64_t get_ip_address(char *str, int port);
+      
       cmd_call parse_cmd(char *key, VSTRING &param);
       void print_help(const char *cmd);
       char *canonical_key(char *key, char **akey, int *size);
@@ -74,6 +75,7 @@ namespace tair {
       void  do_cmd_remove(VSTRING &param);
       void  do_cmd_mremove(VSTRING &param);
       void do_cmd_stat(VSTRING &param);
+      void do_cmd_health(VSTRING &param);
       //void  doCmdAddItems(VSTRING &param);
       void  do_cmd_remove_area(VSTRING &param);
       void  do_cmd_dump_area(VSTRING &param);

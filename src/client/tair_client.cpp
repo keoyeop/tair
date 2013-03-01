@@ -49,6 +49,7 @@ namespace tair {
       cmd_map["delall"] = &tair_client::do_cmd_remove_area;
       cmd_map["dump"] = &tair_client::do_cmd_dump_area;
       cmd_map["stat"] = &tair_client::do_cmd_stat;
+      cmd_map["health"]=&tair_client::do_cmd_health;
       cmd_map["hide"] = &tair_client::do_cmd_hide;
       cmd_map["gethidden"] = &tair_client::do_cmd_get_hidden;
       cmd_map["pput"] = &tair_client::do_cmd_prefix_put;
@@ -395,18 +396,31 @@ namespace tair {
       if (cmd == NULL || strcmp(cmd, "delall") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
-                 "SYNOPSIS   : stat\n"
-                 "DESCRIPTION: get stat info"
-            );
+                 "SYNOPSIS   : delall area\n"
+                 "DESCRIPTION: delete all data of [area]\n"
+                 );
+
       }
       if (cmd == NULL || strcmp(cmd, "stat") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
-                 "SYNOPSIS   : delall area\n"
-                 "DESCRIPTION: delete all data of [area]"
-            );
+                 "SYNOPSIS   : stat [-w -b -k -g -m] \n"
+                 "DESCRIPTION: get stat info\n"
+                 "             -w  display itemCount in W, 1W=10000\n"
+                 "             -b  display quota, dataSize, useSize in bytes\n"
+                 "             -k  display quota, dataSize, useSize in kilobytes, 1K=1024B\n"
+                 "             -m  display quota, dataSize, useSize in megabytes, 1M=1024K, this is default\n"
+                 "             -g  display quota, dataSize, useSize in gigabytes, 1G=1024M\n"
+                 "             short options can be put together, eg -wk= -w -k\n"
+                 );
       }
-
+      if (cmd == NULL || strcmp(cmd, "health") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
+                 "SYNOPSIS   : health\n"
+                 "DESCRIPTION: get cluster health info\n"
+                 );
+      }
       if (cmd == NULL || strcmp(cmd, "dump") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
@@ -953,52 +967,266 @@ namespace tair {
          fprintf(stderr, "direct connect to ds, can not use stat\n");
          return;
       }
+      
+      enum{ quota=0,
+            quotaUsage,
+            dataSize,
+            useSize,
+            evictCount,
+            getCount,
+            hitCount,
+            hitRate,
+            itemCount,
+            putCount,
+            removeCount,
+            columnEnd
+      };
+      int size_unit=1024*1024, itemCount_unit=1;
+      static  char *print_first_line[]={(char*)"quota(M)", (char*)"quotaUsage", (char*)"dataSize(M)", (char*)"useSize(M)", (char*)"evictCount", (char*)"getCount", (char*)"hitCount", (char*)"hitRate", (char*)"itemCount", (char*)"putCount", (char*)"removeCount"};
+      //these values may be modified by last stat execute, so need to assign them the default value;
+      print_first_line[quota]=(char*)"quota(M)";
+      print_first_line[dataSize]=(char*)"dataSize(M)";
+      print_first_line[useSize]=(char*)"useSize(M)";
+      print_first_line[itemCount]=(char*)"itemCount";
+
+      // option -b -k -m -g -w
+      int argc=param.size()+1;
+      if(argc>50){   // 50 would be enough
+          fprintf(stderr,"the number of options should be less than 50\n");
+          return;
+      }
+      char *argv[50]; 
+      memcpy(argv+1, &param[0],sizeof(char*)*(argc-1));
+      int ch;
+      optind=1; // very important, it has been modified by function parse_cmd_line();
+      while( (ch=getopt(argc,argv,"wbkmg") )!=-1){
+         switch(ch){
+         case 'w': itemCount_unit=10000;     print_first_line[itemCount]=(char*)"itemCount(W)"; break;
+         case 'b': size_unit=1;              print_first_line[quota]=(char*)"quota(B)"; print_first_line[dataSize]=(char*)"dataSize(B)"; print_first_line[useSize]=(char*)"useSize(B)";  break;
+         case 'k': size_unit=1024;           print_first_line[quota]=(char*)"quota(K)"; print_first_line[dataSize]=(char*)"dataSize(K)"; print_first_line[useSize]=(char*)"useSize(K)";  break;
+         case 'm': size_unit=1024*1024;      print_first_line[quota]=(char*)"quota(M)"; print_first_line[dataSize]=(char*)"dataSize(M)"; print_first_line[useSize]=(char*)"useSize(M)";  break;
+         case 'g': size_unit=1024*1024*1024; print_first_line[quota]=(char*)"quota(G)"; print_first_line[dataSize]=(char*)"dataSize(G)"; print_first_line[useSize]=(char*)"useSize(G)";  break;
+         case '?': print_help("stat");    return;
+         }
+      }
+      if(optind<argc){
+         print_help("stat");
+         return;
+      }
+
+      map<string, int>  column_map;
+      column_map["dataSize"]=dataSize;
+      column_map["useSize"]=useSize;
+      column_map["evictCount"]=evictCount;
+      column_map["getCount"]=getCount;
+      column_map["hitCount"]=hitCount;
+      column_map["hitRate"]=hitRate;
+      column_map["itemCount"]=itemCount;
+      column_map["putCount"]=putCount;
+      column_map["removeCount"]=removeCount;
+
+      //store area info, server_info, server_area_info
+      typedef map<string, double*> info_map;
+      info_map::iterator info_iter;
+      pair<info_map::iterator, bool> result_insert;
+      double *info_line;
 
       map<string, string> out_info;
       map<string, string>::iterator it;
       string group = group_name;
-      client_helper.query_from_configserver(request_query_info::Q_AREA_CAPACITY, group, out_info);
-      fprintf(stderr,"%20s %20s\n","area","quota");
-      for (it=out_info.begin(); it != out_info.end(); it++) {
-         fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
-      }
-      fprintf(stderr,"\n");
 
-      fprintf(stderr,"%20s %20s\n","server","status");
-      client_helper.query_from_configserver(request_query_info::Q_DATA_SEVER_INFO, group, out_info);
-      for (it=out_info.begin(); it != out_info.end(); it++) {
-         fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
-      }
-      fprintf(stderr,"\n");
+      char area[16],column_name[48];
+      int column;
 
-      fprintf(stderr,"%20s %20s\n","server","ping");
-       set<uint64_t> servers;
-       client_helper.get_servers(servers);
-       for (set<uint64_t>::iterator it = servers.begin(); it != servers.end(); ++it) {
-         int64_t ping_time = ping(*it);
-         fprintf(stderr,"%20s %20lf\n", tbsys::CNetUtil::addrToString(*it).c_str(), ping_time / 1000.);
-       }
-      fprintf(stderr,"\n");
+      //get stat of area.
+      //dataSize, useSize, evictCount, getCount, hitCount, itemCount, putCount, removeCount
+      //out_info:<"x dataSize","xxx">, <"x userSize", "xxx"> ... <"x removeCount", "xxx">
+      //         <"y dataSize","yyy">, <"y userSize", "yyy"> ... <"y removeCount", "yyy">
+      //         ......
+      info_map  area_info_map;
 
-      for (it=out_info.begin(); it != out_info.end(); it++) {
-         map<string, string> out_info2;
-         map<string, string>::iterator it2;
-           uint64_t server_id = tbsys::CNetUtil::strToAddr(it->first.c_str(), 0);
-         client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info2, server_id);
-         for (it2=out_info2.begin(); it2 != out_info2.end(); it2++) {
-            fprintf(stderr,"%s : %s %s\n",it->first.c_str(), it2->first.c_str(), it2->second.c_str());
+      client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info, 0);
+      for(it=out_info.begin(); it !=out_info.end(); ++it){
+         sscanf(it->first.c_str(),"%s %s",area, column_name);
+         column=column_map[column_name];
+
+         result_insert=area_info_map.insert(info_map::value_type(area,0));
+         if(result_insert.second) {// area_info_map[area] didn't exist before and now is insert.  if false, area_info_map[area] exists, nothing is done.
+            result_insert.first->second=(double *)malloc(columnEnd*sizeof(double));
+            assert (result_insert.first->second !=NULL);
+            memset(result_insert.first->second,0,columnEnd*sizeof(double));
          }
-      }
-      map<string, string> out_info2;
-      map<string, string>::iterator it2;
-      client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info2, 0);
-      for (it2=out_info2.begin(); it2 != out_info2.end(); it2++) {
-         fprintf(stderr,"%s %s\n", it2->first.c_str(), it2->second.c_str());
+         result_insert.first->second[column]=atof(it->second.c_str());
       }
 
+      //get quota of area
+      // out_info: <"area(xx)","xxxx">, <"area(yy)","yyyy">, ......
+      client_helper.query_from_configserver(request_query_info::Q_AREA_CAPACITY, group, out_info);
+      int area_int;
+      for(it=out_info.begin(); it !=out_info.end(); ++it){
+         // "area(xxxx)",  xxxx---> area_int
+         sscanf(it->first.c_str()+5,"%d",&area_int);
+         sprintf(area,"%d",area_int);
+
+         //get eare_info_map[area]
+         result_insert=area_info_map.insert(info_map::value_type(area,0));
+         if(result_insert.second) {// area_info_map[area] didn't exist before and now is insert.  if false, area_info_map[area] exists, nothing is done.
+            result_insert.first->second=(double *)malloc(columnEnd*sizeof(double));
+            assert (result_insert.first->second !=NULL);
+            memset(result_insert.first->second,0,columnEnd*sizeof(double));
+         }
+         //update area_info_map[area]
+         result_insert.first->second[quota]=atof(it->second.c_str());
+      }
+
+      //get the datasever set
+      set<uint64_t> dataserver_set;
+      set<uint64_t>::iterator server_set_iter;
+      
+      client_helper.get_servers(dataserver_set);
+
+      // get dataserver info, dataserver-area info
+      info_map server_info_map;
+      info_map server_area_info_map;
+      
+      string server;
+      string server_area;
+      
+      for(server_set_iter=dataserver_set.begin(); server_set_iter!=dataserver_set.end(); ++server_set_iter){
+         server=tbsys::CNetUtil::addrToString(*server_set_iter);
+
+         //info_line=server_info_map[server], if server_info_map[server] didn't exist, insert it;
+         result_insert=server_info_map.insert(info_map::value_type(server,0));
+         if(result_insert.second) {//server_info_map[server] didn't exist before and now is insert.  if false, server_info_map[server] exists, nothing is done.
+            result_insert.first->second=(double *)malloc(columnEnd*sizeof(double));
+            assert (result_insert.first->second !=NULL);
+            memset(result_insert.first->second,0,columnEnd*sizeof(double));
+         }
+         info_line=result_insert.first->second;
+         
+         client_helper.query_from_configserver(request_query_info::Q_STAT_INFO, group, out_info, (*server_set_iter));
+         //out_info:<"x dataSize","xxx">, <"x userSize", "xxx"> ... <"x removeCount", "xxx">
+         //         <"y dataSize","yyy">, <"y userSize", "yyy"> ... <"y removeCount", "yyy">
+         for(it=out_info.begin(); it!=out_info.end(); ++it){
+            sscanf(it->first.c_str(),"%s %s",area, column_name);
+            server_area=server+':'+area;
+            column=column_map[column_name];
+
+            //get server_area_info_map[server_area]
+            result_insert=server_area_info_map.insert(info_map::value_type(server_area,0));
+            if(result_insert.second) {
+               result_insert.first->second=(double *)malloc(columnEnd*sizeof(double));
+               assert (result_insert.first->second !=NULL);
+               memset(result_insert.first->second,0,columnEnd*sizeof(double));
+            }
+            //update server_area_info_map[server_area]
+            result_insert.first->second[column]=atof(it->second.c_str());
+            //update server_info_map[server]
+            info_line[column]+=result_insert.first->second[column];
+         }
+         
+      }
+
+      
+      // get  dataserver-area info quota
+      string::size_type area_pos;
+      double quota_tmp;
+      set<uint64_t>::size_type server_nr=dataserver_set.size();
+      for(info_iter=server_area_info_map.begin(); info_iter!=server_area_info_map.end(); ++info_iter ){
+         area_pos=info_iter->first.find_last_of(':');
+         quota_tmp=area_info_map[(info_iter->first).substr(area_pos+1)][quota];
+         info_iter->second[quota]=quota_tmp/server_nr;
+      }
+
+      //get server quota, will be got later
+      //......
+
+      //***********************print and free all what's is malloced*************************************      
+      info_map *array[3];
+      int i;
+      array[0]=&area_info_map;
+      array[1]=&server_info_map;
+      array[2]=&server_area_info_map;
+
+
+      fprintf(stderr,"%-22s %-9s %-10s %-11s %-10s %-10s %-8s %-8s %-7s %-12s %-8s %-11s\n", "area", print_first_line[quota], print_first_line[quotaUsage], print_first_line[dataSize], print_first_line[useSize], print_first_line[evictCount], print_first_line[getCount], print_first_line[hitCount], print_first_line[hitRate], print_first_line[itemCount], print_first_line[putCount], print_first_line[removeCount]);
+      for(i=0; i<3; ++i){
+          for(info_iter=array[i]->begin(); info_iter!=array[i]->end(); ++info_iter) {
+              info_line=info_iter->second;
+              // update quotaUsage and hitRate
+              if( info_line[quota] !=0 )
+                  info_line[quotaUsage]=info_line[useSize]/info_line[quota];
+              if( info_line[getCount] !=0)
+                  info_line[hitRate]=info_line[hitCount]/info_line[getCount];
+              //updatge quota, dataSize, UseSize and itemCount uint
+              info_line[quota]/=size_unit;
+              info_line[dataSize]/=size_unit;
+              info_line[useSize]/=size_unit;
+              info_line[itemCount]/=itemCount_unit;
+              
+              //print info_line
+              if(i==1) // server_info_map
+                 fprintf(stderr,"%-22s %-9s %-10s %-11.0lf %-10.0lf %-10.0lf %-8.0lf %-8.0lf %-7.2lf %-12.0lf %-8.0lf %-11.0lf\n",
+                      info_iter->first.c_str(), "***" , "***", info_line[dataSize], info_line[useSize], info_line[evictCount], info_line[getCount], info_line[hitCount], info_line[hitRate], info_line[itemCount], info_line[putCount], info_line[removeCount]);
+
+              else  // area_info_map and server_erea_info_map
+                 fprintf(stderr,"%-22s %-9.0lf %-10.2lf %-11.0lf %-10.0lf %-10.0lf %-8.0lf %-8.0lf %-7.2lf %-12.0lf %-8.0lf %-11.0lf\n",
+                      info_iter->first.c_str(), info_line[quota], info_line[quotaUsage], info_line[dataSize], info_line[useSize], info_line[evictCount], info_line[getCount], info_line[hitCount], info_line[hitRate], info_line[itemCount], info_line[putCount], info_line[removeCount]);
+
+              //free the malloced memory, important
+              free(info_line); 
+          }
+          fprintf(stderr,"\n");
+      }//end of for(i=0; i<3; ++i)
    }
 
+   void tair_client::do_cmd_health(VSTRING &param){
 
+      if (is_data_server) {
+         fprintf(stderr, "direct connect to ds, can not use health\n");
+         return;
+      }
+
+      if(param.size() !=0 ){
+         print_help("health");
+         return ;
+      }
+
+      map<string, string> out_info;
+      map<string, string>::iterator it;
+      string group = group_name;
+
+      //************************************************************      
+      // print the DataServer status.
+      client_helper.query_from_configserver(request_query_info::Q_DATA_SERVER_INFO, group, out_info);
+      fprintf(stderr,"%20s %20s\n","server","status");
+      for (it=out_info.begin(); it != out_info.end(); it++)
+          fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
+      fprintf(stderr,"\n");
+
+      //************************************************************      
+      //print the migrate info.
+      client_helper.query_from_configserver(request_query_info::Q_MIG_INFO, group, out_info);
+      fprintf(stderr,"%20s %20s\n","migrate","ongoing");
+
+      for (it=out_info.begin(); it != out_info.end(); it++)
+          fprintf(stderr,"%20s %20s\n", it->first.c_str(), it->second.c_str());
+      fprintf(stderr,"\n");
+
+      //************************************************************      
+      //print the ping time to each DataServer
+      set<uint64_t> servers;
+      int64_t ping_time;
+      client_helper.get_servers(servers);
+      fprintf(stderr,"%20s %20s\n","server","ping");
+      for (set<uint64_t>::iterator it = servers.begin(); it != servers.end(); ++it) {
+         ping_time = ping(*it);
+         fprintf(stderr,"%20s %20lf\n", tbsys::CNetUtil::addrToString(*it).c_str(), ping_time / 1000.);
+      }
+      fprintf(stderr,"\n");
+
+   }
+    
    void tair_client::do_cmd_remove_area(VSTRING &param)
    {
       if (param.size() != 1U) {

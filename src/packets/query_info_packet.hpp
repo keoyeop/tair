@@ -23,7 +23,7 @@ namespace tair {
       enum {
          Q_AREA_CAPACITY = 1,
          Q_MIG_INFO,
-         Q_DATA_SEVER_INFO,
+         Q_DATA_SERVER_INFO,
          Q_GROUP_INFO,
          Q_STAT_INFO,
       };

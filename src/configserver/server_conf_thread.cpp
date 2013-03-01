@@ -738,7 +738,7 @@ namespace tair {
           }
         }
         break;
-      case request_query_info::Q_DATA_SEVER_INFO:
+      case request_query_info::Q_DATA_SERVER_INFO:
         {
           server_info_rw_locker.rdlock();
           node_info_set nodeInfo = group_info_found->get_node_info();
