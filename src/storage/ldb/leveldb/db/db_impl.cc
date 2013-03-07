@@ -137,6 +137,7 @@ DBImpl::DBImpl(const Options& options, const std::string& dbname)
       logfile_number_(0),
       log_(NULL),
       tmp_batch_(new WriteBatch),
+      min_snapshot_log_number_(~(uint64_t)0),
       // @@ for multi-bucket update
       imm_list_count_(0),
       bu_head_(NULL),
@@ -260,8 +261,9 @@ void DBImpl::DeleteObsoleteFiles() {
       bool keep = true;
       switch (type) {
         case kLogFile:
-          keep = ((number >= versions_->LogNumber()) ||
-             (number == versions_->PrevLogNumber()));
+          keep = ((number >= min_snapshot_log_number_) ||
+                  (number >= versions_->LogNumber()) ||
+                  (number == versions_->PrevLogNumber()));
           break;
         case kDescriptorFile:
           // Keep my manifest file, and any newer incarnations'
@@ -300,6 +302,24 @@ void DBImpl::DeleteObsoleteFiles() {
     }
   }
   PROFILER_END();
+}
+
+void DBImpl::DeleteLogFile(uint64_t min_number)
+{
+  if (min_number < min_snapshot_log_number_)
+  {
+    std::vector<std::string> filenames;
+    PROFILER_BEGIN("del addchild+");
+    env_->GetChildren(dblog_dir_, &filenames);
+    uint64_t number;
+    FileType type;
+    for (size_t i = 0; i < filenames.size(); i++) {
+      if (ParseFileName(filenames[i], &number, &type) &&
+          type == kLogFile && number <= min_number) {
+        env_->DeleteFile(dblog_dir_ + "/" + filenames[i]);
+      }
+    }
+  }
 }
 
 Status DBImpl::Recover(VersionEdit* edit) {
@@ -1798,6 +1818,20 @@ const Snapshot* DBImpl::GetSnapshot() {
 void DBImpl::ReleaseSnapshot(const Snapshot* s) {
   MutexLock l(&mutex_);
   snapshots_.Delete(reinterpret_cast<const SnapshotImpl*>(s));
+}
+
+const Snapshot* DBImpl::GetLogSnapshot() {
+  MutexLock l(&mutex_);
+  const Snapshot* s = log_snapshots_.New(versions_->LastSequence(), versions_->LogNumber());
+  min_snapshot_log_number_ = dynamic_cast<LogSnapshotImpl*>(log_snapshots_.oldest())->log_number_;
+  return s;
+}
+
+void DBImpl::ReleaseLogSnapshot(const Snapshot* s) {
+  MutexLock l(&mutex_);
+  log_snapshots_.Delete(reinterpret_cast<const LogSnapshotImpl*>(s));
+  min_snapshot_log_number_ = log_snapshots_.empty() ? ~((uint64_t)0) :
+    dynamic_cast<LogSnapshotImpl*>(log_snapshots_.oldest())->log_number_;
 }
 
 // Convenience methods

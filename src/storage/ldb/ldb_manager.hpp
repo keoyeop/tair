@@ -17,6 +17,16 @@
 #ifndef TAIR_STORAGE_LDB_MANAGER_H
 #define TAIR_STORAGE_LDB_MANAGER_H
 
+#if __cplusplus > 199711L || defined(__GXX_EXPERIMENTAL_CXX0X__) || defined(_MSC_VER)
+#include <unordered_map>
+#else
+#include <tr1/unordered_map>
+namespace std {
+  using tr1::hash;
+  using tr1::unordered_map;
+}
+#endif
+
 #include "storage/storage_manager.hpp"
 #include "common/data_entry.hpp"
 #include "common/stat_info.hpp"
@@ -31,6 +41,7 @@ namespace tair
     namespace ldb
     {
       class LdbInstance;
+      class LdbBalancer;
 
       ////////////////////////////////
       // UsingLdbManager
@@ -56,9 +67,6 @@ namespace tair
         uint32_t time_;
       };
 
-      typedef __gnu_cxx::hash_map<int32_t, int32_t> BUCKET_INDEX_MAP;
-
-
       // Bucket partition indexer
       class BucketIndexer
       {
@@ -66,10 +74,19 @@ namespace tair
         BucketIndexer() {};
         virtual ~BucketIndexer() {};
 
+
+        typedef std::unordered_map<int32_t, int32_t> BUCKET_INDEX_MAP;
+        typedef std::unordered_map<int32_t, std::vector<int32_t> > INDEX_BUCKET_MAP;
+
         virtual int sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
                                     std::vector<int32_t>* sharding_buckets, bool close = false) = 0;
         virtual int32_t bucket_to_index(int32_t bucket_number, bool& recheck) = 0;
+        virtual int reindex(int32_t bucket, int32_t from, int32_t to) = 0;
+        virtual void get_index_map(INDEX_BUCKET_MAP& result) = 0;
 
+        static void get_index_map(const BUCKET_INDEX_MAP& bucket_map, std::vector<int32_t>* index_map);
+        static void get_index_map(const BUCKET_INDEX_MAP& bucket_map, INDEX_BUCKET_MAP& index_map);
+        static std::string to_string(const INDEX_BUCKET_MAP& index_map);
         static BucketIndexer* new_bucket_indexer(const char* strategy);
       };
 
@@ -83,6 +100,8 @@ namespace tair
         virtual int sharding_bucket(int32_t total, const std::vector<int>& buckets,
                                     std::vector<int32_t>* sharding_buckets, bool close = false);
         virtual int32_t bucket_to_index(int32_t bucket_number, bool& recheck);
+        virtual int reindex(int32_t bucket, int32_t from, int32_t to);
+        virtual void get_index_map(INDEX_BUCKET_MAP& result);
 
       private:
         int hash(int32_t key);
@@ -102,6 +121,8 @@ namespace tair
         virtual int sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
                                     std::vector<int32_t>* sharding_buckets, bool close = false);
         virtual int32_t bucket_to_index(int32_t bucket_number, bool& recheck);
+        virtual int reindex(int32_t bucket, int32_t from, int32_t to);
+        virtual void get_index_map(INDEX_BUCKET_MAP& result);
 
       private:
         int close_sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
@@ -155,6 +176,16 @@ namespace tair
         void get_stats(tair_stat* stat);
         void set_bucket_count(uint32_t bucket_count);
 
+        // get bucket index map
+        void get_index_map(BucketIndexer::INDEX_BUCKET_MAP& result);
+        // reindex bucket from `from instance to `to instance
+        int reindex_bucket(int32_t bucket, int32_t from, int32_t to);
+        // pause service(mainly write) for the bucket
+        void pause_service(int32_t bucket);
+        void resume_service(int32_t bucket);
+
+        LdbInstance* get_instance(int32_t index);
+
       private:
         int init();
         int init_cache(mdb_manager**& new_cache, int32_t count);
@@ -171,12 +202,18 @@ namespace tair
         int do_reset_cache(mdb_manager**& new_cache, std::string& base_back_path);
         RecordLogger* get_remote_sync_logger();
 
-        LdbInstance* get_db_instance(int bucket_number);
+        LdbInstance* get_db_instance(int bucket_number, bool write = true);
 
       private:
         LdbInstance** ldb_instance_;
         int32_t db_count_;
         BucketIndexer* bucket_indexer_;
+
+        // out-of-servicing bucket(maybe paused for a while)
+        // only support one now.
+        // TODO: maybe hashmap to support multiple ones
+        int32_t frozen_bucket_;
+
         bool use_bloomfilter_;
         mdb_manager** cache_;
         int32_t cache_count_;
@@ -190,6 +227,8 @@ namespace tair
         uint32_t last_release_time_;
         // remote sync
         LdbRemoteSyncLogger* remote_sync_logger_;
+        // balancer
+        LdbBalancer* balancer_;
       };
     }
   }

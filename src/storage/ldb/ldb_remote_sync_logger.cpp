@@ -214,7 +214,7 @@ namespace tair
                   delete reader_->File();
                 }
                 delete reader_;
-                db_env->DeleteFile(leveldb::LogFileName(db_log_dir, min_number));
+                db->DeleteLogFile(min_number);
               }
 
               // TODO: reporter

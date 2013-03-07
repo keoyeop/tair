@@ -45,8 +45,8 @@ namespace tair
         typedef __gnu_cxx::hash_map<int32_t, stat_manager*> STAT_MANAGER_MAP;
         typedef STAT_MANAGER_MAP::iterator STAT_MANAGER_MAP_ITER;
 
-        bool init_buckets(const std::vector<int32_t> buckets);
-        void close_buckets(const std::vector<int32_t> buckets);
+        bool init_buckets(const std::vector<int32_t>& buckets);
+        void close_buckets(const std::vector<int32_t>& buckets);
 
         void destroy();
 

@@ -152,14 +152,14 @@ namespace tair
         return ret;
       }
 
-      bool LdbInstance::init_buckets(std::vector<int32_t> buckets)
+      bool LdbInstance::init_buckets(const std::vector<int32_t>& buckets)
       {
         bool ret = init_db();
         if (ret)
         {
           STAT_MANAGER_MAP* tmp_stat_manager = new STAT_MANAGER_MAP(*stat_manager_);
 
-          for (std::vector<int32_t>::iterator it = buckets.begin(); it != buckets.end(); ++it)
+          for (std::vector<int32_t>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
           {
             STAT_MANAGER_MAP_ITER stat_it = tmp_stat_manager->find(*it);
             if (stat_it != tmp_stat_manager->end())
@@ -183,7 +183,7 @@ namespace tair
         return ret;
       }
 
-      void LdbInstance::close_buckets(std::vector<int32_t> buckets)
+      void LdbInstance::close_buckets(const std::vector<int32_t>& buckets)
       {
         STAT_MANAGER_MAP* tmp_stat_manager = new STAT_MANAGER_MAP(*stat_manager_);
         std::vector<int32_t> gc_buckets;
@@ -191,7 +191,7 @@ namespace tair
 
         // for gc. when close, bucket can't write (migrate maybe)
         // so it is ok to get sequence and file_number one time.
-        for (std::vector<int32_t>::iterator it = buckets.begin(); it != buckets.end(); ++it)
+        for (std::vector<int32_t>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
         {
           STAT_MANAGER_MAP_ITER stat_it = tmp_stat_manager->find(*it);
 
