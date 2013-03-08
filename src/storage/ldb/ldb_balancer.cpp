@@ -55,8 +55,6 @@ namespace tair
         try_balance(index_map, units);
         if (!units.empty())
         {
-          // do_balance() process may be interrupted,
-          // so we need continue to balance later
           do_balance(units);
         }
         delete this;

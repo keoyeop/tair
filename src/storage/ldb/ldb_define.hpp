@@ -445,7 +445,7 @@ namespace tair
         {
         public:
           LogFilter(int32_t bucket, uint64_t sequence) :
-            bucket_(bucket_), sequence_(sequence)
+            bucket_(bucket), sequence_(sequence)
           {}
           ~LogFilter() {}
 

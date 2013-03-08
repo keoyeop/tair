@@ -744,6 +744,7 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates, int bucke
   if (status.ok()) {
     WriteBatchInternal::SetSequence(updates, last_sequence + 1);
     last_sequence += WriteBatchInternal::Count(updates);
+    versions_->SetLastSequence(last_sequence);
 
     // Add to log and apply to memtable.  We can release the lock during
     // this phase since the "logger_" flag protects against concurrent
@@ -762,7 +763,6 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* updates, int bucke
       assert(logger_ == &self);
     }
 
-    versions_->SetLastSequence(last_sequence);
   }
   
   ReleaseLoggingResponsibility(&self);
@@ -1888,6 +1888,7 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* my_batch) {
     PROFILER_END();
     WriteBatchInternal::SetSequence(updates, last_sequence + 1);
     last_sequence += WriteBatchInternal::Count(updates);
+    versions_->SetLastSequence(last_sequence);
 
     // Add to log and apply to memtable.  We can release the lock
     // during this phase since &w is currently responsible for logging
@@ -1910,7 +1911,6 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* my_batch) {
     }
     if (updates == tmp_batch_) tmp_batch_->Clear();
 
-    versions_->SetLastSequence(last_sequence);
   }
 
   PROFILER_BEGIN("db lastwait");
