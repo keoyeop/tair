@@ -75,18 +75,20 @@ namespace tair
         virtual ~BucketIndexer() {};
 
 
+        // bucket => instance index
         typedef std::unordered_map<int32_t, int32_t> BUCKET_INDEX_MAP;
-        typedef std::unordered_map<int32_t, std::vector<int32_t> > INDEX_BUCKET_MAP;
+        // instance index => buckets
+        typedef std::vector<std::vector<int32_t> > INDEX_BUCKET_MAP;
 
         virtual int sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
-                                    std::vector<int32_t>* sharding_buckets, bool close = false) = 0;
+                                    INDEX_BUCKET_MAP& index_map, bool& updated, bool close = false) = 0;
         virtual int32_t bucket_to_index(int32_t bucket_number, bool& recheck) = 0;
         virtual int reindex(int32_t bucket, int32_t from, int32_t to) = 0;
         virtual void get_index_map(INDEX_BUCKET_MAP& result) = 0;
 
-        static void get_index_map(const BUCKET_INDEX_MAP& bucket_map, std::vector<int32_t>* index_map);
-        static void get_index_map(const BUCKET_INDEX_MAP& bucket_map, INDEX_BUCKET_MAP& index_map);
+        static void get_index_map(const BUCKET_INDEX_MAP& bucket_map, int32_t index_count, INDEX_BUCKET_MAP& index_map);
         static std::string to_string(const INDEX_BUCKET_MAP& index_map);
+        static std::string to_string(int32_t index_count, const BUCKET_INDEX_MAP& bucket_map);
         static BucketIndexer* new_bucket_indexer(const char* strategy);
       };
 
@@ -98,7 +100,7 @@ namespace tair
         virtual ~HashBucketIndexer();
 
         virtual int sharding_bucket(int32_t total, const std::vector<int>& buckets,
-                                    std::vector<int32_t>* sharding_buckets, bool close = false);
+                                    INDEX_BUCKET_MAP& index_map, bool& updated, bool close = false);
         virtual int32_t bucket_to_index(int32_t bucket_number, bool& recheck);
         virtual int reindex(int32_t bucket, int32_t from, int32_t to);
         virtual void get_index_map(INDEX_BUCKET_MAP& result);
@@ -111,7 +113,7 @@ namespace tair
       };
 
       // bucket common map partition indexer
-      static const int32_t BUCKET_INDEX_DELIM = ':';
+      static const char BUCKET_INDEX_DELIM = ':';
       class MapBucketIndexer : public BucketIndexer
       {
       public:
@@ -119,16 +121,16 @@ namespace tair
         virtual ~MapBucketIndexer();
 
         virtual int sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
-                                    std::vector<int32_t>* sharding_buckets, bool close = false);
+                                    INDEX_BUCKET_MAP& index_map, bool& updated, bool close = false);
         virtual int32_t bucket_to_index(int32_t bucket_number, bool& recheck);
         virtual int reindex(int32_t bucket, int32_t from, int32_t to);
         virtual void get_index_map(INDEX_BUCKET_MAP& result);
 
       private:
         int close_sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
-                                  std::vector<int32_t>* sharding_buckets);
+                                  INDEX_BUCKET_MAP& index_map, bool& updated);
         int do_sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
-                               std::vector<int32_t>* sharding_buckets);
+                               INDEX_BUCKET_MAP& index_map, bool& updated);
 
         int update_bucket_index(int32_t total, BUCKET_INDEX_MAP* new_bucket_map);
         int save_bucket_index(int32_t total, BUCKET_INDEX_MAP& bucket_index_map);

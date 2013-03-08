@@ -58,7 +58,7 @@ namespace tair
         {
           for (int32_t i = 0; i < cache_count_; ++i)
           {
-            std::string cache_path = append_num(base_cache_path_, i+1);
+            std::string cache_path = append_num(base_cache_path_, i);
             if (::shm_unlink(cache_path.c_str()) != 0)
             {
               log_error("unlink cache file fail: %s, error: %s", cache_path.c_str(), strerror(errno));
@@ -95,43 +95,49 @@ namespace tair
         return indexer;
       }
 
-      void BucketIndexer::get_index_map(const BUCKET_INDEX_MAP& bucket_map, std::vector<int32_t>* index_map)
+      void BucketIndexer::get_index_map(const BUCKET_INDEX_MAP& bucket_map, int32_t index_count, INDEX_BUCKET_MAP& index_map)
       {
+        index_map.resize(index_count);
         for (BUCKET_INDEX_MAP::const_iterator it = bucket_map.begin(); it != bucket_map.end(); ++it)
         {
           index_map[it->second].push_back(it->first);
         }
       }
 
-      void BucketIndexer::get_index_map(const BUCKET_INDEX_MAP& bucket_map, INDEX_BUCKET_MAP& index_map)
-      {
-        for (BUCKET_INDEX_MAP::const_iterator bit = bucket_map.begin(); bit != bucket_map.end(); ++bit)
-        {
-          INDEX_BUCKET_MAP::iterator iit = index_map.find(bit->second);
-          if (iit == index_map.end())
-          {
-            iit = index_map.insert(INDEX_BUCKET_MAP::value_type(bit->second, std::vector<int32_t>())).first;
-          }
-          iit->second.push_back(bit->first);
-        }
-      }
-
       std::string BucketIndexer::to_string(const INDEX_BUCKET_MAP& index_map)
       {
-        std::string result;
+        std::string result("\n");
         char buf[16];
-        for (INDEX_BUCKET_MAP::const_iterator it = index_map.begin(); it != index_map.end(); ++it)
+        for (size_t i = 0; i < index_map.size(); ++i)
         {
-          snprintf(buf, sizeof(buf), "[%d:", it->first);
+          snprintf(buf, sizeof(buf), "[%lu (%lu):", i, index_map[i].size());
           result.append(buf);
-          for (std::vector<int32_t>::const_iterator mit = it->second.begin();
-               mit != it->second.end();
-               ++mit)
+          std::vector<int32_t> buckets = index_map[i];
+          // for friendly output-print
+          std::sort(buckets.begin(), buckets.end());
+          for (std::vector<int32_t>::iterator bit = buckets.begin();
+               bit != buckets.end();
+               ++bit)
           {
-            snprintf(buf, sizeof(buf), " %d", *mit);
+            snprintf(buf, sizeof(buf), " %d", *bit);
             result.append(buf);
           }
           result.append("]\n");
+        }
+        return result;
+      }
+
+      std::string BucketIndexer::to_string(int32_t index_count, const BUCKET_INDEX_MAP& bucket_map)
+      {
+        std::string result;
+        result.reserve(bucket_map.size() * 16);
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d\n", index_count);
+        result.append(buf);
+        for (BUCKET_INDEX_MAP::const_iterator it = bucket_map.begin(); it != bucket_map.end(); ++it)
+        {
+          snprintf(buf, sizeof(buf), "%d%c%d\n", it->first, BUCKET_INDEX_DELIM, it->second);
+          result.append(buf);
         }
         return result;
       }
@@ -159,19 +165,21 @@ namespace tair
       }
 
       int HashBucketIndexer::sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
-                                             std::vector<int32_t>* sharding_buckets, bool close)
+                                             INDEX_BUCKET_MAP& index_map, bool& updated, bool close)
       {
         UNUSED(close);
-        if (total <= 0 || NULL == sharding_buckets)
+        if (total <= 0)
         {
-          log_error("sharing bucket fail. total count is invalid: %d, output sharding buckets: %p", total, sharding_buckets);
+          log_error("sharing bucket fail. total count is invalid: %d", total);
           return TAIR_RETURN_FAILED;
         }
 
         total_ = total;
+        updated = false;
+        index_map.resize(total_);
         for (std::vector<int32_t>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
         {
-          sharding_buckets[hash(*it) % total_].push_back(*it);
+          index_map[hash(*it) % total_].push_back(*it);
         }
         return TAIR_RETURN_SUCCESS;
       }
@@ -198,7 +206,7 @@ namespace tair
       ////////////////////////////////
       // MapBucketIndexer
       ////////////////////////////////
-      MapBucketIndexer::MapBucketIndexer() : bucket_map_(NULL), total_(0)
+      MapBucketIndexer::MapBucketIndexer() : bucket_map_(new BUCKET_INDEX_MAP()), total_(0)
       {
         const char* bucket_index_file_dir = TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_BUCKET_INDEX_FILE_DIR, "data/bindex");
         snprintf(bucket_index_file_path_, sizeof(bucket_index_file_path_),
@@ -213,24 +221,21 @@ namespace tair
 
       MapBucketIndexer::~MapBucketIndexer()
       {
-        if (bucket_map_ != NULL)
-        {
-          delete bucket_map_;
-          bucket_map_ = NULL;
-        }
+        delete bucket_map_;
+        bucket_map_ = NULL;
       }
 
       int MapBucketIndexer::sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
-                                            std::vector<int32_t>* sharding_buckets, bool close)
+                                            INDEX_BUCKET_MAP& index_map, bool& updated, bool close)
       {
         int ret = TAIR_RETURN_SUCCESS;
         if (close)
         {
-          ret = close_sharding_bucket(total, buckets, sharding_buckets);
+          ret = close_sharding_bucket(total, buckets, index_map, updated);
         }
         else
         {
-          ret = do_sharding_bucket(total, buckets, sharding_buckets);
+          ret = do_sharding_bucket(total, buckets, index_map, updated);
         }
         return ret;
       }
@@ -239,43 +244,32 @@ namespace tair
       {
         // no need recheck
         recheck = false;
-        int ret = -1;
-        if (bucket_map_ != NULL)
-        {
-          BUCKET_INDEX_MAP::const_iterator it = bucket_map_->find(bucket_number);
-          ret = (it != bucket_map_->end() ? it->second : -1);
-        }
-        return ret;
+        BUCKET_INDEX_MAP* bm = bucket_map_;
+        BUCKET_INDEX_MAP::const_iterator it = bm->find(bucket_number);
+        return (LIKELY(it != bm->end()) ? it->second : -1);
       }
 
       int MapBucketIndexer::reindex(int32_t bucket, int32_t from, int32_t to)
       {
         int ret = TAIR_RETURN_SUCCESS;
-        if (NULL == bucket_map_)
+        BUCKET_INDEX_MAP* new_bucket_map = new BUCKET_INDEX_MAP(*bucket_map_);
+        BUCKET_INDEX_MAP::iterator it = new_bucket_map->find(bucket);
+        if (it == new_bucket_map->end())
         {
-          log_error("close buckets but no bucket inited");
+          log_error("reindex bucket %d but not exist", bucket);
+          ret = TAIR_RETURN_FAILED;
+        }
+        else if (it->second != from)
+        {
+          log_error("reindex bucket %d but original conflict from: %d <=> %d",
+                    bucket, it->second, from);
           ret = TAIR_RETURN_FAILED;
         }
         else
         {
-          BUCKET_INDEX_MAP* new_bucket_map = new BUCKET_INDEX_MAP(*bucket_map_);
-          BUCKET_INDEX_MAP::iterator it = new_bucket_map->find(bucket);
-          if (it == new_bucket_map->end())
-          {
-            log_error("reindex bucket %d but not exist", bucket);
-            ret = TAIR_RETURN_FAILED;
-          }
-          else if (it->second != from)
-          {
-            log_error("reindex bucket %d but original conflict from: %d <=> %d",
-                      bucket, it->second, from);
-            ret = TAIR_RETURN_FAILED;
-          }
-          else
-          {
-            it->second = to;
-            ret = update_bucket_index(total_, new_bucket_map);
-          }
+          it->second = to;
+          log_warn("reindex bucket %d: %d => %d", bucket, from, to);
+          ret = update_bucket_index(total_, new_bucket_map);
         }
 
         return ret;
@@ -284,54 +278,61 @@ namespace tair
       void MapBucketIndexer::get_index_map(INDEX_BUCKET_MAP& result)
       {
         BUCKET_INDEX_MAP bm(*bucket_map_);
-        BucketIndexer::get_index_map(bm, result);
+        BucketIndexer::get_index_map(bm, total_, result);
       }
 
       int MapBucketIndexer::close_sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
-                                                  std::vector<int32_t>* sharding_buckets)
+                                                  INDEX_BUCKET_MAP& index_map, bool& updated)
       {
         int ret = TAIR_RETURN_SUCCESS;
-        if (NULL == bucket_map_)
-        {
-          log_error("close buckets but no bucket inited");
-          ret = TAIR_RETURN_FAILED;
-        }
-        else if (total != total_)
+        if (total != total_)
         {
           log_error("close buckets but index total changed %d <> %d", total, total_);
           ret = TAIR_RETURN_FAILED;
         }
         else
         {
+          index_map.resize(total);
           BUCKET_INDEX_MAP* new_bucket_map = new BUCKET_INDEX_MAP(*bucket_map_);
-          BUCKET_INDEX_MAP::iterator map_it;
           for (std::vector<int32_t>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
           {
-            map_it = new_bucket_map->find(*it);
-            if (new_bucket_map->end() == map_it)
+            BUCKET_INDEX_MAP::iterator mit = new_bucket_map->find(*it);
+            if (new_bucket_map->end() == mit)
             {
               log_error("close bucket %d but not exist", *it);
             }
             else
             {
-              sharding_buckets[map_it->second].push_back(*it);
-              new_bucket_map->erase(map_it);
+              index_map[mit->second].push_back(mit->first);
+              new_bucket_map->erase(mit);
             }
           }
 
-          ret = update_bucket_index(total, new_bucket_map);
+          updated = (new_bucket_map->size() != bucket_map_->size());
+          // update
+          if (updated)
+          {
+            INDEX_BUCKET_MAP new_index_map;
+            BucketIndexer::get_index_map(*new_bucket_map, total, new_index_map);
+            log_warn("new bucket index: %s", BucketIndexer::to_string(new_index_map).c_str());
+            ret = update_bucket_index(total, new_bucket_map);
+          }
+          else
+          {
+            delete new_bucket_map;
+          }
         }
 
         return ret;
       }
 
       int MapBucketIndexer::do_sharding_bucket(int32_t total, const std::vector<int32_t>& buckets,
-                                               std::vector<int32_t>* sharding_buckets)
+                                               INDEX_BUCKET_MAP& index_map, bool& updated)
       {
-        if (bucket_map_ != NULL && !can_update_ && total == total_)
+        if (!can_update_ && total == total_)
         {
           log_warn("map bucket indexer config not update.");
-          BucketIndexer::get_index_map(*bucket_map_, sharding_buckets);
+          BucketIndexer::get_index_map(*bucket_map_, total, index_map);
           return TAIR_RETURN_SUCCESS;
         }
 
@@ -355,20 +356,23 @@ namespace tair
           }
         }
 
-        if (new_buckets.empty())
+        updated = !new_buckets.empty();
+        if (!updated)
         {
           // no new buckets, no sharding
-          BucketIndexer::get_index_map(*bucket_map_, sharding_buckets);
+          BucketIndexer::get_index_map(*new_bucket_map, total, index_map);
           delete new_bucket_map;
           return TAIR_RETURN_SUCCESS;
         }
 
+        std::random_shuffle(new_buckets.begin(), new_buckets.end());
 
         // To sharding as even as possible, we continue kicking out
         // rich ones whose owing is large than current average until
         // the remainings are really crying with hungry.
         INDEX_BUCKET_MAP new_index_map;
-        BucketIndexer::get_index_map(*new_bucket_map, new_index_map);
+        BucketIndexer::get_index_map(*new_bucket_map, total, new_index_map);
+
         // list is friendly to erase()
         std::list<INDEX_BUCKET_MAP::iterator> hungrys;
         int32_t hungrys_size = 0;
@@ -390,22 +394,25 @@ namespace tair
           remainder = bucket_count % hungrys_size;
 
           for (std::list<INDEX_BUCKET_MAP::iterator>::iterator it = hungrys.begin();
-               it != hungrys.end();
-               ++it)
+               it != hungrys.end();)
           {
-            int32_t owning = (*it)->second.size();
+            int32_t owning = (*it)->size();
             // the formers have priority to get remainder(if exist)
             if (owning > average || (owning == average && remainder <= 0))
             {
               // this is a rich buddy, kick out
-              hungrys.erase(it);
+              it = hungrys.erase(it);
               --hungrys_size;
               bucket_count -= owning;
               kicks++;
             }
-            else if (owning == average && remainder > 0)
+            else
             {
-              --remainder;
+              ++it;
+              if (owning == average && remainder > 0)
+              {
+                --remainder;
+              }
             }
           }
         } while (kicks > 0);
@@ -420,7 +427,7 @@ namespace tair
              it != hungrys.end();
              ++it)
         {
-          int32_t less = average - (*it)->second.size();
+          int32_t less = average - (*it)->size();
           if (less >= 0)
           {
             if (remainder > 0)
@@ -434,23 +441,23 @@ namespace tair
               // have good dinner
               for (int32_t i = 0; i < less; ++i, ++bit)
               {
-                (*it)->second.push_back(*bit);
+                (*it)->push_back(*bit);
               }
             }
           }
         }
 
         // get bucket map
-        for (INDEX_BUCKET_MAP::iterator it = new_index_map.begin(); it != new_index_map.end(); ++it)
+        for (size_t i = 0; i < new_index_map.size(); ++i)
         {
-          for (std::vector<int32_t>::iterator vit = it->second.begin(); vit != it->second.end(); ++vit)
+          for (std::vector<int32_t>::iterator vit = new_index_map[i].begin(); vit != new_index_map[i].end(); ++vit)
           {
-            (*new_bucket_map)[*vit] = it->first;
+            (*new_bucket_map)[*vit] = i;
           }
-
-          sharding_buckets[it->first].insert(
-            sharding_buckets[it->first].end(), it->second.begin(), it->second.end());
         }
+
+        index_map = new_index_map;
+        log_warn("new bucket index: %s", BucketIndexer::to_string(index_map).c_str());
 
         return update_bucket_index(total, new_bucket_map);
       }
@@ -490,12 +497,21 @@ namespace tair
         }
         else
         {
-          fprintf(new_file, "%d\n", total);
-          for (BUCKET_INDEX_MAP::const_iterator it = bucket_index_map.begin(); it != bucket_index_map.end(); ++it)
+          if (::access(bucket_index_file_path_, F_OK) == 0)
           {
-            // just human-readable format
-            fprintf(new_file, "%d%c%d\n", it->first, BUCKET_INDEX_DELIM, it->second);
+            // backup old
+            char backup_file_name[TAIR_MAX_PATH_LEN + 16];
+            int len = snprintf(backup_file_name, sizeof(backup_file_name), "%s.", bucket_index_file_path_);
+            tbsys::CTimeUtil::timeToStr(time(NULL), backup_file_name + len);
+            if (::rename(bucket_index_file_path_, backup_file_name) != 0)
+            {
+              log_error("backup index file fail: %s", strerror(errno));
+              // ignore fail
+            }
           }
+
+          std::string index_str = BucketIndexer::to_string(total, bucket_index_map);
+          fprintf(new_file, "%s", index_str.c_str());
 
           if (::rename(tmp_file_name, bucket_index_file_path_) != 0)
           {
@@ -563,10 +579,13 @@ namespace tair
           total_ = total;
           if (old_bucket_map != NULL)
           {
-            ::usleep(500);
+            ::usleep(10);
             delete old_bucket_map;
           }
-          log_warn("load bucket index, index total: %d, bucket count: %d", total_, bucket_map_->size());
+          INDEX_BUCKET_MAP index_map;
+          BucketIndexer::get_index_map(*bucket_map_, total_, index_map);
+          log_warn("load bucket index, index total: %d, bucket count: %lu, index map: %s",
+                   total_, bucket_map_->size(), BucketIndexer::to_string(index_map).c_str());
         }
 
         return TAIR_RETURN_SUCCESS;
@@ -627,7 +646,7 @@ namespace tair
         ldb_instance_ = new LdbInstance*[db_count_];
         for (int32_t i = 0; i < db_count_; ++i)
         {
-          ldb_instance_[i] = new LdbInstance(i + 1, db_version_care, cache_ != NULL ? cache_[i % cache_count_] : NULL);
+          ldb_instance_[i] = new LdbInstance(i, db_version_care, cache_ != NULL ? cache_[i % cache_count_] : NULL);
         }
 
         const char* bucket_index_strategy = TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_BUCKET_INDEX_TO_INSTANCE_STRATEGY,
@@ -654,10 +673,10 @@ namespace tair
         for (i = 0; i < count; ++i)
         {
           mdb_manager* cache = dynamic_cast<tair::mdb_manager*>(
-            mdb_factory::create_embedded_mdb(append_num(base_cache_path, i+1).c_str()));
+            mdb_factory::create_embedded_mdb(append_num(base_cache_path, i).c_str()));
           if (NULL == cache)
           {
-            log_error("init ldb memory cache fail, index: %d.", i+1);
+            log_error("init ldb memory cache fail, index: %d.", i);
             ret = TAIR_RETURN_FAILED;
             break;
           }
@@ -818,7 +837,7 @@ namespace tair
           if (tmp_ret != TAIR_RETURN_SUCCESS)
           {
             ret = tmp_ret;
-            log_error("clear area %d for instance %d fail.", area, i+1); // just continue
+            log_error("clear area %d for instance %d fail.", area, i); // just continue
           }
         }
 
@@ -845,21 +864,25 @@ namespace tair
         }
         else
         {
-          std::vector<int32_t>* tmp_buckets = new std::vector<int32_t>[db_count_];
+          BucketIndexer::INDEX_BUCKET_MAP index_map;
+          bool updated = false;
+          bucket_indexer_->sharding_bucket(db_count_, buckets, index_map, updated);
 
-          bucket_indexer_->sharding_bucket(db_count_, buckets, tmp_buckets);
+          if (updated && balancer_ != NULL)
+          {
+            balancer_->stop();
+          }
 
           for (int32_t i = 0; i < db_count_; ++i)
           {
-            log_warn("instance %d own %d buckets.", i+1, tmp_buckets[i].size());
-            ret = ldb_instance_[i]->init_buckets(tmp_buckets[i]);
+            log_warn("instance %d own %d buckets.", i, index_map[i].size());
+            ret = ldb_instance_[i]->init_buckets(index_map[i]);
             if (!ret)
             {
-              log_error("init buckets for db instance %d fail", i + 1);
+              log_error("init buckets for db instance %d fail", i);
               break;
             }
           }
-          delete[] tmp_buckets;
         }
 
         return ret;
@@ -875,14 +898,19 @@ namespace tair
         }
         else
         {
-          std::vector<int32_t>* tmp_buckets = new std::vector<int32_t>[db_count_];
-          bucket_indexer_->sharding_bucket(db_count_, buckets, tmp_buckets, true);
+          BucketIndexer::INDEX_BUCKET_MAP index_map;
+          bool updated = false;
+          bucket_indexer_->sharding_bucket(db_count_, buckets, index_map, updated, true);
+
+          if (updated && balancer_ != NULL)
+          {
+            balancer_->stop();
+          }
 
           for (int32_t i = 0; i < db_count_; ++i)
           {
-            ldb_instance_[i]->close_buckets(tmp_buckets[i]);
+            ldb_instance_[i]->close_buckets(index_map[i]);
           }
-          delete[] tmp_buckets;
         }
 
         // clear mdb cache
@@ -999,6 +1027,7 @@ namespace tair
         }
 
         // op cmd in ldb_manager level shared by all instances
+        // TODO: we really need one config center
         if (TAIR_RETURN_SUCCESS == ret)
         {
           switch (cmd)
@@ -1064,6 +1093,19 @@ namespace tair
             else
             {
               log_error("balancer not start");
+            }
+            break;
+          }
+          case TAIR_SERVER_CMD_SET_BALANCE_WAIT_MS:
+          {
+            if (params.empty())
+            {
+              log_error("set balance wait time but no param.");
+              ret = TAIR_RETURN_FAILED;
+            }
+            else if (balancer_ != NULL)
+            {
+              balancer_->set_wait_us(static_cast<int64_t>(atoi(params[0].c_str())) * 1000);
             }
             break;
           }
@@ -1139,8 +1181,8 @@ namespace tair
 
         for (int32_t i = 0; i < cache_count_; ++i)
         {
-          std::string cache_path = append_num(base_path, i+1); 
-          std::string back_cache_path = append_num(base_back_path, i+1);
+          std::string cache_path = append_num(base_path, i); 
+          std::string back_cache_path = append_num(base_back_path, i);
           if (::access((sys_shm_path + cache_path).c_str(), F_OK) != 0)
           {
             // just consider it's ok. maybe ::access fail because other reason.
@@ -1182,12 +1224,12 @@ namespace tair
         int32_t i = 0;
         for (i = 0; i < db_count_; ++i)
         {
-          new_ldb_instance[i] = new LdbInstance(i + 1, db_version_care,
+          new_ldb_instance[i] = new LdbInstance(i, db_version_care,
                                                 new_cache != NULL ? new_cache[i % cache_count_] : NULL);
-          log_debug("reinit instance %d own %d buckets.", i+1, tmp_buckets[i].size());
+          log_debug("reinit instance %d own %d buckets.", i, tmp_buckets[i].size());
           if (!new_ldb_instance[i]->init_buckets(tmp_buckets[i]))
           {
-            log_error("resetdb reinit db fail. instance: %d", i+1);
+            log_error("resetdb reinit db fail. instance: %d", i);
             ret = TAIR_RETURN_FAILED;
             break;
           }

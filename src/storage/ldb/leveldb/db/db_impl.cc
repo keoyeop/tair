@@ -904,37 +904,47 @@ Status DBImpl::CompactMemTableList() {
   // Save the contents of the memtable as a new Table
   VersionEdit edit;
   const uint64_t imm_start = env_->NowMicros();
-  int last_count = imm_list_count_;
   Status s;
   Log(options_.info_log, "memlist : %d", imm_list_count_);
+
   mutex_.Lock();
-  for (BucketList::iterator it = imm_list_.begin(); it != imm_list_.end();) {
+  std::vector<BucketList::iterator> imms;
+  for (BucketList::iterator it = imm_list_.begin(); it != imm_list_.end(); ++it) {
+    imms.push_back(it);
+  }
+  mutex_.Unlock();
+
+  size_t count = 0;
+  for (; count < imms.size(); ++count) {
     if (imm_ != NULL) {           // we compcat imm_ at highest priority
-      mutex_.Unlock();
       s = CompactMemTable(false); // MUST only compact imm_
-      mutex_.Lock();
       if (!s.ok()) {
         break;
       }
     }
-    mutex_.Unlock();
-    s = WriteLevel0Table((*it)->mem_, &edit, NULL);
-    mutex_.Lock();
+
+    BucketUpdate* bu = *imms[count];
+    s = WriteLevel0Table(bu->mem_, &edit, NULL);
     if (!s.ok()) {
       break;
     }
-    (*it)->mem_->Unref();
     // DeleteObsoleteFiles() can't check to delete bucket log file base on current log_file_number_,
     // so delete bucket log file here.
-    env_->DeleteFile(BucketLogFileName(dbname_, (*it)->log_number_));
-    delete (*it);
-    // @@ lock hold
-    it = imm_list_.erase(it);
-    imm_list_count_--;
+    env_->DeleteFile(BucketLogFileName(dbname_, bu->log_number_));
+    bu->mem_->Unref();
   }
-  Log(options_.info_log, "com imm list,count: %d cost %ld", last_count - imm_list_count_, env_->NowMicros() - imm_start);
 
+  // cleanup
+  mutex_.Lock();
+  for (size_t i = 0; i < count; ++i) {
+    BucketUpdate* bu = *imms[i];
+    imm_list_.erase(imms[i]);
+    --imm_list_count_;
+    delete bu;
+  }
   mutex_.Unlock();
+
+  Log(options_.info_log, "com imm list: %lu now: %d cost %ld", count, imm_list_count_, env_->NowMicros() - imm_start);
 
   if (s.ok() && shutting_down_.Acquire_Load()) {
     s = Status::IOError("Deleting DB during memtable compaction");

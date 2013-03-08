@@ -20,6 +20,7 @@
 #include "leveldb/slice.h"
 #include "leveldb/write_batch.h"
 #include "leveldb/options.h"
+#include "db/dbformat.h"
 
 #include "ldb_manager.hpp"
 #include "ldb_instance.hpp"
@@ -70,21 +71,26 @@ namespace tair
              it != index_map.end();
              ++it)
         {
-          bucket_count += it->second.size();
+          bucket_count += it->size();
+        }
+        if (bucket_count == 0)
+        {
+          return;
         }
 
         int32_t average = bucket_count / index_map.size();
         int32_t remainder = bucket_count % index_map.size();
 
-        BucketIndexer::INDEX_BUCKET_MAP result_index_map;
+        BucketIndexer::INDEX_BUCKET_MAP result_index_map(index_map.size());
 
         // first pull out
-        for (BucketIndexer::INDEX_BUCKET_MAP::const_iterator it = index_map.begin();
-             it != index_map.end();
-             ++it)
+        for (size_t index = 0; index < index_map.size(); ++index)
         {
-          const std::vector<int32_t>& buckets = it->second;
-          std::vector<int32_t>::const_iterator bit = buckets.begin();
+          std::vector<int32_t> buckets = index_map[index];
+          // avoid sequential buckets
+          std::random_shuffle(buckets.begin(), buckets.end());
+
+          std::vector<int32_t>::iterator bit = buckets.begin();
           int32_t more = buckets.size() - average;
 
           if (more > 0)
@@ -100,15 +106,14 @@ namespace tair
               for (int i = 0; i < more; ++i)
               {
                 // pull out the more
-                result_units.push_back(Unit(*bit++, it->first, 0));
+                result_units.push_back(Unit(*bit++, index, 0));
               }
             }
           }
 
           // add out-of-balance ones to result index map
-          result_index_map[it->first] = std::vector<int32_t>(bit, buckets.end());
+          result_index_map[index].insert(result_index_map[index].end(), bit, buckets.end());
         }
-
 
         if (result_units.empty())
         {
@@ -117,12 +122,14 @@ namespace tair
         else
         {
           // second push in
+          // avoid too A => B
+          std::random_shuffle(result_units.begin(), result_units.end());
+
           std::vector<Unit>::iterator uit = result_units.begin();
-          for (BucketIndexer::INDEX_BUCKET_MAP::iterator it = result_index_map.begin();
-               it != result_index_map.end();
-               ++it)
+          for (size_t index = 0; index < result_index_map.size(); ++index)
           {
-            int32_t less = average - it->second.size();
+            std::vector<int32_t>& buckets = result_index_map[index];
+            int32_t less = average - buckets.size();
             if (less >= 0)
             {
               if (remainder > 0)
@@ -136,8 +143,8 @@ namespace tair
                 // balance some
                 for (int32_t i = 0; i < less; ++i, ++uit)
                 {
-                  uit->to_ = it->first;
-                  it->second.push_back(uit->bucket_);
+                  uit->to_ = index;
+                  buckets.push_back(uit->bucket_);
                 }
               }
             }
@@ -149,7 +156,7 @@ namespace tair
             units_str.append(it->to_string());
           }
 
-          log_warn("NEED balance. input: %s, output: %d, balance units: %s",
+          log_warn("NEED balance. input: %s, output: %s, balance units: %s",
                    BucketIndexer::to_string(index_map).c_str(),
                    BucketIndexer::to_string(result_index_map).c_str(),
                    units_str.c_str());
@@ -164,12 +171,10 @@ namespace tair
              ++it)
         {
           log_warn("start one balance: %s", it->to_string().c_str());
-          ret = do_one_balance(it->bucket_,
-                               manager_->get_instance(it->from_),
-                               manager_->get_instance(it->to_));
+          ret = do_one_balance(*it);
           if (ret != TAIR_RETURN_SUCCESS)
           {
-            log_error("balance one bucket fail: %s", it->to_string().c_str());
+            log_error("balance one bucket fail: %s, ret: %d", it->to_string().c_str(), ret);
             break;
           }
         }
@@ -177,10 +182,11 @@ namespace tair
         return ret != TAIR_RETURN_SUCCESS ? false : true;
       }
 
-      int LdbBalancer::Balancer::do_one_balance(int32_t bucket, LdbInstance* from, LdbInstance* to)
+      int LdbBalancer::Balancer::do_one_balance(const Unit& unit)
       {
-        leveldb::DB* from_db = from->db();
-        leveldb::DB* to_db = to->db();
+        int32_t bucket = unit.bucket_;
+        leveldb::DB* from_db = manager_->get_instance(unit.from_)->db();
+        leveldb::DB* to_db = manager_->get_instance(unit.to_)->db();
 
         int32_t batch_size = 0;
         int64_t item_count = 0, data_size = 0;
@@ -189,6 +195,10 @@ namespace tair
         leveldb::WriteOptions write_options;
         write_options.sync = false;
         leveldb::Status status;
+
+        // all writes is synced because all data's
+        // job(rsync eg.) has been done in from_db
+        const bool synced = true;
 
         // process
         typedef enum
@@ -242,34 +252,54 @@ namespace tair
           {
             leveldb::Slice& key = data_it.key();
             leveldb::Slice& value = data_it.value();
+            char type = leveldb::OffSyncMask(data_it.type());
 
             batch_size += key.size() + value.size();
             data_size += key.size() + value.size();
             ++item_count;
 
-            if (value.empty())
+            switch (type)
             {
-              batch.Delete(key);
-            }
-            else
-            {
-              batch.Put(key, value);
+            case leveldb::kTypeValue:
+              batch.Put(key, value, synced);
+              break;
+            case leveldb::kTypeDeletion:
+              batch.Delete(key, synced);
+              break;
+            case leveldb::kTypeDeletionWithTailer:
+              batch.Delete(key, value, synced);
+              break;
+            default:
+              log_error("unknown record type: %d", type);
+              break;
             }
 
             data_it.next();
           }
 
-          // batch over
           if (batch_size > MAX_BATCH_SIZE)
           {
             status = to_db->Write(write_options, &batch, bucket);
             if (!status.ok())
             {
               log_error("write batch fail: %s", status.ToString().c_str());
-              // we will break
               break;
             }
             batch_size = 0;
+
+            int64_t wait_us = owner_->get_wait_us();
+            if (process <= DOING && wait_us > 0)
+            {
+              // too much love will kill you. silly wait
+              if (wait_us > 1000000)
+              {
+                TAIR_SLEEP(_stop, wait_us/1000000);
+              }
+              else
+              {
+                ::usleep(wait_us);
+              }
+            }
           }
         }
 
@@ -277,8 +307,11 @@ namespace tair
 
         if (process >= COMMIT && ret == TAIR_RETURN_SUCCESS)
         {
+          // data written by spcified bucket can't be seen
+          // when data is still in memtable(ForceCompactMemTable() is asynced).
+          // TODO: consummate update-with-bucket to fix this.
           to_db->ForceCompactMemTable();
-          ret = manager_->reindex_bucket(bucket, from->index(), to->index());
+          ret = manager_->reindex_bucket(bucket, unit.from_, unit.to_);
           if (ret != TAIR_RETURN_SUCCESS)
           {
             log_error("reindex bucket %d fail, ret: %d", bucket, ret);
@@ -291,15 +324,16 @@ namespace tair
           manager_->resume_service(bucket);
         }
 
-        log_warn("balance bucket: %d, itemcount: %"PRI64_PREFIX"d, datasize: %"PRI64_PREFIX"d, suc: %s",
-                 bucket, item_count, data_size, ret == TAIR_RETURN_SUCCESS ? "yes" : "no");
+        log_warn("balance %s, itemcount: %"PRI64_PREFIX"d, datasize: %"PRI64_PREFIX"d, suc: %s",
+                 unit.to_string().c_str(), item_count, data_size,
+                 (process == COMMIT && ret == TAIR_RETURN_SUCCESS) ? "yes" : "no");
 
         return ret;
       }
 
       //////////////////// LdbBalancer
       LdbBalancer::LdbBalancer(LdbManager* manager) :
-        manager_(manager), balancer_(NULL)
+        manager_(manager), balancer_(NULL), wait_us_(0)
       {}
 
       LdbBalancer::~LdbBalancer()
@@ -312,7 +346,7 @@ namespace tair
           // has detached itself
           while (balancer_ != NULL)
           {
-            ::usleep(20);
+            ::usleep(10);
           }
         }
       }
@@ -343,12 +377,25 @@ namespace tair
         }
       }
 
+      void LdbBalancer::set_wait_us(int64_t us)
+      {
+        log_warn("set balance wait us: %"PRI64_PREFIX"d", us);
+        wait_us_ = us;          
+      }
+
+      int64_t LdbBalancer::get_wait_us()
+      {
+        return wait_us_;
+      }
+
       void LdbBalancer::finish(Balancer* balancer)
       {
         if (balancer == balancer_)
         {
-          log_warn("balance finish.");
           balancer_ = NULL;
+          BucketIndexer::INDEX_BUCKET_MAP index_map;
+          manager_->get_index_map(index_map);
+          log_warn("balance finish. current index map: %s", BucketIndexer::to_string(index_map).c_str());
         }
       }
 

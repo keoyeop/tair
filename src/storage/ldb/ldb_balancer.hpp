@@ -72,7 +72,7 @@ namespace tair
           std::string to_string() const
           {
             char buf[32];
-            snprintf(buf, sizeof(buf), "[bucket: %d, from: %d, to: %d]",
+            snprintf(buf, sizeof(buf), "[bucket %d: %d => %d]",
                      bucket_, from_, to_);
             return std::string(buf);
           }
@@ -83,7 +83,7 @@ namespace tair
         private:
           void try_balance(const BucketIndexer::INDEX_BUCKET_MAP& index_map, std::vector<Unit>& result_units);
           bool do_balance(const std::vector<Unit>& units);
-          int do_one_balance(int32_t bucket, LdbInstance* from, LdbInstance* to);
+          int do_one_balance(const Unit& unit);
 
         private:
           LdbBalancer* owner_;
@@ -96,12 +96,15 @@ namespace tair
 
         void start();
         void stop();
+        void set_wait_us(int64_t us);
+        int64_t get_wait_us();
 
         void finish(Balancer* balancer);
 
       private:
         LdbManager* manager_;
         Balancer* balancer_;
+        int64_t  wait_us_;
       };
 
     }

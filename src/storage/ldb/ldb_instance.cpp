@@ -108,7 +108,7 @@ namespace tair
           else
           {
             // leveldb data path
-            snprintf(db_path_, sizeof(db_path_), "%s%d/ldb", data_dir, index_);
+            snprintf(db_path_, sizeof(db_path_), "%s%d/ldb", data_dir, index_ + 1/*TODO: change to index*/);
 
             if (!(ret = tbsys::CFileUtil::mkdirs(db_path_)))
             {
@@ -209,7 +209,7 @@ namespace tair
 
         STAT_MANAGER_MAP* old_stat = stat_manager_;
         stat_manager_ = tmp_stat_manager;
-        usleep(100);
+        usleep(40);
         // add gc
         gc_.add(gc_buckets, GC_BUCKET);
 

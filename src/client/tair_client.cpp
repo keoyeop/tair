@@ -78,6 +78,7 @@ namespace tair {
       cmd_map["resume_gc"] = &tair_client::do_cmd_resume_gc;
       cmd_map["start_balance"] = &tair_client::do_cmd_start_balance;
       cmd_map["stop_balance"] = &tair_client::do_cmd_stop_balance;
+      cmd_map["set_balance_wait"] = &tair_client::do_cmd_set_balance_wait_ms;
       cmd_map["pause_rsync"] = &tair_client::do_cmd_pause_rsync;
       cmd_map["resume_rsync"] = &tair_client::do_cmd_resume_rsync;
       cmd_map["set_config"] = &tair_client::do_cmd_set_config;
@@ -1786,6 +1787,11 @@ namespace tair {
    void tair_client::do_cmd_stop_balance(VSTRING& param)
    {
      do_cmd_op_ds_or_not(param, "stop_balance", TAIR_SERVER_CMD_STOP_BALANCE);
+   }
+
+   void tair_client::do_cmd_set_balance_wait_ms(VSTRING &param)
+   {
+     do_cmd_op_ds_or_not(param, "set_balance_wait", TAIR_SERVER_CMD_SET_BALANCE_WAIT_MS, 1);
    }
 
    void tair_client::do_cmd_set_config(VSTRING& param)

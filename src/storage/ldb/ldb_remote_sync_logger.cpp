@@ -179,8 +179,7 @@ namespace tair
 
           if (0 == new_logfile_number)
           {
-            log_warn("no ldb log for reader");
-            ret = TAIR_RETURN_FAILED;
+            log_info("no ldb log for reader");
           }
           else
           {

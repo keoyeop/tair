@@ -172,6 +172,11 @@ namespace tair
           return decode_bucket_number(data_ + LDB_EXPIRED_TIME_SIZE);
         }
 
+        static int32_t decode_bucket_number_with_key(const char* key_buf)
+        {
+          return decode_bucket_number(key_buf + LDB_EXPIRED_TIME_SIZE);
+        }
+
         static int32_t decode_bucket_number(const char* buf)
         {
           int bucket_number = 0;
@@ -447,7 +452,7 @@ namespace tair
           bool ok(int32_t type, const leveldb::Slice& key, uint64_t sequence)
           {
             UNUSED(type);
-            return (LdbKey::decode_bucket_number(key.data()) == bucket_ && sequence >= sequence_);
+            return (LdbKey::decode_bucket_number_with_key(key.data()) == bucket_ && sequence >= sequence_);
           }
 
         private:
@@ -460,6 +465,7 @@ namespace tair
         ~LdbBucketDataIter();
 
         void seek_to_first();
+        // can do next() even already !valid()
         void next();
         bool valid();
         leveldb::Slice& key();
@@ -467,6 +473,7 @@ namespace tair
         int32_t type();
 
       private:
+        void db_sanity();
         void clear();
 
       private:

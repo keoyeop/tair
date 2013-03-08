@@ -160,7 +160,7 @@ namespace tair
             log_debug("@@ get new record: %d", last_log_record_->size());
           }
 
-          // maybe read over all current writing log record
+          // read one log record
           if (TAIR_RETURN_SUCCESS == ret && last_log_record_->size() > 0)
           {
             update_last_sequence();
@@ -172,11 +172,13 @@ namespace tair
             }
             else
             {
+              // read fail or got a kv
               break;
             }
           }
           else
           {
+            // read fail or read over
             break;
           }
         }
@@ -225,55 +227,54 @@ namespace tair
 
         if (0 == new_logfile_number)
         {
-          log_warn("no ldb log for reader");
-          ret = TAIR_RETURN_FAILED;
+          log_info("no ldb log for reader");
         }
         else
         {
-            // file will be Ref()
-            leveldb::SequentialFile* file = db->LogFile(new_logfile_number);
-            bool refed = (file != NULL);
+          // file will be Ref()
+          leveldb::SequentialFile* file = db->LogFile(new_logfile_number);
+          bool refed = (file != NULL);
 
-            // not current writing log, current writing db logger will be ReadableAndWritableFile
-            if (NULL == file)
+          // not current writing log, current writing db logger will be ReadableAndWritableFile
+          if (NULL == file)
+          {
+            std::string fname = leveldb::LogFileName(db_log_dir, new_logfile_number);
+            s = db_env->NewSequentialFile(fname, &file);
+            if (!s.ok())
             {
-              std::string fname = leveldb::LogFileName(db_log_dir, new_logfile_number);
-              s = db_env->NewSequentialFile(fname, &file);
-              if (!s.ok())
-              {
-                log_error("init to read log file %s fail: %s", fname.c_str(), s.ToString().c_str());
-                ret = TAIR_RETURN_FAILED;
-              }
-            }
-
-            if (TAIR_RETURN_SUCCESS == ret)
-            {
-              reading_logfile_number_ = new_logfile_number;
-              if (reader_ != NULL)
-              {
-                if (last_logfile_refed_)
-                {
-                  dynamic_cast<leveldb::ReadableAndWritableFile*>(reader_->File())->Unref();
-                }
-                else
-                {
-                  delete reader_->File();
-                }
-                delete reader_;
-                if (delete_file_)
-                {
-                  db->DeleteLogFile(min_number);
-                }
-              }
-
-              // TODO: reporter
-              log_debug("start new ldb rsync reader, filenumber: %"PRI64_PREFIX"u", reading_logfile_number_);
-              reader_ = new leveldb::log::Reader(file, NULL, true, 0);
-              last_logfile_refed_ = refed;
+              log_error("init to read log file %s fail: %s", fname.c_str(), s.ToString().c_str());
+              ret = TAIR_RETURN_FAILED;
             }
           }
 
-          return ret;
+          if (TAIR_RETURN_SUCCESS == ret)
+          {
+            reading_logfile_number_ = new_logfile_number;
+            if (reader_ != NULL)
+            {
+              if (last_logfile_refed_)
+              {
+                dynamic_cast<leveldb::ReadableAndWritableFile*>(reader_->File())->Unref();
+              }
+              else
+              {
+                delete reader_->File();
+              }
+              delete reader_;
+              if (delete_file_)
+              {
+                db->DeleteLogFile(min_number);
+              }
+            }
+
+            // TODO: reporter
+            log_debug("start new ldb rsync reader, filenumber: %"PRI64_PREFIX"u", reading_logfile_number_);
+            reader_ = new leveldb::log::Reader(file, NULL, true, 0);
+            last_logfile_refed_ = refed;
+          }
+        }
+
+        return ret;
       }
 
       void LdbLogsReader::update_last_sequence()
@@ -315,6 +316,12 @@ namespace tair
               log_error("start new log reader fail: %d", ret);
               break;
             }
+            // no log for reader
+            if (reader_ == NULL)
+            {
+              break;
+            }
+
             need_new_reader = false;
           }
 
@@ -358,7 +365,7 @@ namespace tair
         case leveldb::kTypeValue:
         {
           log_debug("@@ type value");
-          // pas record_type to do filter
+          // pass record_type to do filter
           parse_one_kv(record_type, key, value);
           break;
         }
@@ -459,10 +466,10 @@ namespace tair
         LdbKey::build_key_meta(scan_key, bucket_);
 
         log_snapshot_ = dynamic_cast<const leveldb::LogSnapshotImpl*>(db_->GetLogSnapshot());
-        // reserve data sentinel which indicates where to start reading log
-        // get log reader
         log_filter_ = new LdbBucketDataIter::LogFilter(bucket_, log_snapshot_->number_/*sequence*/);
-        log_reader_ = new LdbLogsReader(db_, log_filter_, log_snapshot_->log_number_, false/* not delete log file*/);
+        log_reader_ = new LdbLogsReader(db_, log_filter_,
+                                        log_snapshot_->log_number_ - 1/* read current log*/,
+                                        false/* not delete log file*/);
 
         // get db iterator
         leveldb::ReadOptions scan_options;
@@ -471,6 +478,7 @@ namespace tair
 
         db_it_ = db_->NewIterator(scan_options);
         db_it_->Seek(leveldb::Slice(scan_key, sizeof(scan_key)));
+        db_sanity();
       }
 
       void LdbBucketDataIter::next()
@@ -479,19 +487,8 @@ namespace tair
         if (db_it_ != NULL)
         {
           db_it_->Next();
-          if (db_it_->Valid())
-          {
-            key_ = db_it_->key();
-            value_ = db_it_->value();
-          }
-          else
-          {
-            // db data over.
-            delete db_it_;
-            db_it_ = NULL;
-            // next one
-            next();
-          }
+          // make sure db sanity when next next()
+          db_sanity();
         }
         else
         {
@@ -519,16 +516,35 @@ namespace tair
         return type_;
       }
 
+      void LdbBucketDataIter::db_sanity()
+      {
+        if (db_it_->Valid() &&
+            LdbKey::decode_bucket_number_with_key(db_it_->key().data()) == bucket_)
+        {
+          key_ = db_it_->key();
+          value_ = db_it_->value();
+          type_ = leveldb::kTypeValue;
+        }
+        else
+        {
+          // db data over.
+          delete db_it_;
+          db_it_ = NULL;
+          // next one
+          next();
+        }
+      }
+
       void LdbBucketDataIter::clear()
       {
         if (alloc_)
         {
           delete key_.data();
           delete value_.data();
-          key_.clear();
-          value_.clear();
-          alloc_ = false;
         }
+        key_.clear();
+        value_.clear();
+        alloc_ = false;
       }
 
     }
