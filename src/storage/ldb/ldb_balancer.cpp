@@ -295,6 +295,11 @@ namespace tair
                 break;
               }
             }
+            if (!status.ok())
+            {
+              break;
+            }
+
             batch_size = 0;
             batch.Clear();
 
