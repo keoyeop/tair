@@ -42,6 +42,8 @@ namespace tair
         virtual bool ShouldDrop(const char* key, int64_t sequence, uint32_t will_gc = 0) const;
         // should drop this key based on some condition. (user defined)
         virtual bool ShouldDropMaybe(const char* key, int64_t sequence, uint32_t now = 0) const;
+        // should stop build sst before `key based on `start_key
+        virtual bool ShouldStopBefore(const leveldb::Slice& start_key, const leveldb::Slice& key) const;
       private:
         LdbGcFactory* gc_;
       };
@@ -62,6 +64,8 @@ namespace tair
         virtual bool ShouldDrop(const char* key, int64_t sequence, uint32_t will_gc = 0) const;
         // should drop this key based on some condition. (user defined)
         virtual bool ShouldDropMaybe(const char* key, int64_t sequence, uint32_t now = 0) const;
+        // should stop build sst before `key based on `start_key
+        virtual bool ShouldStopBefore(const leveldb::Slice& start_key, const leveldb::Slice& key) const;
       private:
         //const char *PrefixCheck(const char *key, size_t len) const;
         //const char *KeyToNumber(const char *key, size_t len, int64_t &number, const char *&number_p) const;

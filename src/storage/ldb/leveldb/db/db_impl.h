@@ -158,6 +158,9 @@ class DBImpl : public DB {
   // rotate stuff 
   Status MaybeRotate();
 
+  // should slowdown/stop write
+  bool ShouldLimitWrite(int32_t trigger);
+
   // Constant after construction
   Env* const env_;
   const InternalKeyComparator internal_comparator_;

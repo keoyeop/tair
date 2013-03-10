@@ -521,48 +521,52 @@ Status DBImpl::RecoverLogFile(uint64_t log_number,
 // so no mutex here.
 Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
                                 Version* base) {
-  const uint64_t start_micros = env_->NowMicros();
-  FileMetaData meta;
-  meta.number = versions_->NewFileNumber();
-  pending_outputs_.insert(meta.number);
   Iterator* iter = mem->NewIterator();
-  Log(options_.info_log, "Level-0 table #%llu: started",
-      (unsigned long long) meta.number);
-
+  iter->SeekToFirst();
   Status s;
-  {
-    PROFILER_BEGIN("buildtab-");
-    s = BuildTable(dbname_, env_, options_, table_cache_, iter, &meta);
-    PROFILER_END();
-  }
+  while (iter->Valid() && s.ok()) {
+    const uint64_t start_micros = env_->NowMicros();
+    FileMetaData meta;
+    meta.number = versions_->NewFileNumber();
+    pending_outputs_.insert(meta.number);
+    Log(options_.info_log, "Level-0 table #%llu: started",
+        (unsigned long long) meta.number);
 
-  Log(options_.info_log, "Level-0 table #%llu: %lld bytes %s",
-      (unsigned long long) meta.number,
-      (unsigned long long) meta.file_size,
-      s.ToString().c_str());
-  delete iter;
-  pending_outputs_.erase(meta.number);
-
-
-  // Note that if file_size is zero, the file has been deleted and
-  // should not be added to the manifest.
-  int level = 0;
-  if (s.ok() && meta.file_size > 0) {
-    const Slice min_user_key = meta.smallest.user_key();
-    const Slice max_user_key = meta.largest.user_key();
-    if (base != NULL) {
-      PROFILER_BEGIN("picklevel+");
-      level = base->PickLevelForMemTableOutput(min_user_key, max_user_key);
+    {
+      PROFILER_BEGIN("buildtab-");
+      s = BuildTable(dbname_, env_, options_, user_comparator(), table_cache_, iter, &meta);
       PROFILER_END();
     }
-    edit->AddFile(level, meta.number, meta.file_size,
-                  meta.smallest, meta.largest);
-  }
 
-  CompactionStats stats;
-  stats.micros = env_->NowMicros() - start_micros;
-  stats.bytes_written = meta.file_size;
-  stats_[level].Add(stats);
+    Log(options_.info_log, "Level-0 table #%llu: %lld bytes %s",
+        (unsigned long long) meta.number,
+        (unsigned long long) meta.file_size,
+        s.ToString().c_str());
+    pending_outputs_.erase(meta.number);
+
+
+    // Note that if file_size is zero, the file has been deleted and
+    // should not be added to the manifest.
+    int level = 0;
+    if (s.ok() && meta.file_size > 0) {
+      const Slice min_user_key = meta.smallest.user_key();
+      const Slice max_user_key = meta.largest.user_key();
+      if (base != NULL) {
+        PROFILER_BEGIN("picklevel+");
+        level = base->PickLevelForMemTableOutput(min_user_key, max_user_key);
+        PROFILER_END();
+      }
+      edit->AddFile(level, meta.number, meta.file_size,
+                    meta.smallest, meta.largest);
+    }
+
+    CompactionStats stats;
+    stats.micros = env_->NowMicros() - start_micros;
+    stats.bytes_written = meta.file_size;
+    stats_[level].Add(stats);
+  }
+  delete iter;
+
   return s;
 }
 
@@ -579,9 +583,9 @@ Status DBImpl::CompactMemTable(bool compact_mlist) {
     return s;
   }
 
+  VersionEdit edit;
   mutex_.Lock();
   // Save the contents of the memtable as a new Table
-  VersionEdit edit;
   Version* base = versions_->current();
   base->Ref();
   mutex_.Unlock();
@@ -834,7 +838,7 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
 
   // can't get space for new memtable
   if (retry > kRetryCount) {
-    return Status::Corruption("too many mmt");
+    return Status::SlowWrite("too many mmt");
   }
 
   // we can switch a new memtable now.
@@ -849,7 +853,7 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
     return s;
   }
 
-  logfile_number_ = new_log_number;
+  // not dirty logfile_number_
 
   Log(options_.info_log, "new log %lu", new_log_number);
   bu = new BucketUpdate();
@@ -902,17 +906,17 @@ void DBImpl::EvictBucketUpdate(BucketUpdate* bu) {
 
 Status DBImpl::CompactMemTableList() {
   // Save the contents of the memtable as a new Table
-  VersionEdit edit;
   const uint64_t imm_start = env_->NowMicros();
   Status s;
   Log(options_.info_log, "memlist : %d", imm_list_count_);
 
-  mutex_.Lock();
   std::vector<BucketList::iterator> imms;
-  for (BucketList::iterator it = imm_list_.begin(); it != imm_list_.end(); ++it) {
-    imms.push_back(it);
+  {
+    MutexLock l(&mutex_);
+    for (BucketList::iterator it = imm_list_.begin(); it != imm_list_.end(); ++it) {
+      imms.push_back(it);
+    }
   }
-  mutex_.Unlock();
 
   size_t count = 0;
   for (; count < imms.size(); ++count) {
@@ -921,10 +925,19 @@ Status DBImpl::CompactMemTableList() {
       if (!s.ok()) {
         break;
       }
+      bg_cv_.SignalAll();
     }
 
+    Version* base;
+    {
+      MutexLock l(&mutex_);
+      base = versions_->current();
+      base->Ref();
+    }
+
+    VersionEdit edit;
     BucketUpdate* bu = *imms[count];
-    s = WriteLevel0Table(bu->mem_, &edit, NULL);
+    s = WriteLevel0Table(bu->mem_, &edit, base);
     if (!s.ok()) {
       break;
     }
@@ -932,29 +945,32 @@ Status DBImpl::CompactMemTableList() {
     // so delete bucket log file here.
     env_->DeleteFile(BucketLogFileName(dbname_, bu->log_number_));
     bu->mem_->Unref();
+
+    base->Unref();
+
+    edit.SetPrevLogNumber(0);
+    edit.SetLogNumber(logfile_number_);  // Earlier logs no longer needed
+    s = versions_->LogAndApply(&edit, &mutex_);
+    if (!s.ok()) {
+      break;
+    }
   }
 
   // cleanup
-  mutex_.Lock();
-  for (size_t i = 0; i < count; ++i) {
-    BucketUpdate* bu = *imms[i];
-    imm_list_.erase(imms[i]);
-    --imm_list_count_;
-    delete bu;
+  {
+    MutexLock l(&mutex_);
+    for (size_t i = 0; i < count; ++i) {
+      BucketUpdate* bu = *imms[i];
+      imm_list_.erase(imms[i]);
+      --imm_list_count_;
+      delete bu;
+    }
   }
-  mutex_.Unlock();
 
   Log(options_.info_log, "com imm list: %lu now: %d cost %ld", count, imm_list_count_, env_->NowMicros() - imm_start);
 
   if (s.ok() && shutting_down_.Acquire_Load()) {
     s = Status::IOError("Deleting DB during memtable compaction");
-  }
-
-  // Replace immutable memtable with the generated Table
-  if (s.ok()) {
-    edit.SetPrevLogNumber(0);
-    edit.SetLogNumber(logfile_number_);  // Earlier logs no longer needed
-    s = versions_->LogAndApply(&edit, &mutex_);
   }
 
   if (s.ok() && imm_list_.empty()) {
@@ -1526,6 +1542,11 @@ Status DBImpl::MaybeRotate() {
   return s;
 }
 
+bool DBImpl::ShouldLimitWrite(int32_t trigger) {
+  return options_.kL0_LimitWriteWithCount ? (versions_->NumLevelFiles(0) >= trigger) :
+    (versions_->NumLevelBytes(0) >= static_cast<int64_t>(options_.write_buffer_size * trigger));
+}
+
 Status DBImpl::DoCompactionWork(CompactionState* compact) {
   const uint64_t start_micros = env_->NowMicros();
   int64_t imm_micros = 0;  // Micros spent doing imm_ compactions
@@ -1997,7 +2018,7 @@ Status DBImpl::MakeRoomForWrite(bool force) {
       break;
     } else if (
         allow_delay &&
-        versions_->NumLevelFiles(0) >= config::kL0_SlowdownWritesTrigger) {
+        ShouldLimitWrite(config::kL0_SlowdownWritesTrigger)) {
       // We are getting close to hitting a hard limit on the number of
       // L0 files.  Rather than delaying a single write by several
       // seconds when we hit the hard limit, start delaying each
@@ -2020,7 +2041,7 @@ Status DBImpl::MakeRoomForWrite(bool force) {
       MaybeScheduleCompaction();
       bg_cv_.Wait();
       Log(options_.info_log, "wait imm over");
-    } else if (versions_->NumLevelFiles(0) >= config::kL0_StopWritesTrigger) { // @ not stop
+    } else if (ShouldLimitWrite(config::kL0_StopWritesTrigger)) {
       // There are too many level-0 files.
       Log(options_.info_log, "waiting...\n");
       bg_cv_.Wait();

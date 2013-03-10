@@ -1318,6 +1318,7 @@ namespace tair
         options_.reserve_log = TBSYS_CONFIG.getInt(TAIRSERVER_SECTION, TAIR_DO_RSYNC, 0) > 0;
         options_.load_backup_version = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_LOAD_BACKUP_VERSION, 0) > 0;
         options_.kL0_CompactionTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_COMPACTION_TRIGGER, 4);
+        options_.kL0_LimitWriteWithCount = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_LIMIT_WRITE_WITH_COUNT, 0) > 0;
         options_.kL0_SlowdownWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_SLOWDOWN_WRITE_TRIGGER, 8);
         options_.kL0_StopWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_STOP_WRITE_TRIGGER, 12);
         options_.kMaxMemCompactLevel = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_MEMCOMPACT_LEVEL, 2);

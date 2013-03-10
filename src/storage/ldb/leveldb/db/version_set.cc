@@ -26,6 +26,9 @@ namespace leveldb {
 static const int64_t kExpandedCompactionByteSizeLimit = 25 * config::kTargetFileSize;
 
 static double MaxBytesForLevel(int level) {
+  if (level == 1) {
+    return config::kTargetFileSize;
+  }
   // Note: the result for level zero is not really used since we set
   // the level-0 compaction threshold based on number of files.
   double result = config::kBaseLevelSize * 1.0;  // Result for both level-0 and level-1
@@ -765,6 +768,7 @@ class VersionSet::Builder {
       }
       f->refs.Inc();
       files->push_back(f);
+      v->file_sizes_[level] += f->file_size;
     }
   }
 };
@@ -1400,7 +1404,7 @@ void VersionSet::AddLiveFiles(std::set<uint64_t>* live) {
 int64_t VersionSet::NumLevelBytes(int level) const {
   assert(level >= 0);
   assert(level < config::kNumLevels);
-  return TotalFileSize(current_->files_[level]);
+  return current_->file_sizes_[level];
 }
 
 int64_t VersionSet::NumBytes() const {

@@ -277,13 +277,26 @@ namespace tair
 
           if (batch_size > MAX_BATCH_SIZE)
           {
-            status = to_db->Write(write_options, &batch, bucket);
-            if (!status.ok())
+            while (!_stop)
             {
-              log_error("write batch fail: %s", status.ToString().c_str());
-              break;
+              status = to_db->Write(write_options, &batch, bucket);
+              if (status.ok())
+              {
+                break;
+              }
+
+              if (status.IsSlowWrite())
+              {
+                ::usleep(1000000);
+              }
+              else
+              {
+                log_error("write batch fail: %s", status.ToString().c_str());
+                break;
+              }
             }
             batch_size = 0;
+            batch.Clear();
 
             int64_t wait_us = owner_->get_wait_us();
             if (process <= DOING && wait_us > 0)
@@ -322,8 +335,8 @@ namespace tair
           manager_->resume_service(bucket);
         }
 
-        log_warn("balance %s, itemcount: %"PRI64_PREFIX"d, datasize: %"PRI64_PREFIX"d, suc: %s",
-                 unit.to_string().c_str(), item_count, data_size,
+        log_warn("balance %s, itemcount: %"PRI64_PREFIX"d, datasize: %"PRI64_PREFIX"d, process: %d, suc: %s",
+                 unit.to_string().c_str(), item_count, data_size, process,
                  (process == COMMIT && ret == TAIR_RETURN_SUCCESS) ? "yes" : "no");
 
         return ret;
@@ -331,7 +344,7 @@ namespace tair
 
       //////////////////// LdbBalancer
       LdbBalancer::LdbBalancer(LdbManager* manager) :
-        manager_(manager), balancer_(NULL), wait_us_(0)
+        manager_(manager), balancer_(NULL), wait_us_(1000)
       {}
 
       LdbBalancer::~LdbBalancer()

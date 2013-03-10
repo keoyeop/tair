@@ -17,7 +17,22 @@ Reader::Reporter::~Reporter() {
 
 Reader::Reader(SequentialFile* file, Reporter* reporter, bool checksum,
                uint64_t initial_offset)
-    : file_(file),
+    : sfile_(file),
+      rfile_(NULL),
+      reporter_(reporter),
+      checksum_(checksum),
+      backing_store_(new char[kBlockSize]),
+      buffer_(),
+      eof_(false),
+      last_record_offset_(0),
+      end_of_buffer_offset_(0),
+      offset_in_reading_block_(kBlockSize),
+      initial_offset_(initial_offset) {
+}
+Reader::Reader(RandomAccessFile* file, Reporter* reporter, bool checksum,
+               uint64_t initial_offset)
+    : sfile_(NULL),
+      rfile_(file),
       reporter_(reporter),
       checksum_(checksum),
       backing_store_(new char[kBlockSize]),
@@ -46,8 +61,8 @@ bool Reader::SkipToInitialBlock() {
   end_of_buffer_offset_ = block_start_location;
 
   // Skip to start of first block that can contain the initial record
-  if (block_start_location > 0) {
-    Status skip_status = file_->Skip(block_start_location);
+  if (block_start_location > 0 && sfile_ != NULL) {
+    Status skip_status = sfile_->Skip(block_start_location);
     if (!skip_status.ok()) {
       ReportDrop(block_start_location, skip_status);
       return false;
@@ -199,7 +214,9 @@ unsigned int Reader::ReadPhysicalRecord(Slice* result, uint64_t limit_offset) {
           offset_in_reading_block_ = 0;
         }
 
-        Status status = file_->Read(read_size, &buffer_, backing_store_);
+        Status status = sfile_ != NULL ?
+          sfile_->Read(read_size, &buffer_, backing_store_) :
+          rfile_->Read(end_of_buffer_offset_, read_size, &buffer_, backing_store_);
         offset_in_reading_block_ += buffer_.size();
         end_of_buffer_offset_ += buffer_.size();
 

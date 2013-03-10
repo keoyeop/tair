@@ -412,6 +412,8 @@ namespace tair
 
       private:
         int start_new_reader(uint64_t min_number);      
+        int init_reader(uint64_t number);
+        void clear_reader(uint64_t number);
         void update_last_sequence();
         int get_log_record();
         int parse_one_kv_record(int32_t& type, leveldb::Slice& key, leveldb::Slice& value);

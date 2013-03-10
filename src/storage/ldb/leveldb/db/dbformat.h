@@ -157,6 +157,9 @@ class InternalKey {
 
   Slice user_key() const { return ExtractUserKey(rep_); }
 
+  // Slice-s has InternalKey data
+  static Slice user_key(Slice& s) { return ExtractUserKey(s); }
+
   void SetFrom(const ParsedInternalKey& p) {
     rep_.clear();
     AppendInternalKey(&rep_, p);

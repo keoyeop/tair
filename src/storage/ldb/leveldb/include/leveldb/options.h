@@ -157,6 +157,9 @@ struct Options {
   // Level-0 compaction is started when we hit this many files.
   int kL0_CompactionTrigger;
 
+  // whether limit Level-0 write with filecount
+  bool kL0_LimitWriteWithCount;
+
   // Soft limit on number of level-0 files.  We slow down writes at this point.
   int kL0_SlowdownWritesTrigger;
 

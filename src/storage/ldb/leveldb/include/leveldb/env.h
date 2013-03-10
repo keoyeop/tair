@@ -240,7 +240,7 @@ class WritableFile {
   void operator=(const WritableFile&);
 };
 
-class ReadableAndWritableFile : public SequentialFile, public WritableFile {
+class ReadableAndWritableFile : public SequentialFile, public RandomAccessFile, public WritableFile {
  public:
   ReadableAndWritableFile() { }
   virtual ~ReadableAndWritableFile() { }
