@@ -29,6 +29,7 @@ namespace tair
 {
   class mdb_manager;
   class mput_record_vec;
+  class operation_record;
   namespace storage
   {
     class storage_manager;
@@ -53,6 +54,7 @@ namespace tair
         int put(int bucket_number, tair::common::data_entry& key,
                 tair::common::data_entry& value,
                 bool version_care, int expire_time);
+        int direct_mupdate(int bucket_number, const std::vector<operation_record*>& kvs);
         int batch_put(int bucket_number, int area, tair::common::mput_record_vec* record_vec, bool version_care);
         int get(int bucket_number, tair::common::data_entry& key, tair::common::data_entry& value);
         int remove(int bucket_number, tair::common::data_entry& key, bool version_care);

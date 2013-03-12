@@ -19,6 +19,7 @@
 #include <google/malloc_extension.h>
 #endif
 
+#include "packets/mupdate_packet.hpp"
 #include "storage/mdb/mdb_factory.hpp"
 #include "storage/mdb/mdb_manager.hpp"
 #include "ldb_manager.hpp"
@@ -459,6 +460,16 @@ namespace tair
         index_map = new_index_map;
         log_warn("new bucket index: %s", BucketIndexer::to_string(index_map).c_str());
 
+        // bucket map should reserve last buckets,
+        // close_sharding_bucket() will do real erasing work later.
+        for (BUCKET_INDEX_MAP::iterator it = bucket_map_->begin(); it != bucket_map_->end(); ++it)
+        {
+          if (new_bucket_map->find(it->first) == new_bucket_map->end())
+          {
+            (*new_bucket_map)[it->first] = it->second;
+          }
+        }
+
         return update_bucket_index(total, new_bucket_map);
       }
 
@@ -744,6 +755,24 @@ namespace tair
         else
         {
           rc = db_instance->put(bucket_number, key, value, version_care, expire_time);
+        }
+
+        return rc;
+      }
+
+      int LdbManager::direct_mupdate(int bucket_number, const tair_operc_vector& kvs)
+      {
+        int rc = TAIR_RETURN_SUCCESS;
+        LdbInstance* db_instance = get_db_instance(bucket_number);
+
+        if (db_instance == NULL)
+        {
+          log_error("ldb_bucket[%d] not exist", bucket_number);
+          rc = TAIR_RETURN_FAILED;
+        }
+        else
+        {
+          rc = db_instance->direct_mupdate(bucket_number, kvs);
         }
 
         return rc;
@@ -1070,11 +1099,6 @@ namespace tair
             ret = do_reset_db();
             break;
           }
-          case TAIR_SERVER_CMD_FLUSH_MMT:
-          {
-            ret = do_flush_mmt();
-            break;
-          }
           case TAIR_SERVER_CMD_START_BALANCE:
           {
             if (balancer_ == NULL)
@@ -1271,12 +1295,6 @@ namespace tair
           using_head_ = using_tail_ = new_using_mgr;
         }
         return ret;
-      }
-
-      int LdbManager::do_flush_mmt()
-      {
-        // after flushmmt, release mem too.
-        return do_release_mem();
       }
 
       int LdbManager::do_release_mem()

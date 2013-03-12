@@ -35,6 +35,7 @@ namespace std {
 
 namespace tair
 {
+  class operation_record;
   class mdb_manager;
   namespace storage
   {
@@ -156,6 +157,7 @@ namespace tair
 
         int put(int bucket_number, data_entry& key, data_entry& value,
                 bool version_care, int expire_time);
+        int direct_mupdate(int bucket_number, const std::vector<operation_record*>& kvs);
         int batch_put(int bucket_number, int area, mput_record_vec* record_vec, bool version_care);
         int get(int bucket_number, data_entry& key, data_entry& value, bool stat);
         int remove(int bucket_number, data_entry& key, bool version_care);
@@ -194,7 +196,6 @@ namespace tair
         int destroy();
 
         int do_reset_db();
-        int do_flush_mmt();
         int do_set_migrate_wait(int32_t cmd_wait_ms);
         int do_release_mem();
         void maybe_exec_cmd();

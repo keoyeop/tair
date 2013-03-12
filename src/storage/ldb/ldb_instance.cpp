@@ -21,6 +21,7 @@
 #include "common/define.hpp"
 #include "common/util.hpp"
 #include "packets/put_packet.hpp"
+#include "packets/mupdate_packet.hpp"
 #include "storage/storage_manager.hpp"
 #include "storage/mdb/mdb_manager.hpp"
 #include "ldb_instance.hpp"
@@ -422,6 +423,83 @@ namespace tair
           data->data_meta.keysize = key.key_size();
       }
 
+      typedef struct UpdateStat
+      {
+        UpdateStat() : item_count_(0), data_size_(0), use_size_(0){}
+        int32_t item_count_;
+        int32_t data_size_;
+        int32_t use_size_;
+      } UpdateStat;
+      int LdbInstance::direct_mupdate(int32_t bucket_number, const tair_operc_vector& kvs)
+      {
+        leveldb::WriteBatch batch;
+        const bool synced = true;
+        __gnu_cxx::hash_map<int32_t, UpdateStat> stats;
+
+        for (size_t i = 0; i < kvs.size(); ++i)
+        {
+          uint8_t type = kvs[i]->operation_type;
+          data_entry& key = *kvs[i]->key;
+          data_entry& value = *kvs[i]->value;
+          LdbKey ldb_key(key.get_data(), key.get_size(), bucket_number, value.data_meta.edate);
+          LdbItem ldb_item;
+          int32_t area = key.get_area();
+
+          __gnu_cxx::hash_map<int32_t, UpdateStat>::iterator it =  stats.find(area);
+          if (it == stats.end())
+          {
+            it = stats.insert(std::pair<int32_t, UpdateStat>(area, UpdateStat())).first;
+          }
+          UpdateStat& ustat = it->second;
+
+          if (type == 1)
+          {
+            ldb_item.meta().base_.meta_version_ = META_VER_PREFIX;
+            ldb_item.meta().base_.flag_ = value.data_meta.flag | TAIR_ITEM_FLAG_NEWMETA;
+            ldb_item.meta().base_.cdate_ = value.data_meta.cdate;
+            ldb_item.meta().base_.mdate_ = value.data_meta.mdate;
+            ldb_item.meta().base_.edate_ = value.data_meta.edate;
+            ldb_item.meta().base_.version_ = value.data_meta.version;
+            ldb_item.set(value.get_data(), value.get_size());
+
+            batch.Put(leveldb::Slice(ldb_key.data(), ldb_key.size()),
+                      leveldb::Slice(ldb_item.data(), ldb_item.size()), synced);
+
+            ++ustat.item_count_;
+            ustat.data_size_ += ldb_key.key_size() + ldb_item.value_size();
+            ustat.use_size_ += ldb_key.size() + ldb_item.size();
+          }
+          else if (type == 2)
+          {
+            // synced, no tailer
+            batch.Delete(leveldb::Slice(ldb_key.data(), ldb_key.size()), synced);
+            // not correct
+            --ustat.item_count_;
+            ustat.data_size_ -= ldb_key.key_size() + ldb_item.value_size();
+            ustat.use_size_ -= ldb_key.size() + ldb_item.size();
+          }
+          else
+          {
+            log_error("unkown mupdate type: %d", type);
+          }
+        }
+
+        leveldb::Status status = db_->Write(write_options_, &batch, bucket_number);
+        if (!status.ok())
+        {
+          log_error("direct update fail. %s", status.ToString().c_str());
+        }
+        else
+        {
+          // update stat
+          for (__gnu_cxx::hash_map<int32_t, UpdateStat>::iterator it = stats.begin(); it != stats.end(); ++it)
+          {
+            stat_add(bucket_number, it->first, it->second.data_size_, it->second.use_size_, it->second.item_count_);
+          }
+        }
+        return status.ok() ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED;
+      }
+
       // batch_put is for importing data as fast as possible, so lock and cache/db consistency is ignored,
       // once used when db is running, it may have the risk of data inconsistency.
       int LdbInstance::batch_put(int bucket_number, int area, tair::common::mput_record_vec* record_vec, bool version_care)
@@ -471,7 +549,7 @@ namespace tair
           LdbKey ldb_key(mkey.get_data(), mkey.get_size(), bucket_number, edate);
           LdbItem ldb_item;
           // db version care
-          if (db_version_care_)
+          if (db_version_care_ && version_care)
           {
             std::string db_value;
             rc = do_get(ldb_key, db_value, false, false); // not fill cache or update cache stat

@@ -154,25 +154,23 @@ namespace tair
             units_str.append(it->to_string());
           }
 
-          log_warn("NEED balance. input: %s, output: %s, balance units: %s",
+          log_warn("NEED balance. input: %s, output: %s, balance units: (%lu) %s",
                    BucketIndexer::to_string(index_map).c_str(),
                    BucketIndexer::to_string(result_index_map).c_str(),
-                   units_str.c_str());
+                   result_units.size(), units_str.c_str());
         }
       }
 
       bool LdbBalancer::Balancer::do_balance(const std::vector<Unit>& units)
       {
         int ret = TAIR_RETURN_SUCCESS;
-        for (std::vector<Unit>::const_iterator it = units.begin();
-             it != units.end() && !_stop;
-             ++it)
+        for (size_t i = 0; i < units.size() && !_stop; ++i)
         {
-          log_warn("start one balance: %s", it->to_string().c_str());
-          ret = do_one_balance(*it);
+          log_warn("start one balance: (%lu/%lu) %s", i+1, units.size(), units[i].to_string().c_str());
+          ret = do_one_balance(units[i]);
           if (ret != TAIR_RETURN_SUCCESS)
           {
-            log_error("balance one bucket fail: %s, ret: %d", it->to_string().c_str(), ret);
+            log_error("balance one bucket fail: %s, ret: %d", units[i].to_string().c_str(), ret);
             break;
           }
         }
@@ -193,6 +191,8 @@ namespace tair
         leveldb::WriteOptions write_options;
         write_options.sync = false;
         leveldb::Status status;
+
+        int32_t start_time = time(NULL);
 
         // all writes is synced because all data's
         // job(rsync eg.) has been done in from_db
@@ -287,7 +287,7 @@ namespace tair
 
               if (status.IsSlowWrite())
               {
-                ::usleep(1000000);
+                TAIR_SLEEP(_stop, 2);
               }
               else
               {
@@ -340,8 +340,8 @@ namespace tair
           manager_->resume_service(bucket);
         }
 
-        log_warn("balance %s, itemcount: %"PRI64_PREFIX"d, datasize: %"PRI64_PREFIX"d, process: %d, suc: %s",
-                 unit.to_string().c_str(), item_count, data_size, process,
+        log_warn("balance %s, itemcount: %"PRI64_PREFIX"d, datasize: %"PRI64_PREFIX"d, process: %d, cost: %d(s), suc: %s",
+                 unit.to_string().c_str(), item_count, data_size, process, time(NULL) - start_time,
                  (process == COMMIT && ret == TAIR_RETURN_SUCCESS) ? "yes" : "no");
 
         return ret;

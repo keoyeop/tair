@@ -788,6 +788,10 @@ Status DBImpl::MakeRoomForWrite(bool force, int bucket, BucketUpdate** bucket_up
     return bg_error_;
   }
 
+  if (ShouldLimitWrite((config::kL0_SlowdownWritesTrigger * 2) / 3)) {
+    return Status::SlowWrite("too many L0 sst");
+  }
+
   Status s;
   BucketUpdate* bu = NULL;
   BucketMap::iterator bm_it = bucket_map_.find(bucket);
