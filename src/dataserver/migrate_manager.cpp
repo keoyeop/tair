@@ -172,7 +172,7 @@ namespace tair {
             continue;
          }
          for(uint i = 0; i < servers.size(); i++){
-            log_debug("----to server:%s",  tbsys::CNetUtil::addrToString(servers[i]).c_str());
+           log_warn("migrate %d to server: %s",  bucket_number, tbsys::CNetUtil::addrToString(servers[i]).c_str());
          }
          do_migrate_one_bucket(bucket_number, servers);
          log_error("finish %d bucket migrate",  bucket_number);

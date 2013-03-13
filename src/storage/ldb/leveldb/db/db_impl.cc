@@ -642,24 +642,26 @@ void DBImpl::CompactRange(const Slice* begin, const Slice* end) {
 }
 
 Status DBImpl::ForceCompactMemTable() {
-  MutexLock l(&mutex_);
-  // TODO: emit..
-  LoggerId self;
-  AcquireLoggingResponsibility(&self);
-  // switch all memtable to imm memtable list
-  for (BucketMap::iterator it = bucket_map_.begin(); it != bucket_map_.end(); ++it) {
-    delete it->second->log_;
-    delete it->second->logfile_;
-    imm_list_.push_front(it->second);
-    imm_list_count_++;
-  }
-  bu_head_ = bu_tail_ = NULL;
-  bucket_map_.clear();
+  {
+    MutexLock l(&mutex_);
+    // TODO: emit..
+    LoggerId self;
+    AcquireLoggingResponsibility(&self);
+    // switch all memtable to imm memtable list
+    for (BucketMap::iterator it = bucket_map_.begin(); it != bucket_map_.end(); ++it) {
+      delete it->second->log_;
+      delete it->second->logfile_;
+      imm_list_.push_front(it->second);
+      imm_list_count_++;
+    }
+    bu_head_ = bu_tail_ = NULL;
+    bucket_map_.clear();
 
-  // force single memtable compact
-  Status s = MakeRoomForWrite(true /* force compaction */);
-  MaybeScheduleCompaction();
-  ReleaseLoggingResponsibility(&self);
+    ReleaseLoggingResponsibility(&self);
+    MaybeScheduleCompaction();
+  }
+  Status s;
+  // s = Write(WriteOptions(), NULL);
   // don't wait, just return
   return s;
 }

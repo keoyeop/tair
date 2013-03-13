@@ -432,6 +432,11 @@ namespace tair
       } UpdateStat;
       int LdbInstance::direct_mupdate(int32_t bucket_number, const tair_operc_vector& kvs)
       {
+        if (db_ == NULL)
+        {
+          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
+        }
+
         leveldb::WriteBatch batch;
         const bool synced = true;
         __gnu_cxx::hash_map<int32_t, UpdateStat> stats;

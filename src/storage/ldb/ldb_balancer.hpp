@@ -82,7 +82,7 @@ namespace tair
 
         private:
           void try_balance(const BucketIndexer::INDEX_BUCKET_MAP& index_map, std::vector<Unit>& result_units);
-          bool do_balance(const std::vector<Unit>& units);
+          int do_balance(const std::vector<Unit>& units);
           int do_one_balance(const Unit& unit);
 
         private:

@@ -161,7 +161,7 @@ namespace tair
         }
       }
 
-      bool LdbBalancer::Balancer::do_balance(const std::vector<Unit>& units)
+      int LdbBalancer::Balancer::do_balance(const std::vector<Unit>& units)
       {
         int ret = TAIR_RETURN_SUCCESS;
         for (size_t i = 0; i < units.size() && !_stop; ++i)
@@ -175,7 +175,7 @@ namespace tair
           }
         }
 
-        return ret != TAIR_RETURN_SUCCESS ? false : true;
+        return ret;
       }
 
       int LdbBalancer::Balancer::do_one_balance(const Unit& unit)
