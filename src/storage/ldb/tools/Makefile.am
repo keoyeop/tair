@@ -9,6 +9,10 @@ ldb_libs=${ldb_path}/libldb.a ${ldb_path}/libleveldb.a ${ldb_path}/libsnappy.a \
 
 util_srcs=ldb_util.cpp ldb_util.hpp
 
+noinst_PROGRAMS=ldb_hash_to_map
+ldb_hash_to_map_SOURCES=ldb_hash_to_map.cpp
+ldb_hash_to_map_LDADD=${ldb_libs} ${TCMALLOC_LDFLAGS}
+
 sbin_PROGRAMS=view_cache_stat ldb_rsync ldb_sst_picker ldb_manifest_merger ldb_dump
 
 view_cache_stat_SOURCES=view_cache_stat.cpp
