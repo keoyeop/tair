@@ -445,8 +445,7 @@ namespace tair
         {
           uint8_t type = kvs[i]->operation_type;
           data_entry& key = *kvs[i]->key;
-          data_entry& value = *kvs[i]->value;
-          LdbKey ldb_key(key.get_data(), key.get_size(), bucket_number, value.data_meta.edate);
+          LdbKey ldb_key(key.get_data(), key.get_size(), bucket_number, kvs[i]->value != NULL ? kvs[i]->value->data_meta.edate : 0);
           LdbItem ldb_item;
           int32_t area = key.get_area();
 
@@ -459,6 +458,7 @@ namespace tair
 
           if (type == 1)
           {
+            data_entry& value = *kvs[i]->value;
             ldb_item.meta().base_.meta_version_ = META_VER_PREFIX;
             ldb_item.meta().base_.flag_ = value.data_meta.flag | TAIR_ITEM_FLAG_NEWMETA;
             ldb_item.meta().base_.cdate_ = value.data_meta.cdate;
