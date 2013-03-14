@@ -165,6 +165,11 @@ namespace tair
         return expired_time > 0 && expired_time < (now > 0 ? now : time(NULL));
       }
 
+      bool BitcmpLdbComparatorImpl::ShouldStopBefore(const leveldb::Slice& start_key, const leveldb::Slice& key) const
+      {
+        return LdbKey::decode_bucket_number_with_key(key.data()) !=
+          LdbKey::decode_bucket_number_with_key(start_key.data());
+      }
 
       const leveldb::Comparator* LdbComparator(LdbGcFactory* gc)
       {

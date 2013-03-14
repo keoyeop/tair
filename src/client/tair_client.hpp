@@ -105,6 +105,9 @@ namespace tair {
       void do_cmd_resume_gc(VSTRING &param);
       void do_cmd_pause_rsync(VSTRING& param);
       void do_cmd_resume_rsync(VSTRING& param);
+      void do_cmd_start_balance(VSTRING& param);
+      void do_cmd_stop_balance(VSTRING& param);
+      void do_cmd_set_balance_wait_ms(VSTRING &param);
       void do_cmd_set_config(VSTRING& param);
       void do_cmd_op_ds_or_not(VSTRING &param, const char* cmd_str, ServerCmdType cmd_type, int base_param_size = 0);
       void do_cmd_to_inval(VSTRING& param);

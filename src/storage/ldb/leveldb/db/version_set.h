@@ -139,6 +139,8 @@ class Version {
 
   // List of files per level
   std::vector<FileMetaData*> files_[config::kNumLevels];
+  // bytesize per level
+  int64_t file_sizes_[config::kNumLevels];
 
   // Next file to compact based on seek stats.
   FileMetaData* file_to_compact_;
@@ -156,6 +158,7 @@ class Version {
         file_to_compact_level_(-1),
         compaction_score_(-1),
         compaction_level_(-1) {
+    memset(file_sizes_, 0, sizeof(file_sizes_));
   }
 
   ~Version();

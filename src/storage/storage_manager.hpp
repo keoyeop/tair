@@ -33,6 +33,7 @@ const int ITEM_HEAD_LENGTH = 2;
     bool is_migrate;
   } md_info;
 
+  class operation_record;
   namespace common
   {
     class RecordLogger;
@@ -55,6 +56,8 @@ const int ITEM_HEAD_LENGTH = 2;
       virtual int put(int bucket_number, data_entry & key, data_entry & value,
                       bool version_care, int expire_time) = 0;
 
+      virtual int direct_mupdate(int bucket_number, const std::vector<operation_record*>& kvs)
+      { return TAIR_RETURN_NOT_SUPPORTED; }
       virtual int batch_put(int bucket_number, int area, tair::common::mput_record_vec* record_vec, bool version_care)
       { return TAIR_RETURN_NOT_SUPPORTED; }
 

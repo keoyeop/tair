@@ -67,8 +67,8 @@ namespace tair {
    private:
       bool migrate_data_file(int bucket_number, vector<uint64_t> dest_servers);
       bool migrate_log(int bucket_number, vector<uint64_t> dest_servers, lsn_type start_lsn, lsn_type end_lsn);
-
-      bool send_packet(vector<uint64_t> dest_servers, request_mupdate *packet, int db_id);
+      template<typename P> bool send_packet(vector<uint64_t> dest_servers, P *packet, int db_id);
+      bool finish_migrate_data(std::vector<uint64_t>& dest_servers, int db_id);
       void finish_migrate_bucket(int bucket_number);
       bucket_server_map migrate_servers;
       bucket_server_map temp_servers;

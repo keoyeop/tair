@@ -18,7 +18,7 @@
 #ifndef TAIR_PACKETS_MUPDATE_H
 #define TAIR_PACKETS_MUPDATE_H
 #include "base_packet.hpp"
-#include "update_log.hpp"
+#include "dataserver/update_log.hpp"
 namespace tair {
    class operation_record{
    public:

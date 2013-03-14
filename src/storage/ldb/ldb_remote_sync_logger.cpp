@@ -53,18 +53,7 @@ namespace tair
           delete last_log_record_;
         }
 
-        if (reader_ != NULL)
-        {
-          if (last_logfile_refed_)
-          {
-            dynamic_cast<leveldb::ReadableAndWritableFile*>(reader_->File())->Unref();
-          }
-          else
-          {
-            delete reader_->File();
-          }
-          delete reader_;
-        }
+        clear_reader(0);
       }
 
       int LdbRemoteSyncLogReader::init()
@@ -134,9 +123,10 @@ namespace tair
       int LdbRemoteSyncLogReader::start_new_reader(uint64_t min_number)
       {
         int ret = TAIR_RETURN_SUCCESS;
-
         if (instance_->db_ != NULL)
         {
+          clear_reader(min_number);
+
           leveldb::DBImpl* db = dynamic_cast<leveldb::DBImpl*>(instance_->db_);
           if (first_sequence_ <= 0)
           {
@@ -179,53 +169,69 @@ namespace tair
 
           if (0 == new_logfile_number)
           {
-            log_warn("no ldb log for reader");
-            ret = TAIR_RETURN_FAILED;
+            log_info("no ldb log for reader");
           }
           else
           {
-            // file will be Ref()
-            leveldb::SequentialFile* file = db->LogFile(new_logfile_number);
-            bool refed = (file != NULL);
-
-            // not current writing log, current writing db logger will be ReadableAndWritableFile
-            if (NULL == file)
-            {
-              std::string fname = leveldb::LogFileName(db_log_dir, new_logfile_number);
-              s = db_env->NewSequentialFile(fname, &file);
-              if (!s.ok())
-              {
-                log_error("init to read log file %s fail: %s", fname.c_str(), s.ToString().c_str());
-                ret = TAIR_RETURN_FAILED;
-              }
-            }
-
-            if (TAIR_RETURN_SUCCESS == ret)
-            {
-              reading_logfile_number_ = new_logfile_number;
-              if (reader_ != NULL)
-              {
-                if (last_logfile_refed_)
-                {
-                  dynamic_cast<leveldb::ReadableAndWritableFile*>(reader_->File())->Unref();
-                }
-                else
-                {
-                  delete reader_->File();
-                }
-                delete reader_;
-                db_env->DeleteFile(leveldb::LogFileName(db_log_dir, min_number));
-              }
-
-              // TODO: reporter
-              log_debug("start new ldb rsync reader, filenumber: %"PRI64_PREFIX"u", reading_logfile_number_);
-              reader_ = new leveldb::log::Reader(file, NULL, true, 0);
-              last_logfile_refed_ = refed;
-            }
+            ret = init_reader(new_logfile_number);
           }
         }
 
         return ret;
+      }
+
+      int LdbRemoteSyncLogReader::init_reader(uint64_t number)
+      {
+        leveldb::Status s;
+        leveldb::DBImpl* db = dynamic_cast<leveldb::DBImpl*>(instance_->db_);
+        // file will be Ref()
+        leveldb::RandomAccessFile* rfile = db->LogFile(number);
+        bool refed = (rfile != NULL);
+        leveldb::SequentialFile* sfile = NULL;
+
+        // not current writing log, current writing db logger will be ReadableAndWritableFile
+        if (NULL == rfile)
+        {
+          std::string fname = leveldb::LogFileName(db->DBLogDir(), number);
+          s = db->GetEnv()->NewSequentialFile(fname, &sfile);
+          if (!s.ok())
+          {
+            log_error("init to read log file %s fail: %s", fname.c_str(), s.ToString().c_str());
+          }
+        }
+
+        if (s.ok())
+        {
+          reading_logfile_number_ = number;
+          // TODO: reporter
+          log_debug("start new ldb rsync reader, filenumber: %"PRI64_PREFIX"u", reading_logfile_number_);
+          reader_ = rfile != NULL ?
+            new leveldb::log::Reader(rfile, NULL, true, 0) :
+            new leveldb::log::Reader(sfile, NULL, true, 0);
+          last_logfile_refed_ = refed;
+        }
+        return s.ok() ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED;
+      }
+
+      void LdbRemoteSyncLogReader::clear_reader(uint64_t number)
+      {
+        if (reader_ != NULL)
+        {
+          if (last_logfile_refed_)
+          {
+            dynamic_cast<leveldb::ReadableAndWritableFile*>(reader_->RFile())->Unref();
+          }
+          else
+          {
+            delete reader_->SFile();
+          }
+          delete reader_;
+          reader_ = NULL;
+          if (number > 0)
+          {
+            dynamic_cast<leveldb::DBImpl*>(instance_->db_)->DeleteLogFile(number);
+          }
+        }
       }
 
       bool LdbRemoteSyncLogReader::update_last_sequence()
@@ -270,6 +276,12 @@ namespace tair
               log_error("start new log reader fail: %d", ret);
               break;
             }
+            // no log for reader
+            if (reader_ == NULL)
+            {
+              break;
+            }
+
             need_new_reader = false;
           }
 

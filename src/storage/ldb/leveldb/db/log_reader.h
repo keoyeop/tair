@@ -14,6 +14,7 @@
 namespace leveldb {
 
 class SequentialFile;
+class RandomAccessFile;
 class WritableFile;
 
 namespace log {
@@ -43,6 +44,10 @@ class Reader {
   // position >= initial_offset within the file.
   Reader(SequentialFile* file, Reporter* reporter, bool checksum,
          uint64_t initial_offset);
+  // RandomAccessFile is used when same file instance is accessed(read) by multi-users.
+  // Readers should reserve each reading offset of the same log.
+  Reader(RandomAccessFile* file, Reporter* reporter, bool checksum,
+         uint64_t initial_offset);
 
   ~Reader();
 
@@ -58,10 +63,12 @@ class Reader {
   // Undefined before the first call to ReadRecord.
   uint64_t LastRecordOffset();
 
-  SequentialFile* File() { return file_; }
+  SequentialFile* SFile() { return sfile_; }
+  RandomAccessFile* RFile() { return rfile_; }
 
  private:
-  SequentialFile* const file_;
+  SequentialFile* const sfile_;
+  RandomAccessFile* const rfile_;
   Reporter* const reporter_;
   bool const checksum_;
   char* const backing_store_;

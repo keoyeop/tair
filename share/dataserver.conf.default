@@ -150,11 +150,11 @@ ldb_do_seek_compaction=0
 ##         not perfect in small buckets set. same bucket will be sharded to same instance
 ##         all the time, so data will be reused even if buckets owned by server changed(maybe cluster has changed),
 ##  map  : handle to get better balance among all instances. same bucket may be sharded to different instance based
-##         on different buckets set(TODO: data will be migrated among instances).
-ldb_bucket_index_to_instance_strategy=hash
+##         on different buckets set(data will be migrated among instances).
+ldb_bucket_index_to_instance_strategy=map
 ## bucket index can be updated. this is useful if the cluster wouldn't change once started
 ## even server down/up accidently.
-ldb_bucket_index_can_update=0
+ldb_bucket_index_can_update=1
 ## strategy map will save bucket index statistics into file, this is the file's directory
 ldb_bucket_index_file_dir=./data/bindex
 ## memory usage for memtable sharded by bucket when batch-put(especially for FastDump)
@@ -168,7 +168,7 @@ ldb_max_open_files=65535
 ## if true, read data when compactiong will verify checksum
 ldb_paranoid_check=0
 ## memtable size
-ldb_write_buffer_size=33554432
+ldb_write_buffer_size=67108864
 ## sstable size
 ldb_target_file_size=8388608
 ## max file size in each level. level-n (n > 0): (n - 1) * 10 * ldb_base_level_size
@@ -188,12 +188,15 @@ ldb_block_cache_size=16777216
 # ldb_compression=1
 ## compact when sstables count in level-0 is over this trigger
 ldb_l0_compaction_trigger=1
+## whether limit write with l0's filecount, if false
+ldb_l0_limit_write_with_count=0
 ## write will slow down when sstables count in level-0 is over this trigger
+## or sstables' filesize in level-0 is over trigger * ldb_write_buffer_size if ldb_l0_limit_write_with_count=0
 ldb_l0_slowdown_write_trigger=32
 ## write will stop(wait until trigger down)
 ldb_l0_stop_write_trigger=64
-## when write memtable, max level to up maybe
-# ldb_max_memcompact_level=2
+## when write memtable, max level to below maybe
+ldb_max_memcompact_level=3
 ## read verify checksum
 ldb_read_verify_checksums=0
 ## write sync log. (one write will sync log once, expensive)

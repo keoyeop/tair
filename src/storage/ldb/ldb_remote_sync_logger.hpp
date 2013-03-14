@@ -51,6 +51,8 @@ namespace tair
       private:
         bool update_last_sequence();
         int start_new_reader(uint64_t min_number);
+        int init_reader(uint64_t number);
+        void clear_reader(uint64_t number);
         int get_log_record();
         int parse_one_kv_record(int32_t& type, int32_t& bucket_num,
                                 tair::common::data_entry*& key, tair::common::data_entry*& value,

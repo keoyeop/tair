@@ -143,6 +143,11 @@ namespace tair
         return ldb_comparator_->ShouldDropMaybe(key, sequence, now);
       }
 
+      bool NumericalComparatorImpl::ShouldStopBefore(const leveldb::Slice& start_key, const leveldb::Slice& key) const
+      {
+        return ldb_comparator_->ShouldStopBefore(start_key, key);
+      }
+
       const leveldb::Comparator*  NumericalComparator(LdbGcFactory* gc, const char start, size_t len)
       {
         return new NumericalComparatorImpl(gc, start, len);

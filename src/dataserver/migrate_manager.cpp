@@ -15,6 +15,7 @@
  *
  */
 #include <tbsys.h>
+#include "packets/op_cmd_packet.hpp"
 #include "util.hpp"
 #include "define.hpp"
 #include "data_entry.hpp"
@@ -171,7 +172,7 @@ namespace tair {
             continue;
          }
          for(uint i = 0; i < servers.size(); i++){
-            log_debug("----to server:%s",  tbsys::CNetUtil::addrToString(servers[i]).c_str());
+           log_warn("migrate %d to server: %s",  bucket_number, tbsys::CNetUtil::addrToString(servers[i]).c_str());
          }
          do_migrate_one_bucket(bucket_number, servers);
          log_error("finish %d bucket migrate",  bucket_number);
@@ -224,6 +225,8 @@ namespace tair {
          current_locked_bucket = -1;
          current_migrating_bucket = -1;
          return;
+      } else if (!finish_migrate_data(dest_servers, bucket_number)) {
+        log_error("finish migrate data fail");
       } else {
          while(!(duplicator->has_bucket_duplicate_done(bucket_number))) {
             usleep(1000);
@@ -239,7 +242,8 @@ namespace tair {
       }
    }
 
-   bool migrate_manager::send_packet(vector<uint64_t> dest_servers, request_mupdate *packet, int db_id)
+   template<typename P>
+   bool migrate_manager::send_packet(vector<uint64_t> dest_servers, P *packet, int db_id)
    {
       bool flag = true;
       bool ret;
@@ -247,7 +251,7 @@ namespace tair {
       for(vector<uint64_t>::iterator it = dest_servers.begin(); it < dest_servers.end()&& !is_stopped;){
          ret = true;
          uint64_t server_id = *it;
-         request_mupdate *temp_packet = new request_mupdate(*packet);
+         P *temp_packet = new P(*packet);
          wait_object *cwo = wait_object_mgr.create_wait_object();
          if (conn_mgr->sendPacket(server_id, temp_packet, NULL, (void*)((long)cwo->get_id())) == false) {
             log_error("Send migrate put packet to %s failure, bucket: %d",
@@ -265,7 +269,7 @@ namespace tair {
                response_return *rpacket = (response_return *)tpacket;
                if (rpacket->get_code() != TAIR_RETURN_SUCCESS) {
                  log_error("migrate not return success, server: %s, ret: %d", tbsys::CNetUtil::addrToString(server_id).c_str(), rpacket->get_code());
-                 ::usleep(500);
+                 TAIR_SLEEP(_stop, 2);
                   ret = false;
                }
             }
@@ -432,6 +436,16 @@ namespace tair {
       log->set_hlsn(handle->current_lsn());
       log->end_scan(handle);
       return flag;
+   }
+
+   bool migrate_manager::finish_migrate_data(std::vector<uint64_t>& dest_servers, int db_id)
+   {
+     // maybe data not flush
+     request_op_cmd* packet = new request_op_cmd();
+     packet->cmd = TAIR_SERVER_CMD_FLUSH_MMT;
+     bool ret = send_packet(dest_servers, packet, db_id);
+     delete packet;
+     return ret;
    }
 
    void migrate_manager::finish_migrate_bucket(int bucket_number)

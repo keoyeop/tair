@@ -18,11 +18,18 @@
 #define TAIR_STORAGE_LDB_DEFINE_H
 
 #include "leveldb/db.h"
+#include "leveldb/slice.h"
 #include "common/define.hpp"
 
 namespace leveldb
 {
   class DB;
+  class Iterator;
+  class LogSnapshotImpl;
+  namespace log
+  {
+    class Reader;
+  }
 }
 
 namespace tair
@@ -163,6 +170,11 @@ namespace tair
         inline int32_t get_bucket_number()
         {
           return decode_bucket_number(data_ + LDB_EXPIRED_TIME_SIZE);
+        }
+
+        static int32_t decode_bucket_number_with_key(const char* key_buf)
+        {
+          return decode_bucket_number(key_buf + LDB_EXPIRED_TIME_SIZE);
         }
 
         static int32_t decode_bucket_number(const char* buf)
@@ -307,7 +319,7 @@ namespace tair
         }
         inline int is_new_meta()
         {
-            return meta_.base_.flag_ & TAIR_ITEM_FLAG_NEWMETA; 
+          return meta_.base_.flag_ & TAIR_ITEM_FLAG_NEWMETA; 
         }
         inline bool has_prefix()
         {
@@ -374,6 +386,113 @@ namespace tair
         int32_t data_size_;
         bool alloc_;
       };
+
+
+      // multi-logs reader
+      class LdbLogsReader
+      {
+      public:
+        // filter log record based on key and its sequence
+        class Filter
+        {
+        public:
+          Filter() {}
+          virtual ~Filter() {}
+
+          virtual bool ok(int32_t type, const leveldb::Slice& key, uint64_t sequence) = 0;
+        };
+
+      public:
+        LdbLogsReader(leveldb::DB* db, Filter* filter = NULL, uint64_t start_lognumber = 0, bool delete_file = false);
+        virtual ~LdbLogsReader();
+
+        // get leveldb-format key/value.
+        // `alloc indicates whether user need be freed
+        int get_record(int32_t& type, leveldb::Slice& key, leveldb::Slice& value, bool& alloc);
+
+      private:
+        int start_new_reader(uint64_t min_number);      
+        int init_reader(uint64_t number);
+        void clear_reader(uint64_t number);
+        void update_last_sequence();
+        int get_log_record();
+        int parse_one_kv_record(int32_t& type, leveldb::Slice& key, leveldb::Slice& value);
+        bool parse_one_kv(int32_t type, leveldb::Slice& key, leveldb::Slice& value);
+        bool parse_one_key(int32_t type, leveldb::Slice& key);
+
+      protected:
+        leveldb::DB* db_;
+        Filter* filter_;
+
+        // whether delete log file when finish reading
+        bool delete_file_;
+
+        // current reading logfile's filenumber
+        uint64_t reading_logfile_number_;
+        leveldb::log::Reader* reader_;
+        bool last_logfile_refed_;
+
+        // one log record can contain several kv entry(record),
+        // following is for temporary data buffer of last gotten log record
+        leveldb::Slice* last_log_record_;
+        std::string last_log_scratch_;
+        uint64_t last_sequence_;
+      };
+
+      // simple iterator for one bucket's db/log data
+      class LdbBucketDataIter
+      {
+      public:
+        class LogFilter : public LdbLogsReader::Filter
+        {
+        public:
+          LogFilter(int32_t bucket, uint64_t sequence) :
+            bucket_(bucket), sequence_(sequence)
+          {}
+          ~LogFilter() {}
+
+          bool ok(int32_t type, const leveldb::Slice& key, uint64_t sequence)
+          {
+            UNUSED(type);
+            return (LdbKey::decode_bucket_number_with_key(key.data()) == bucket_ && sequence >= sequence_);
+          }
+
+        private:
+          int32_t bucket_;
+          uint64_t sequence_;
+        };
+
+      public:
+        LdbBucketDataIter(int32_t bucket, leveldb::DB* db);
+        ~LdbBucketDataIter();
+
+        void seek_to_first();
+        // can do next() even already !valid()
+        void next();
+        bool valid();
+        leveldb::Slice& key();
+        leveldb::Slice& value();
+        int32_t type();
+
+      private:
+        void db_sanity();
+        void clear();
+
+      private:
+        int32_t bucket_;
+
+        leveldb::DB* db_;
+        leveldb::Iterator* db_it_;
+        LdbLogsReader::Filter* log_filter_;
+        LdbLogsReader* log_reader_;
+        const leveldb::LogSnapshotImpl* log_snapshot_;
+
+        leveldb::Slice key_;
+        leveldb::Slice value_;
+        int32_t type_;
+        bool alloc_;
+      };
+
     }
   }
 }

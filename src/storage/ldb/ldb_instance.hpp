@@ -29,6 +29,7 @@ namespace tair
 {
   class mdb_manager;
   class mput_record_vec;
+  class operation_record;
   namespace storage
   {
     class storage_manager;
@@ -45,14 +46,15 @@ namespace tair
         typedef __gnu_cxx::hash_map<int32_t, stat_manager*> STAT_MANAGER_MAP;
         typedef STAT_MANAGER_MAP::iterator STAT_MANAGER_MAP_ITER;
 
-        bool init_buckets(const std::vector<int32_t> buckets);
-        void close_buckets(const std::vector<int32_t> buckets);
+        bool init_buckets(const std::vector<int32_t>& buckets);
+        void close_buckets(const std::vector<int32_t>& buckets);
 
         void destroy();
 
         int put(int bucket_number, tair::common::data_entry& key,
                 tair::common::data_entry& value,
                 bool version_care, int expire_time);
+        int direct_mupdate(int bucket_number, const std::vector<operation_record*>& kvs);
         int batch_put(int bucket_number, int area, tair::common::mput_record_vec* record_vec, bool version_care);
         int get(int bucket_number, tair::common::data_entry& key, tair::common::data_entry& value);
         int remove(int bucket_number, tair::common::data_entry& key, bool version_care);

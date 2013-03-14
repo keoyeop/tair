@@ -58,6 +58,8 @@ class DBImpl : public DB {
   virtual Iterator* NewIterator(const ReadOptions&);
   virtual const Snapshot* GetSnapshot();
   virtual void ReleaseSnapshot(const Snapshot* snapshot);
+  virtual const Snapshot* GetLogSnapshot();
+  virtual void ReleaseLogSnapshot(const Snapshot* snapshot);
   virtual bool GetProperty(const Slice& property, std::string* value,
                            void (*key_printer)(const Slice&, std::string&) = NULL);
   virtual Status OpCmd(int cmd);
@@ -92,6 +94,9 @@ class DBImpl : public DB {
   log::Writer* LogWriter() { return log_; }
   ReadableAndWritableFile* LogFile(uint64_t limit_logfile_number);
   const std::string& DBLogDir() { return dblog_dir_; }
+  // delete log file whoes number is not larger than min_number.
+  // options_.reserve_log/log_snapshots_
+  void DeleteLogFile(uint64_t min_number);
 
  private:
   friend class DB;
@@ -153,6 +158,9 @@ class DBImpl : public DB {
   // rotate stuff 
   Status MaybeRotate();
 
+  // should slowdown/stop write
+  bool ShouldLimitWrite(int32_t trigger);
+
   // Constant after construction
   Env* const env_;
   const InternalKeyComparator internal_comparator_;
@@ -191,6 +199,10 @@ class DBImpl : public DB {
   WriteBatch* tmp_batch_;
 
   SnapshotList snapshots_;
+  SnapshotList log_snapshots_;
+  // actully min_snapshot_log_number_ = log_snapshots_.oldest(),
+  // we reserve this for convenient use
+  uint64_t min_snapshot_log_number_;
 
   // for multi-bucket update
   BucketMap bucket_map_;

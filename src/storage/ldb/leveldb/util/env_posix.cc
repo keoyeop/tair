@@ -350,6 +350,14 @@ public:
   }
 
   virtual Status Read(size_t n, Slice* result, char* scratch) {
+    Status s = Read(reading_offset_, n, result, scratch);
+    if (s.ok()) {
+      reading_offset_ += result->size();
+    }
+    return s;
+  }
+
+  virtual Status Read(uint64_t offset, size_t n, Slice* result, char* scratch) const {
     Status s;
     size_t read_file_size = 0, read_mem_size = 0;
 
@@ -360,16 +368,16 @@ public:
       char* mem_offset = dst_;
       if (NULL == mem_offset) {       // no mmap, just read from file(SequnecialFile)
         read_file_size = n;
-      } else if (reading_offset_ >= static_cast<uint64_t>(file_offset_ + mem_offset - mem_start)) {
+      } else if (offset >= static_cast<uint64_t>(file_offset_ + mem_offset - mem_start)) {
         *result = Slice();
         return IOError(PosixMmapFile::filename_, EINVAL);
-      } else if (reading_offset_ + n <= file_offset_) {
+      } else if (offset + n <= file_offset_) {
         read_file_size = n;
-      } else if (reading_offset_ >= file_offset_) {
-        mem_start += reading_offset_ - file_offset_;
+      } else if (offset >= file_offset_) {
+        mem_start += offset - file_offset_;
         read_mem_size = std::min(static_cast<size_t>(mem_offset - mem_start), n);
       } else {
-        read_file_size = file_offset_ - reading_offset_;
+        read_file_size = file_offset_ - offset;
         read_mem_size = std::min(static_cast<size_t>(mem_offset - mem_start),
                                  static_cast<size_t>(n - read_file_size));
       }
@@ -381,7 +389,7 @@ public:
 
     // read file need no lock
     if (read_file_size > 0) {
-      ssize_t size = pread(fd_, scratch, read_file_size, reading_offset_);
+      ssize_t size = pread(fd_, scratch, read_file_size, offset);
       if (size < 0) {
         s = IOError(PosixMmapFile::filename_, errno);
       } else {
@@ -391,7 +399,6 @@ public:
 
     if (s.ok()) {
       *result = Slice(scratch, read_file_size + read_mem_size);
-      reading_offset_ += read_file_size + read_mem_size;
     }
 
     return s;

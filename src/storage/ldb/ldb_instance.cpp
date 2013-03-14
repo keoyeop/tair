@@ -21,6 +21,7 @@
 #include "common/define.hpp"
 #include "common/util.hpp"
 #include "packets/put_packet.hpp"
+#include "packets/mupdate_packet.hpp"
 #include "storage/storage_manager.hpp"
 #include "storage/mdb/mdb_manager.hpp"
 #include "ldb_instance.hpp"
@@ -108,7 +109,7 @@ namespace tair
           else
           {
             // leveldb data path
-            snprintf(db_path_, sizeof(db_path_), "%s%d/ldb", data_dir, index_);
+            snprintf(db_path_, sizeof(db_path_), "%s%d/ldb", data_dir, index_ + 1/*TODO: change to index*/);
 
             if (!(ret = tbsys::CFileUtil::mkdirs(db_path_)))
             {
@@ -152,14 +153,14 @@ namespace tair
         return ret;
       }
 
-      bool LdbInstance::init_buckets(std::vector<int32_t> buckets)
+      bool LdbInstance::init_buckets(const std::vector<int32_t>& buckets)
       {
         bool ret = init_db();
         if (ret)
         {
           STAT_MANAGER_MAP* tmp_stat_manager = new STAT_MANAGER_MAP(*stat_manager_);
 
-          for (std::vector<int32_t>::iterator it = buckets.begin(); it != buckets.end(); ++it)
+          for (std::vector<int32_t>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
           {
             STAT_MANAGER_MAP_ITER stat_it = tmp_stat_manager->find(*it);
             if (stat_it != tmp_stat_manager->end())
@@ -183,7 +184,7 @@ namespace tair
         return ret;
       }
 
-      void LdbInstance::close_buckets(std::vector<int32_t> buckets)
+      void LdbInstance::close_buckets(const std::vector<int32_t>& buckets)
       {
         STAT_MANAGER_MAP* tmp_stat_manager = new STAT_MANAGER_MAP(*stat_manager_);
         std::vector<int32_t> gc_buckets;
@@ -191,7 +192,7 @@ namespace tair
 
         // for gc. when close, bucket can't write (migrate maybe)
         // so it is ok to get sequence and file_number one time.
-        for (std::vector<int32_t>::iterator it = buckets.begin(); it != buckets.end(); ++it)
+        for (std::vector<int32_t>::const_iterator it = buckets.begin(); it != buckets.end(); ++it)
         {
           STAT_MANAGER_MAP_ITER stat_it = tmp_stat_manager->find(*it);
 
@@ -209,7 +210,7 @@ namespace tair
 
         STAT_MANAGER_MAP* old_stat = stat_manager_;
         stat_manager_ = tmp_stat_manager;
-        usleep(100);
+        usleep(40);
         // add gc
         gc_.add(gc_buckets, GC_BUCKET);
 
@@ -422,6 +423,88 @@ namespace tair
           data->data_meta.keysize = key.key_size();
       }
 
+      typedef struct UpdateStat
+      {
+        UpdateStat() : item_count_(0), data_size_(0), use_size_(0){}
+        int32_t item_count_;
+        int32_t data_size_;
+        int32_t use_size_;
+      } UpdateStat;
+      int LdbInstance::direct_mupdate(int32_t bucket_number, const tair_operc_vector& kvs)
+      {
+        if (db_ == NULL)
+        {
+          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
+        }
+
+        leveldb::WriteBatch batch;
+        const bool synced = true;
+        __gnu_cxx::hash_map<int32_t, UpdateStat> stats;
+
+        for (size_t i = 0; i < kvs.size(); ++i)
+        {
+          uint8_t type = kvs[i]->operation_type;
+          data_entry& key = *kvs[i]->key;
+          LdbKey ldb_key(key.get_data(), key.get_size(), bucket_number, kvs[i]->value != NULL ? kvs[i]->value->data_meta.edate : 0);
+          LdbItem ldb_item;
+          int32_t area = key.get_area();
+
+          __gnu_cxx::hash_map<int32_t, UpdateStat>::iterator it =  stats.find(area);
+          if (it == stats.end())
+          {
+            it = stats.insert(std::pair<int32_t, UpdateStat>(area, UpdateStat())).first;
+          }
+          UpdateStat& ustat = it->second;
+
+          if (type == 1)
+          {
+            data_entry& value = *kvs[i]->value;
+            ldb_item.meta().base_.meta_version_ = META_VER_PREFIX;
+            ldb_item.meta().base_.flag_ = value.data_meta.flag | TAIR_ITEM_FLAG_NEWMETA;
+            ldb_item.meta().base_.cdate_ = value.data_meta.cdate;
+            ldb_item.meta().base_.mdate_ = value.data_meta.mdate;
+            ldb_item.meta().base_.edate_ = value.data_meta.edate;
+            ldb_item.meta().base_.version_ = value.data_meta.version;
+            ldb_item.set(value.get_data(), value.get_size());
+
+            batch.Put(leveldb::Slice(ldb_key.data(), ldb_key.size()),
+                      leveldb::Slice(ldb_item.data(), ldb_item.size()), synced);
+
+            ++ustat.item_count_;
+            ustat.data_size_ += ldb_key.key_size() + ldb_item.value_size();
+            ustat.use_size_ += ldb_key.size() + ldb_item.size();
+          }
+          else if (type == 2)
+          {
+            // synced, no tailer
+            batch.Delete(leveldb::Slice(ldb_key.data(), ldb_key.size()), synced);
+            // not correct
+            --ustat.item_count_;
+            ustat.data_size_ -= ldb_key.key_size() + ldb_item.value_size();
+            ustat.use_size_ -= ldb_key.size() + ldb_item.size();
+          }
+          else
+          {
+            log_error("unkown mupdate type: %d", type);
+          }
+        }
+
+        leveldb::Status status = db_->Write(write_options_, &batch, bucket_number);
+        if (!status.ok())
+        {
+          log_error("direct update fail. %s", status.ToString().c_str());
+        }
+        else
+        {
+          // update stat
+          for (__gnu_cxx::hash_map<int32_t, UpdateStat>::iterator it = stats.begin(); it != stats.end(); ++it)
+          {
+            stat_add(bucket_number, it->first, it->second.data_size_, it->second.use_size_, it->second.item_count_);
+          }
+        }
+        return status.ok() ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED;
+      }
+
       // batch_put is for importing data as fast as possible, so lock and cache/db consistency is ignored,
       // once used when db is running, it may have the risk of data inconsistency.
       int LdbInstance::batch_put(int bucket_number, int area, tair::common::mput_record_vec* record_vec, bool version_care)
@@ -471,7 +554,7 @@ namespace tair
           LdbKey ldb_key(mkey.get_data(), mkey.get_size(), bucket_number, edate);
           LdbItem ldb_item;
           // db version care
-          if (db_version_care_)
+          if (db_version_care_ && version_care)
           {
             std::string db_value;
             rc = do_get(ldb_key, db_value, false, false); // not fill cache or update cache stat
@@ -1318,6 +1401,7 @@ namespace tair
         options_.reserve_log = TBSYS_CONFIG.getInt(TAIRSERVER_SECTION, TAIR_DO_RSYNC, 0) > 0;
         options_.load_backup_version = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_LOAD_BACKUP_VERSION, 0) > 0;
         options_.kL0_CompactionTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_COMPACTION_TRIGGER, 4);
+        options_.kL0_LimitWriteWithCount = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_LIMIT_WRITE_WITH_COUNT, 0) > 0;
         options_.kL0_SlowdownWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_SLOWDOWN_WRITE_TRIGGER, 8);
         options_.kL0_StopWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_STOP_WRITE_TRIGGER, 12);
         options_.kMaxMemCompactLevel = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_MEMCOMPACT_LEVEL, 2);

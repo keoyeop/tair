@@ -4,7 +4,7 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 			 -I${top_srcdir}/src/storage/fdb \
 			 -I${top_srcdir}/src/storage \
 			 -I${top_srcdir}/src/statserver/include \
-			 -I${top_srcdir}/src/dataserver
+			 -I${top_srcdir}/src/dataserver -I${top_srcdir}/src
 
 LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
 			$(TBLIB_ROOT)/lib/libtbsys.a

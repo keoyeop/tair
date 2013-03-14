@@ -617,31 +617,44 @@ namespace tair {
        return TAIR_RETURN_SERVER_CAN_NOT_WORK;
      }
 
-     tair_operc_vector::iterator it;
-
      if (request->server_flag != TAIR_SERVERFLAG_MIGRATE) {
        log_warn("requestMUpdatePacket have no MIGRATE flag");
        return TAIR_RETURN_INVALID_ARGUMENT;
      }
 
      int rc = TAIR_RETURN_SUCCESS;
-     if (request->key_and_values != NULL) {
-       for (it = request->key_and_values->begin(); it != request->key_and_values->end(); ++it) {
-         operation_record *oprec = (*it);
-         if (oprec->operation_type == 1) {
-           // put
-           rc = tair_mgr->direct_put(*oprec->key, *oprec->value);
-         } else if (oprec->operation_type == 2) {
-           // remove
-           rc = tair_mgr->direct_remove(*oprec->key);
-         } else {
-           rc = TAIR_RETURN_INVALID_ARGUMENT;
-           break;
+     if (request->key_and_values != NULL && !request->key_and_values->empty()) {
+       // NOTE: now we consider all kvs are belong to one same bucket
+       rc = tair_mgr->get_storage_manager()->
+         direct_mupdate(tair_mgr->get_bucket_number(*(*request->key_and_values)[0]->key), *request->key_and_values);
+       if (rc == TAIR_RETURN_SUCCESS) {
+         // update stat
+         for (tair_operc_vector::iterator it = request->key_and_values->begin(); it != request->key_and_values->end(); ++it) {
+           int area = (*it)->key->get_area();
+           if ((*it)->operation_type == 1) {
+             TAIR_STAT.stat_put(area);
+           } else if ((*it)->operation_type == 2) {
+             TAIR_STAT.stat_remove(area);
+           }
          }
+       } else if (rc == TAIR_RETURN_NOT_SUPPORTED) {
+         for (tair_operc_vector::iterator it = request->key_and_values->begin(); it != request->key_and_values->end(); ++it) {
+           operation_record *oprec = (*it);
+           if (oprec->operation_type == 1) {
+             // put
+             rc = tair_mgr->direct_put(*oprec->key, *oprec->value);
+           } else if (oprec->operation_type == 2) {
+             // remove
+             rc = tair_mgr->direct_remove(*oprec->key);
+           } else {
+             rc = TAIR_RETURN_INVALID_ARGUMENT;
+             break;
+           }
 
-         if (rc != TAIR_RETURN_SUCCESS) {
-           log_debug("do migrate operation failed, rc: %d", rc);
-           break;
+           if (rc != TAIR_RETURN_SUCCESS) {
+             log_debug("do migrate operation failed, rc: %d", rc);
+             break;
+           }
          }
        }
      }
