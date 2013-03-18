@@ -1,4 +1,5 @@
-AC_INIT([tair], [2.3.2.1], [zongdai@taobao.com])
+AC_INIT([tair], [2.3.2.3], [zongdai@taobao.com])
+dnl 2.3.2.3: ldb balance & split memtable per bucket etc. SVN 1408
 
 AM_INIT_AUTOMAKE([foreign])
 AC_PROG_CXX
