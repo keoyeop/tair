@@ -27,7 +27,6 @@ inval_server_SOURCES=inval_server.cpp inval_server.hpp \
 					 inval_loader.cpp inval_loader.hpp \
 					 inval_retry_thread.cpp inval_retry_thread.hpp \
 					 inval_processor.cpp inval_processor.hpp \
-					 server_pair_id.hpp \
 					 inval_stat_helper.cpp inval_stat_helper.hpp \
 					 inval_request_storage.cpp inval_request_storage.hpp \
 					 inval_request_packet_wrapper.hpp \
