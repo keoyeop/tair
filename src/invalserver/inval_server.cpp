@@ -342,14 +342,16 @@
             need_return_packet = false;
           }
 
+          //add up the operation
+          TAIR_INVAL_STAT.statistcs(request_type,
+              std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
+
+          //send request
           SharedInfo *shared = new SharedInfo(global_reference_count, local_reference_count, req);
           for (size_t i = 0; i < tair_groups->size(); ++i)
           {
             (*tair_groups)[i]->commit_request(shared, merged, need_return_packet);
           }
-
-          TAIR_INVAL_STAT.statistcs(request_type,
-              std::string(req->group_name), req->area, inval_area_stat::FIRST_EXEC);
         }
       }
     }

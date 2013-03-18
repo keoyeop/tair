@@ -350,12 +350,14 @@ namespace tair {
           it->second->get_area_stat(area).inc_prefix_hide_count(op_type);
           break;
         default:
-          log_error("unknown operation_name=%d,area=%d,op_type=%d", operation_name, area, op_type);
+          log_error("unknown operation name, group name: %s, area: %d,opname: %d, optype: %d",
+              group_name.c_str(), area, operation_name, op_type);
       }
     } //end of if
     else
     {
-      log_error("can't find the group name: %s ,in stat.", group_name.c_str());
+      log_error("can't find the group name: %s, in stat. area: %d, opname: %d, optype: %d",
+          group_name.c_str(), area, operation_name, op_type);
     }
   }
 }

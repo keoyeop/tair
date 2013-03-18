@@ -180,7 +180,7 @@
             if (tair_client != NULL)
             {
               ret = tair_client->add_count(0, key, 1, &value);
-              tair_groups[i]->sampling(ret == TAIR_RETURN_SUCCESS);
+              tair_groups[i]->sampling(ret != TAIR_RETURN_TIMEOUT && ret != TAIR_RETURN_SEND_FAILED);
               if (tair_groups[i]->is_healthy())
               {
                 log_debug("cluster: %s, group name: %s, healthy.",
