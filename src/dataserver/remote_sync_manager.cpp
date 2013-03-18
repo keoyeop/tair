@@ -490,7 +490,7 @@ namespace tair
     {
       ret = TAIR_RETURN_SUCCESS;
     }
-    else if (ret == TAIR_RETURN_DATA_EXPIRED)
+    else if (ret == TAIR_RETURN_DATA_NOT_EXIST)
     {
       ret = TAIR_RETURN_DATA_NOT_EXIST;
     }
@@ -720,7 +720,7 @@ namespace tair
     case TAIR_REMOTE_SYNC_TYPE_DELETE:
       // not exist or expired also OK
       failed = (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_DATA_NOT_EXIST &&
-                ret != TAIR_RETURN_DATA_EXPIRED && ret != TAIR_RETURN_MTIME_EARLY);
+                ret != TAIR_RETURN_MTIME_EARLY);
       break;
     default:
       log_error("unknown callback type: %d, ret: %d", callback_arg->type_, ret);

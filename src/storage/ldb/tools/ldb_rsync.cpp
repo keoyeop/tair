@@ -83,7 +83,7 @@ int init_cluster_handler(const char* addr, ClusterHandler& handler)
 int get_from_local_cluster(ClusterHandler& handler, data_entry& key, data_entry*& value, bool& skip)
 {
   int ret = handler.client()->get_hidden(key.get_area(), key, value);
-  if (ret == TAIR_RETURN_DATA_NOT_EXIST || ret == TAIR_RETURN_DATA_EXPIRED)
+  if (ret == TAIR_RETURN_DATA_NOT_EXIST)
   {
     log_warn("key not exist local");
     skip = true;

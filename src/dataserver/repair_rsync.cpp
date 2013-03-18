@@ -104,7 +104,7 @@ int get_from_local_cluster(ClusterHandler& handler, data_entry& key, data_entry*
   {
     ret  = TAIR_RETURN_SUCCESS;
   }
-  else if (ret == TAIR_RETURN_DATA_EXPIRED)
+  else if (ret == TAIR_RETURN_DATA_NOT_EXIST)
   {
     ret = TAIR_RETURN_DATA_NOT_EXIST;
   }
@@ -157,7 +157,7 @@ int do_rsync_data(ClusterHandler& local_handler, ClusterHandler& remote_handler,
       if (ret == TAIR_RETURN_DATA_NOT_EXIST)
       {
         ret = remote_handler.client()->remove(key.get_area(), key);
-        if (ret == TAIR_RETURN_DATA_NOT_EXIST || ret == TAIR_RETURN_DATA_EXPIRED || ret == TAIR_RETURN_MTIME_EARLY)
+        if (ret == TAIR_RETURN_DATA_NOT_EXIST || ret == TAIR_RETURN_MTIME_EARLY)
         {
           ret = TAIR_RETURN_SUCCESS;
         }

@@ -769,7 +769,7 @@ namespace tair
         int rc = do_cache_get(ldb_key, db_value, true/* update stat */);
         PROFILER_END();
         // cache miss, but not expired, cause cache expired, db expired too.
-        if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_EXPIRED)
+        if (rc != TAIR_RETURN_SUCCESS)
         {
           PROFILER_BEGIN("db lock");
           tbsys::CThreadGuard mutex_guard(get_mutex(key));
@@ -779,7 +779,7 @@ namespace tair
           PROFILER_END();
         }
 
-        if (TAIR_RETURN_SUCCESS == rc)
+        if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_NOT_EXIST)
         {
           ldb_item.assign(const_cast<char*>(db_value.data()), db_value.size());
           // already check expired. no need here.
@@ -1270,7 +1270,7 @@ namespace tair
         int rc = from_cache ? do_cache_get(ldb_key, value, update_stat) : TAIR_RETURN_FAILED;
 
         // cache miss, but not expired, cause cache expired, db expired too.
-        if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_EXPIRED)
+        if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_NOT_EXIST)
         {
           PROFILER_BEGIN("db db get");
           leveldb::Status status = db_->Get(read_options_, leveldb::Slice(ldb_key.data(), ldb_key.size()),

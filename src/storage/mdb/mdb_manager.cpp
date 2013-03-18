@@ -223,7 +223,7 @@ namespace tair {
     }
     else if(expired)
     {
-      ret = TAIR_RETURN_DATA_EXPIRED;
+      ret = TAIR_RETURN_DATA_NOT_EXIST;
     }
 
     if (update)
@@ -612,7 +612,7 @@ namespace tair {
       ret = 0;
     }
     else if(expired) {
-      ret = TAIR_RETURN_DATA_EXPIRED;
+      ret = TAIR_RETURN_DATA_NOT_EXIST;
     }
     //++m_stat.getCount;
     if (with_stat)
@@ -751,7 +751,7 @@ namespace tair {
       meta.flag = ITEM_FLAGS(it->item_id);
       ret = TAIR_RETURN_SUCCESS;
     } else if (expired) {
-      ret = TAIR_RETURN_DATA_EXPIRED;
+      ret = TAIR_RETURN_DATA_NOT_EXIST;
     }
 
     return ret;

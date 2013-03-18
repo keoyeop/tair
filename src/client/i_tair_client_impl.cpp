@@ -37,7 +37,7 @@ namespace tair
     temp[TAIR_RETURN_DUPLICATE_BUSY]          = "duplicate busy";
     temp[TAIR_RETURN_MIGRATE_BUSY]    = "migrate busy";
     temp[TAIR_RETURN_PARTIAL_SUCCESS] = "partial success";
-    temp[TAIR_RETURN_DATA_EXPIRED]            = "expired";
+    //temp[TAIR_RETURN_DATA_EXPIRED]            = "expired";
     temp[TAIR_RETURN_PLUGIN_ERROR]            = "plugin error";
     temp[TAIR_RETURN_PROXYED]                 = "porxied";
     temp[TAIR_RETURN_INVALID_ARGUMENT]        = "invalid argument";

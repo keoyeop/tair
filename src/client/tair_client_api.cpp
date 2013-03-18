@@ -148,8 +148,7 @@ namespace tair {
       // update cache
       if (TAIR_RETURN_SUCCESS == ret) {
         cache->put(key, *data);
-      } else if (TAIR_RETURN_DATA_EXPIRED == ret ||
-          TAIR_RETURN_DATA_NOT_EXIST == ret) {
+      } else if (TAIR_RETURN_DATA_NOT_EXIST == ret) {
         cache->remove(key);
       }
     }
