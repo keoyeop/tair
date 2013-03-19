@@ -121,7 +121,7 @@ const int ITEM_HEAD_LENGTH = 2;
         meta &= ~flag;
       }
 
-      virtual int op_cmd(ServerCmdType cmd, std::vector<std::string>& params) { return TAIR_RETURN_NOT_SUPPORTED; }
+      virtual int op_cmd(ServerCmdType cmd, std::vector<std::string>& params) { return TAIR_RETURN_SUCCESS; }
 
       virtual void set_bucket_count(uint32_t bucket_count)
       {
