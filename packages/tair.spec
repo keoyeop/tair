@@ -18,8 +18,8 @@ BuildRequires: snappy >= 1.0.1
 #Requires: openssl-devel >= 0.9
 Requires: t-csrd-tbnet-devel >= 1.0.4
 Requires: google-perftools >= 1.7
-Requires: automake >= 1.7.0
-Requires: libtool >= 1.5.0
+#Requires: automake >= 1.7.0
+#Requires: libtool >= 1.5.0
 Requires: snappy >= 1.0.1
 
 %description
