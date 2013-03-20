@@ -70,37 +70,22 @@ namespace tair {
       }
       //reset the state.
       reset();
-      //clean the compressed flag
-      atomic_set(&need_compressed,DATA_UNCOMPRESSED);
       //sleep
       TAIR_SLEEP(_stop, 10);
     }
   }
 
-  // not threadsafe, make sure there is only
-  // one thread calling this
+  // threadsafe
   void InvalStatHelper::reset()
   {
-    //lock
-    tbsys::CThreadGuard guard(&mutex);
-    //clean current_stat
+    //copy the stistics data from `current_stat to `stat, and reset the `current_stat. these operations were thread-safe.
     for (size_t i = 0; i < group_count; ++i)
     {
       inval_group_stat *group_stat_value = current_stat + i;
-      group_stat_value->reset();
+      group_stat_value->copy_and_reset(stat);
+
     }
-    //swap
-    inval_group_stat *temp = stat;
-    stat = current_stat;
-    current_stat = temp;
-    group_stat_map.clear();
-    for (size_t i = 0; i < group_count; ++i)
-    {
-      inval_group_stat *group_stat_value = stat + i;
-      group_stat_value->reset();
-      group_stat_value->set_group_name(group_names[i]);
-      group_stat_map.insert(group_stat_map_t::value_type(group_names[i], group_stat_value));
-    }
+
     //compute the ratio.
     uint64_t now = tbsys::CTimeUtil::getTime();
     uint64_t interval = now - last_update_time;
@@ -111,7 +96,7 @@ namespace tair {
     //for every group, every area and every type.
     for (size_t i = 0; i < group_count; i++)
     {
-      inval_group_stat *gs = current_stat + i;
+      inval_group_stat *gs = stat + i;
       for (size_t k = 0; k < TAIR_MAX_AREA_COUNT; ++k)
       {
         inval_area_stat  &as = gs->get_area_stat(k);
@@ -124,11 +109,20 @@ namespace tair {
         }
       }
     }
-    //unlock
+    //clean the compressed flag
+    atomic_set(&need_compressed,DATA_UNCOMPRESSED);
   }
 
   bool InvalStatHelper::do_compress()
   {
+    bool ret = true;
+    //lock, protect the buffer
+    tbsys::CThreadGuard guard(&mutex);
+    //other thread has invoked this function already, just return true.
+    if(atomic_read(&need_compressed) == DATA_COMPRESSED)
+    {
+      return true;
+    }
     if (compressed_data != NULL)
     {
       compressed_data_size = 0;
@@ -136,31 +130,25 @@ namespace tair {
     }
     unsigned long data_size = compressed_data_buffer_size;
     unsigned long uncompressed_data_size = group_count * sizeof(inval_group_stat);
-    int ret = compress(compressed_data_buffer, &data_size,
-        (unsigned char*)current_stat, uncompressed_data_size);
-    if (ret == Z_OK)
+    if (compress(compressed_data_buffer, &data_size,
+        (unsigned char*)stat, uncompressed_data_size) == Z_OK)
     {
       compressed_data = new char [data_size];
-      if (compressed_data == NULL)
-      {
-        log_error("failed to allocate compressed_data.");
-        return false;
-      }
-      else
-      {
-        memcpy(compressed_data, compressed_data_buffer, data_size);
-        compressed_data_size = data_size;
-        log_info("compress inval server stats done (%d=>%d)", uncompressed_data_size, compressed_data_size);
-      }
+      memcpy(compressed_data, compressed_data_buffer, data_size);
+      compressed_data_size = data_size;
+      log_info("compress inval server stats done (%d=>%d)", uncompressed_data_size, compressed_data_size);
     }
     else
     {
       log_error("failed to uncompress the data.");
-      return false;
+      ret = false;
     }
-    //set flag
-    atomic_set(&need_compressed,DATA_COMPRESSED);
-    return true;
+    if (ret)
+    {
+      //set flag
+      atomic_set(&need_compressed,DATA_COMPRESSED);
+    }
+    return ret;
   }
 
   // the buffer was allocated by `get_stat_buffer,freed by invaker.
@@ -168,6 +156,7 @@ namespace tair {
   bool InvalStatHelper::get_stat_buffer(char*& buffer, unsigned long &buffer_size,
       unsigned long & uncompressed_data_size, int &group_count_out)
   {
+    bool ret = true;
     if (atomic_read(&work_now) == WAIT)
     {
       buffer_size = 0;
@@ -177,154 +166,121 @@ namespace tair {
         buffer = NULL;
       }
       log_error("wait for group names.");
-      return false;
+      ret = false;
     }
-    tbsys::CThreadGuard guard(&mutex);
-    if (atomic_read(&need_compressed) == DATA_UNCOMPRESSED)
+    if (ret && atomic_read(&need_compressed) == DATA_UNCOMPRESSED)
     {
       if (do_compress() == false)
       {
         log_error("failed to compress the statistic data!");
-        return false;
+        ret = false;
       }
     }
-    //copy stat data into user's buffer.
-    if (compressed_data == NULL)
+    if (ret)
     {
-      buffer_size = 0;
-      buffer = NULL;
-      uncompressed_data_size = 0;
-      return false;
+      //lock
+      tbsys::CThreadGuard guard(&mutex);
+      //copy stat data into user's buffer.
+      if (compressed_data == NULL)
+      {
+        buffer_size = 0;
+        buffer = NULL;
+        uncompressed_data_size = 0;
+        ret = false;
+      }
+      else
+      {
+        buffer = new char [compressed_data_size];
+        memcpy(buffer, compressed_data, compressed_data_size);
+        buffer_size = compressed_data_size;
+        uncompressed_data_size = compressed_data_buffer_size;
+        group_count_out = group_count;
+      }
+      //unlock
     }
-    buffer = new char [compressed_data_size];
-    if (buffer == NULL)
-    {
-      buffer_size = 0;
-      buffer= NULL;
-      log_error("fail to alloc memory .");
-      return false;
-    }
-    memcpy(buffer, compressed_data, compressed_data_size);
-    buffer_size = compressed_data_size;
-    uncompressed_data_size = compressed_data_buffer_size;
-    group_count_out = group_count;
-    return true;
+    return ret;
   }
 
   bool InvalStatHelper::setThreadParameter(const std::vector<std::string> &group_names_input)
   {
+    bool ret = true;
     if (group_names_input.empty() )
     {
       log_error("group_count must be more than 0.");
-      return false;
+      ret = false;
     }
-    tbsys::CThreadGuard guard(&mutex);
-    atomic_set(&work_now, WAIT);
-    std::vector<std::string> group_names_tmp;
-    for (size_t i = 0; i < group_names_input.size(); i++)
+    std::vector<std::string> group_names;
+    if (ret)
     {
-      //group names must be unique
-      if (group_names_input.size() > 0
-          && std::find(group_names.begin(), group_names.end(), group_names_input[i]) == group_names.end())
+      atomic_set(&work_now, WAIT);
+      for (size_t i = 0; i < group_names_input.size(); i++)
       {
-        group_names_tmp.push_back(group_names_input[i]);
+        //group names must be unique
+        if (group_names_input[i].size() > 0)
+        {
+          if (std::find(group_names.begin(), group_names.end(), group_names_input[i]) == group_names.end())
+          {
+            group_names.push_back(group_names_input[i]);
+          }
+          else
+          {
+            //duplicate group names.
+            log_error("group names: %s, exist.", group_names_input[i].c_str());
+          }
+
+        }
+        else
+        {
+          log_debug("got the bad group name: %s", group_names_input[i].c_str());
+        }
       }
-      else
+      group_count = group_names.size();
+      if (group_count == 0)
       {
-        log_debug("got the bad group name: %s", group_names_input[i].c_str());
+        log_error("group names list was empty.");
+        ret = false;
       }
     }
-    if (group_names_tmp.size() == 0)
+    if (ret)
     {
-      //none new group's name was added
-      log_debug("no new group name was added, group_count: %s", group_count);
-      if (group_names.empty() == false)
+      //allocate memory
+      stat  = new inval_group_stat[group_count];
+      current_stat = new inval_group_stat[group_count];
+
+      //alloc memroy for compressing stat data
+      unsigned long stat_data_len = group_count* sizeof(inval_group_stat);
+      compressed_data_buffer_size = compressBound(stat_data_len);
+      compressed_data_buffer = new unsigned char [compressed_data_buffer_size];
+
+      //build the map
+      group_stat_map.clear();
+      for (size_t i = 0; i < group_count; ++i)
       {
-        atomic_set(&work_now, WORK);
+        inval_group_stat* group_stat_value = current_stat + i;
+        //set group's name.
+        group_stat_value->set_group_name(group_names[i]);
+        group_stat_map.insert(group_stat_map_t::value_type(group_names[i], group_stat_value));
+        group_stat_value = stat + i;
+        group_stat_value->set_group_name(group_names[i]);
       }
-      return false;
-    }
-    size_t group_count_tmp = group_count + group_names_tmp.size();
-    //alloc memory for statists information.
-    inval_group_stat *stat_tmp = new inval_group_stat[group_count_tmp];
-    if (stat_tmp == NULL)
-    {
-      log_error("fail to alloc memory for 'stat' ");
-      if (group_names.empty() == false)
+
+      if (group_stat_map.empty())
       {
-        atomic_set(&work_now, WORK);
+        log_error("the group stat map was empty.");
+        ret = false;
       }
-      return false;
     }
-    inval_group_stat *current_stat_tmp = new inval_group_stat[group_count_tmp];
-    if (current_stat_tmp == NULL)
+    if (ret)
     {
-      //release the stat
-      delete [] stat_tmp;
-      log_error("fail to alloc memory for 'current_stat'");
-      if (group_names.empty() == false)
-      {
-        atomic_set(&work_now, WORK);
-      }
-      return false;
+      // invalid compressed stat data
+      atomic_set(&need_compressed, DATA_UNCOMPRESSED);
+      atomic_set(&work_now, WORK);
     }
-    //alloc memroy for compressing stat data
-    unsigned long stat_data_len = group_count_tmp* sizeof(inval_group_stat);
-    unsigned long compressed_data_buffer_size_tmp = compressBound(stat_data_len);
-    unsigned char *compressed_data_buffer_tmp = new unsigned char [compressed_data_buffer_size_tmp];
-    if (compressed_data_buffer_tmp == NULL)
+    else
     {
-      //release memory allocated
-      delete [] stat_tmp;
-      delete [] current_stat_tmp;
-      log_error("fail to alloc memory for 'compressed_data_buffer_tmp'");
-      if (group_names.empty() == false)
-      {
-        atomic_set(&work_now, WORK);
-      }
-      return false;
+      atomic_set(&work_now, WAIT);
     }
-    //now, we got all the memory needed
-    //copy data from the old one, if existed.
-    int copy_data_size = group_count * sizeof(inval_group_stat);
-    if (group_names.empty() == false)
-    {
-      memcpy(stat_tmp, stat, copy_data_size);
-      memcpy(current_stat_tmp, current_stat, copy_data_size);
-    }
-    //if new memory's size is larger than the old one,
-    //clear the content execpt of data copied from old one.
-    char *clear_start = (char*)stat_tmp + copy_data_size;
-    size_t clear_size = stat_data_len - copy_data_size;
-    memset(clear_start, 0, clear_size);
-    clear_start = (char*)current_stat_tmp + copy_data_size;
-    memset(clear_start, 0, clear_size);
-    //update group's name.
-    for (size_t i = 0; i < group_names_tmp.size(); ++i)
-    {
-      group_names.push_back(group_names_tmp[i]);
-    }
-    group_count = group_names.size();
-    delete [] stat;
-    stat = stat_tmp;
-    delete [] current_stat;
-    current_stat = current_stat_tmp;
-    delete [] compressed_data_buffer;
-    compressed_data_buffer = compressed_data_buffer_tmp;
-    compressed_data_buffer_size = compressed_data_buffer_size_tmp;
-    group_stat_map.clear();
-    for (size_t i = 0; i < group_count; ++i)
-    {
-      inval_group_stat* group_stat_value = stat + i;
-      //set group's name.
-      group_stat_value->set_group_name(group_names[i]);
-      group_stat_map.insert(group_stat_map_t::value_type(group_names[i], group_stat_value));
-    }
-    // invalid compressed stat data
-    atomic_set(&need_compressed, DATA_UNCOMPRESSED);
-    // now, work (again).
-    atomic_set(&work_now, WORK);
-    return true;
+    return ret;
   }
 
   void InvalStatHelper::statistcs(const uint32_t operation_name,

@@ -60,19 +60,6 @@ namespace tair {
         const std::string& group_name,
         const uint32_t area,
         const uint32_t op_type);
-
-    //get group name
-    inline std::string get_group_name(const int index)
-    {
-      if (index < 0 || index >= (int)group_names.size())
-      {
-        return std::string("bad index");
-      }
-      else
-      {
-        return group_names[index];
-      }
-    }
   private:
 
     // compress the statistics data
@@ -90,7 +77,6 @@ namespace tair {
     inval_group_stat *stat;
     inval_group_stat *current_stat;
     uint32_t group_count;
-    std::vector<std::string> group_names;
 
     uint64_t last_update_time;
 

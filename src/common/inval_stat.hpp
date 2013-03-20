@@ -121,6 +121,29 @@ namespace tair {
       atomic_set(&prefix_hide_count_value[FINALLY_EXEC], 0);
     }
 
+    inline void copy_and_reset(inval_area_stat &area_stat)
+    {
+      //copy
+      area_stat.set_invalid_count(FIRST_EXEC, get_invalid_count(FIRST_EXEC));
+      area_stat.set_invalid_count(RETRY_EXEC, get_invalid_count(RETRY_EXEC));
+      area_stat.set_invalid_count(FINALLY_EXEC, get_invalid_count(FINALLY_EXEC));
+
+      area_stat.set_prefix_invalid_count(FIRST_EXEC, get_prefix_invalid_count(FIRST_EXEC));
+      area_stat.set_prefix_invalid_count(RETRY_EXEC, get_prefix_invalid_count(RETRY_EXEC));
+      area_stat.set_prefix_invalid_count(FINALLY_EXEC, get_prefix_invalid_count(FINALLY_EXEC));
+
+      area_stat.set_hide_count(FIRST_EXEC, get_hide_count(FIRST_EXEC));
+      area_stat.set_hide_count(RETRY_EXEC, get_hide_count(RETRY_EXEC));
+      area_stat.set_hide_count(FINALLY_EXEC, get_hide_count(FINALLY_EXEC));
+
+      area_stat.set_prefix_hide_count(FIRST_EXEC, get_prefix_hide_count(FIRST_EXEC));
+      area_stat.set_prefix_hide_count(RETRY_EXEC, get_prefix_hide_count(RETRY_EXEC));
+      area_stat.set_prefix_hide_count(FINALLY_EXEC, get_prefix_hide_count(FINALLY_EXEC));
+
+      //reset
+      reset();
+    }
+
   private:
     //stats the execution of opertions.
     atomic_t invalid_count_value[STAT_ELEM_COUNT];
@@ -161,9 +184,16 @@ namespace tair {
       return area_stat[index];
     }
 
-    inline void reset()
+    inline void copy_and_reset(inval_group_stat* dest)
     {
-      memset((char*)area_stat, 0, TAIR_MAX_AREA_COUNT*sizeof(inval_area_stat));
+      if (dest != NULL)
+      {
+        for (int i = 0; i < TAIR_MAX_AREA_COUNT; ++i)
+        {
+          inval_area_stat &area_copy = dest->get_area_stat(i);
+          area_stat[i].copy_and_reset(area_copy);
+        }
+      }
     }
   public:
     inval_area_stat  area_stat[TAIR_MAX_AREA_COUNT];
