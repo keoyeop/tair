@@ -779,7 +779,7 @@ namespace tair
           PROFILER_END();
         }
 
-        if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_NOT_EXIST)
+        if (rc == TAIR_RETURN_SUCCESS)
         {
           ldb_item.assign(const_cast<char*>(db_value.data()), db_value.size());
           // already check expired. no need here.
