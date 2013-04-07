@@ -124,6 +124,47 @@ namespace tair {
     delete wrapper;
   }
 
+  std::string RequestProcessor::obtain_ds_addr(PacketWrapper *wrapper)
+  {
+    std::string ds = "none.";
+    tair_client_impl *client = wrapper->get_group()->get_tair_client();
+    request_inval_packet *req = wrapper->get_shared_info()->packet;
+    if (client != NULL && req != NULL)
+    {
+      data_entry *key = NULL;
+      if (req->key != NULL)
+      {
+        key = req->key;
+      }
+      else if (req->key_list != NULL)
+      {
+        tair_dataentry_set::iterator it = req->key_list->begin();
+        if (it != req->key_list->end())
+        {
+          key = *(it);
+        }
+      }
+
+      if (key != NULL)
+      {
+        std::vector<std::string> servers;
+        client->get_server_with_key(*key, servers);
+        if (servers.size() > 0)
+        {
+          ds = servers[0];
+        }
+        else
+        {
+          ds = "none, servers is empty.";
+        }
+      }
+      else
+      {
+        ds = "none, key is null.";
+      }
+    }
+    return ds;
+  }
   void RequestProcessor::end_request(PacketWrapper *wrapper)
   {
     //if the request' status is COMMITTED_SUCCESS, to do nothing here.
@@ -132,13 +173,14 @@ namespace tair {
       //retry request.
       SharedInfo *old_shared = wrapper->get_shared_info();
       request_inval_packet *req = old_shared->packet;
+      std::string ds = obtain_ds_addr(wrapper);
       old_shared->packet = NULL;
       int retry_times = old_shared->get_retry_times();
       if (retry_times < InvalRetryThread::RETRY_COUNT)
       {
-        log_error("REQUEST FAILED, request will be retried to process, cluster name: %s, group name: %s, queue: %d, pcode: %d",
-            wrapper->get_group()->get_cluster_name().c_str(), wrapper->get_group()->get_group_name().c_str(),
-            retry_times, req->getPCode());
+        log_error("REQUEST FAILED, RETRY, retry_times: %d, cluster name: %s, group name: %s, pcode: %d, ds: %s",
+            retry_times, wrapper->get_group()->get_cluster_name().c_str(),
+            wrapper->get_group()->get_group_name().c_str(), req->getPCode(), ds.c_str());
         SharedInfo *new_shared = new SharedInfo(0, 0, req);
         new_shared->set_retry_times(retry_times);
         //request packet was released by `shared, while the request's status is equ. to COMMITTED_SUCCESS.
@@ -148,9 +190,9 @@ namespace tair {
       //cache the request packet.
       else
       {
-        log_error("REQUEST FAILED, request packet will be cached, cluster name: %s, group name: %s, pcode: %d",
+        log_error("REQUEST FAILED, HOLD, cluster name: %s, group name: %s, pcode: %d, ds: %s",
             wrapper->get_group()->get_cluster_name().c_str(), wrapper->get_group()->get_group_name().c_str(),
-            req->getPCode());
+            req->getPCode(), ds.c_str());
         //change the `shared status, the request packet hold by `shared will not be released by disconstructor of `shared.
         old_shared->set_request_status(CACHED_IN_STORAGE);
         //statistic

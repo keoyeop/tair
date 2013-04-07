@@ -72,6 +72,8 @@ namespace tair {
     void do_process(PROCESS_RHS_FUNC_T pproc, MultiWrapper *wrapper);
     void do_process_request(PROCESS_RH_FUNC_T pproc, PacketWrapper *wrapper);
     void do_process_request(PROCESS_RHS_FUNC_T pproc, PacketWrapper *wrapper);
+    //obtain ds address with a key
+    std::string obtain_ds_addr(PacketWrapper *wrapper);
   private:
     static tair_packet_factory packet_factory;
 
