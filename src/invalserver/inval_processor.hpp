@@ -55,6 +55,10 @@ namespace tair {
 
     //send return packet to client
     void send_return_packet(PacketWrapper *wrapper, const int ret, const char *msg);
+
+    //callback function
+    void static client_callback_with_single_key(int rcode, void *args);
+    void static client_callback_with_multi_keys(int rcode, const key_code_map_t *key_code_map, void *args);
   protected:
 
     //defination of function type.
@@ -86,37 +90,5 @@ namespace tair {
     //just used as the parameter, not to insert any data.
     key_code_map_t failed_key_code_map;
   };
-
-  inline void do_client_callback(int rcode, void *args)
-  {
-    if (args == NULL)
-    {
-      log_error("the args is null, rcode: %d", rcode);
-    }
-    else
-    {
-      PacketWrapper *wrapper = (PacketWrapper*)args;
-      if (wrapper == NULL)
-      {
-        log_error("the callback's parameter is not instance of PacketWrapper, rcode: %d", rcode);
-      }
-      else
-      {
-        REQUEST_PROCESSOR.process_callback(rcode, wrapper);
-      }
-    }
-  }
-
-  //callback function
-  inline void client_callback_with_single_key(int rcode, void *args)
-  {
-    do_client_callback(rcode, args);
-  }
-
-  //callbcak function for operation with multi-keys
-  inline void client_callback_with_multi_keys(int rcode, const key_code_map_t *key_code_map, void *args)
-  {
-    do_client_callback(rcode, args);
-  }
 }
 #endif

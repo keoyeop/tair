@@ -161,6 +161,10 @@
       int value = 0;
       int ret = TAIR_RETURN_SUCCESS;
 
+      int update_max_interval_time = (60 * 60) / LOADER_SLEEP_TIME;
+      int update_rotate_start_time = update_max_interval_time - (60/LOADER_SLEEP_TIME);
+      int rotate_start_time = MAX_ROTATE_TIME - (60 / LOADER_SLEEP_TIME);
+      int log_rotate_time = ((time(NULL) - timezone)) % MAX_ROTATE_TIME;
       int alive_count = 0;
       while (!_stop)
       {
@@ -200,7 +204,20 @@
           }
         }
         log_info("KeepAlive group count: %d, total: %d", alive_count, tair_groups.size());
-        TAIR_SLEEP(_stop, 5);
+
+        log_rotate_time ++;
+        if ((log_rotate_time % MAX_ROTATE_TIME) == rotate_start_time)
+        {
+          log_info("rotatelog end");
+          TBSYS_LOGGER.rotateLog(NULL, "%d");
+          log_info("rotatelog start");
+        }
+        if (((log_rotate_time % update_max_interval_time) == update_rotate_start_time))
+        {
+          log_rotate_time = ((time(NULL) - timezone)) % MAX_ROTATE_TIME;
+        }
+
+        TAIR_SLEEP(_stop, LOADER_SLEEP_TIME);
       }
     }
 

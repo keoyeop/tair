@@ -89,6 +89,71 @@ namespace tair {
     }
   }
 
+  void RequestProcessor::client_callback_with_single_key(int rcode, void* args)
+  {
+    if (args == NULL)
+    {
+      log_error("the args is null, rcode: %d", rcode);
+    }
+    else
+    {
+      PacketWrapper *wrapper = (PacketWrapper*)args;
+      if (wrapper == NULL)
+      {
+        log_error("the callback's parameter is not instance of PacketWrapper, rcode: %d", rcode);
+      }
+      else
+      {
+        REQUEST_PROCESSOR.process_callback(rcode, wrapper);
+      }
+    }
+  }
+
+  void RequestProcessor::client_callback_with_multi_keys(int rcode, const key_code_map_t *key_code_map, void *args)
+  {
+    if (args == NULL)
+    {
+      log_error("the args is null, rcode: %d", rcode);
+    }
+    else
+    {
+      PacketWrapper *wrapper = (PacketWrapper*)args;
+      if (wrapper == NULL)
+      {
+        log_error("the callback's parameter is not instance of PacketWrapper, rcode: %d", rcode);
+      }
+      else
+      {
+        if (rcode == TAIR_RETURN_PARTIAL_SUCCESS && key_code_map != NULL)
+        {
+          SharedInfo *shared = wrapper->get_shared_info();
+          request_inval_packet *req = NULL;
+          if (shared != NULL)
+          {
+            req = shared->packet;
+          }
+          if (req != NULL)
+          {
+            bool all_success = true;
+            for (key_code_map_t::const_iterator it = key_code_map->begin(); it != key_code_map->end(); ++it)
+            {
+              if (!(it->second == TAIR_RETURN_DATA_NOT_EXIST || it->second == TAIR_RETURN_DATA_EXPIRED))
+              {
+                all_success = false;
+                log_debug("multi-keys callback, rcode; %d, pcode: %d, sub rcode: %d", rcode, req->getPCode(), it->second);
+                break;
+              }
+            }
+            if (all_success)
+            {
+              rcode = TAIR_RETURN_SUCCESS;
+            }
+          }
+        }
+        REQUEST_PROCESSOR.process_callback(rcode, wrapper);
+      }
+    }
+  }
   void RequestProcessor::process_callback(int rcode, PacketWrapper *wrapper)
   {
     log_debug("callback invoked from cluster %s, reference count: %d",
@@ -99,7 +164,7 @@ namespace tair {
 
     //change request's status, if dataserver returns the failed `rcode.
     //should change the request status.
-    if (rcode == TAIR_RETURN_SUCCESS || rcode == TAIR_RETURN_DATA_NOT_EXIST)
+    if (rcode == TAIR_RETURN_SUCCESS || rcode == TAIR_RETURN_DATA_NOT_EXIST || rcode == TAIR_RETURN_DATA_EXPIRED)
     {
       log_debug("request committed to cluster %s success, rcode; %d",
           group->get_cluster_name().c_str(), rcode);

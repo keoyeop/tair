@@ -92,6 +92,8 @@ namespace tair {
     typedef __gnu_cxx::hash_map<std::string, ClusterInfo*, tbsys::str_hash > cluster_info_map_t;
     cluster_info_map_t clusters;
     int max_failed_count;
+    static const int LOADER_SLEEP_TIME = 5;
+    static const int MAX_ROTATE_TIME = (60 * 60 * 24) / LOADER_SLEEP_TIME;
   };
 }
 #endif
