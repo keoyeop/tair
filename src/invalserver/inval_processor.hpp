@@ -89,6 +89,8 @@ namespace tair {
 
     //just used as the parameter, not to insert any data.
     key_code_map_t failed_key_code_map;
+
+    static const int DATA_EXPIRED = -3988;
   };
 }
 #endif

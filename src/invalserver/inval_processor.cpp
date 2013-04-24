@@ -137,7 +137,7 @@ namespace tair {
             bool all_success = true;
             for (key_code_map_t::const_iterator it = key_code_map->begin(); it != key_code_map->end(); ++it)
             {
-              if (!(it->second == TAIR_RETURN_DATA_NOT_EXIST || it->second == TAIR_RETURN_DATA_EXPIRED))
+              if (!(it->second == TAIR_RETURN_DATA_NOT_EXIST || it->second == DATA_EXPIRED))
               {
                 all_success = false;
                 log_debug("multi-keys callback, rcode; %d, pcode: %d, sub rcode: %d", rcode, req->getPCode(), it->second);
@@ -164,7 +164,7 @@ namespace tair {
 
     //change request's status, if dataserver returns the failed `rcode.
     //should change the request status.
-    if (rcode == TAIR_RETURN_SUCCESS || rcode == TAIR_RETURN_DATA_NOT_EXIST || rcode == TAIR_RETURN_DATA_EXPIRED)
+    if (rcode == TAIR_RETURN_SUCCESS || rcode == TAIR_RETURN_DATA_NOT_EXIST || rcode == DATA_EXPIRED)
     {
       log_debug("request committed to cluster %s success, rcode; %d",
           group->get_cluster_name().c_str(), rcode);
