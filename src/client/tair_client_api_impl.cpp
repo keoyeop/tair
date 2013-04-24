@@ -2063,6 +2063,32 @@ FAIL:
     return ret;
   }
 
+  int tair_client_imp::remove_area(uint64_t id, int area)
+  {
+    if(UNLIKELY(area < -4  || area >= TAIR_MAX_AREA_COUNT))
+    {
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
+    int ret = TAIR_RETURN_SUCCESS;
+    request_remove_area *req = new request_remove_area();
+    req->area = area;
+    wait_object *wo = this_wait_object_manager->create_wait_object();
+    TBSYS_LOG(INFO, "request_remove_area=>%s", tbsys::CNetUtil::addrToString(server_id).c_str());
+    if((ret = send_request(server_id, packet, cwo->get_id())) < 0)
+    {
+      delete packet;
+    }
+    else
+    {
+      base_packet *tpacket = 0;
+      if( (ret = get_response(cwo, 1, tpacket)) < 0)
+      {
+      }
+    }
+    this_wait_object_manager->destroy_wait_object(cwo);
+    return ret;
+  }
+
   int tair_client_impl::remove_area(int area)
   {
 

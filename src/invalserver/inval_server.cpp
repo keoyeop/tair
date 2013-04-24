@@ -712,7 +712,7 @@ int main(int argc, char **argv)
 
   const char *logLevel = TBSYS_CONFIG.getString(INVALSERVER_SECTION, TAIR_LOG_LEVEL, "info");
   TBSYS_LOGGER.setLogLevel(logLevel);
-  TBSYS_LOGGER.setMaxFileSize(1<<23);
+  TBSYS_LOGGER.setMaxFileSize(1<<30);
 
   //~ run as daemon process
   if (tbsys::CProcess::startDaemon(pidFile, logFile) == 0)

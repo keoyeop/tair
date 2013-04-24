@@ -1232,7 +1232,7 @@ namespace tair {
     
    void tair_client::do_cmd_remove_area(VSTRING &param)
    {
-      if (param.size() != 1U) {
+      if (param.size() != 2U) {
          print_help("delall");
          return;
       }
@@ -1240,9 +1240,27 @@ namespace tair {
       if(area < 0){
          return;
       }
+      std::string sid = std::string(param[1]);
+      if (sid == "all")
+      {
       // remove
       int ret = client_helper.remove_area(area);
       fprintf(stderr, "removeArea: area:%d,%s\n", area,client_helper.get_error_msg(ret));
+      }
+      else
+      {
+        uint64_t id = tbsys::CNetUtil.strToAddr(sid);
+        set<uint64_t> servers;
+        client_helper.get_servers(servers);
+        set<uint64_t>iterator it = std::find(servers.begin(), servers.end(), id);
+        if (it != servers.end())
+        {
+        }
+        else
+        {
+          client_helper.remove_area(id, area);
+        }
+      }
       return;
    }
 
