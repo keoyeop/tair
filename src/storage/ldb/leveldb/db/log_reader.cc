@@ -80,7 +80,7 @@ bool Reader::ReadRecord(Slice* record, std::string* scratch, uint64_t limit_offs
   }
 
   // last readed buffer has been parsed over and no other data can be readed from log file
-  if (buffer_.size() < kHeaderSize && end_of_buffer_offset_ >= limit_offset) {
+  if (buffer_.size() < (size_t)kHeaderSize && end_of_buffer_offset_ >= limit_offset) {
     return false;
   }
 
@@ -199,7 +199,7 @@ void Reader::ReportDrop(size_t bytes, const Status& reason) {
 
 unsigned int Reader::ReadPhysicalRecord(Slice* result, uint64_t limit_offset) {
   while (true) {
-    if (buffer_.size() < kHeaderSize) {
+    if (buffer_.size() < (size_t)kHeaderSize) {
       if (!eof_) {
         // Last read was a full read, so this is a trailer to skip
         buffer_.clear();

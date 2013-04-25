@@ -492,12 +492,12 @@ namespace tair
       void LdbGcFactory::try_evict()
       {
         tbsys::CWLockGuard guard(lock_);
-        log_info("before try gc evict. buckets: %d, areas: %d", gc_buckets_.size(), gc_areas_.size());
+        log_info("before try gc evict. buckets: %lu, areas: %lu", gc_buckets_.size(), gc_areas_.size());
         if (!empty())
         {
           uint64_t current_db_smallest_file_number = 0;
           get_db_stat(db_->db(), current_db_smallest_file_number, "smallest-filenumber");
-          log_info("try evict gc. buckets: %d, area: %d, db smallest filenumber: %"PRI64_PREFIX"u",
+          log_info("try evict gc. buckets: %lu, area: %lu, db smallest filenumber: %"PRI64_PREFIX"u",
                    gc_buckets_.size(), gc_areas_.size(), current_db_smallest_file_number);
           try_evict(gc_buckets_, GC_BUCKET, current_db_smallest_file_number);
           try_evict(gc_areas_, GC_AREA, current_db_smallest_file_number);
@@ -506,7 +506,7 @@ namespace tair
             rotate_log();
           }
         }
-        log_info("after try gc evict. buckets: %d, areas: %d", gc_buckets_.size(), gc_areas_.size());
+        log_info("after try gc evict. buckets: %lu, areas: %lu", gc_buckets_.size(), gc_areas_.size());
 
       }
 
@@ -557,7 +557,7 @@ namespace tair
 
       void LdbGcFactory::debug_string()
       {
-        log_info("== debug gc factory info, gc buckets size: %d, gc areas size: %d ==",
+        log_info("== debug gc factory info, gc buckets size: %lu, gc areas size: %lu ==",
                  gc_buckets_.size(), gc_areas_.size());
         for (GC_MAP_CONST_ITER it = gc_buckets_.begin(); it != gc_buckets_.end(); ++it)
         {
@@ -723,7 +723,7 @@ namespace tair
             if (!empty())
             {
               int32_t size = GC_LOG_RECORD_SIZE * (gc_buckets_.size() + gc_areas_.size());
-              log_info("rotate gc log all record. buckets size: %d; areas size: %d, dumpbuffer size: %d",
+              log_info("rotate gc log all record. buckets size: %lu; areas size: %lu, dumpbuffer size: %d",
                        gc_buckets_.size(), gc_areas_.size(), size);
               char* buf = new char[size];
 

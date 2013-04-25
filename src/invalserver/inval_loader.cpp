@@ -199,7 +199,7 @@
             break;
           }
         }
-        log_info("KeepAlive group count: %d, total: %d", alive_count, tair_groups.size());
+        log_info("KeepAlive group count: %d, total: %lu", alive_count, tair_groups.size());
         TAIR_SLEEP(_stop, 5);
       }
     }
@@ -351,7 +351,7 @@
         }
         else
         {
-          log_info("cluster: %s, fetch group count: %d, success.", cluster_name.c_str(), ci.group_name_list.size());
+          log_info("cluster: %s, fetch group count: %lu, success.", cluster_name.c_str(), ci.group_name_list.size());
         }
       }
     }

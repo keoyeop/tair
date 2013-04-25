@@ -49,7 +49,7 @@ namespace leveldb {
     config::kUseMmapRandomAccess = src.kUseMmapRandomAccess;
     // we make kFilterBase <= block_size here, actually can >. see filter_block.cc;
     int base_lg = src.kFilterBaseLg;
-    while ((1 << base_lg) > src.block_size) {
+    while ((1 << base_lg) > (int)src.block_size) {
       --base_lg;
     }
     config::kFilterBaseLg = base_lg;

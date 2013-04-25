@@ -1226,7 +1226,7 @@
     void tair_manager::do_dump(set<dump_meta_info> dump_meta_infos)
     {
       return;// NOT_FIXED_ITEM_FUNC
-      log_debug("receive dump request, size: %d", dump_meta_infos.size());
+      log_debug("receive dump request, size: %lu", dump_meta_infos.size());
       if (dump_meta_infos.size() == 0) return;
 
       // cancal all previous task

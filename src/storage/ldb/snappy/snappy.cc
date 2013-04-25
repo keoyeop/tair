@@ -250,14 +250,14 @@ uint16* WorkingMemory::GetHashTable(size_t input_size, int* table_size) {
   // many hash table entries anyway.
   assert(kMaxHashTableSize >= 256);
   int htsize = 256;
-  while (htsize < kMaxHashTableSize && htsize < input_size) {
+  while (htsize < kMaxHashTableSize && htsize < (int)input_size) {
     htsize <<= 1;
   }
   CHECK_EQ(0, htsize & (htsize - 1)) << ": must be power of two";
   CHECK_LE(htsize, kMaxHashTableSize) << ": hash table too large";
 
   uint16* table;
-  if (htsize <= ARRAYSIZE(small_table_)) {
+  if (htsize <= (int)ARRAYSIZE(small_table_)) {
     table = small_table_;
   } else {
     if (large_table_ == NULL) {
@@ -301,10 +301,10 @@ char* CompressFragment(const char* input,
                        const int table_size) {
   // "ip" is the input pointer, and "op" is the output pointer.
   const char* ip = input;
-  CHECK_LE(input_size, kBlockSize);
+  CHECK_LE((int)input_size, kBlockSize);
   CHECK_EQ(table_size & (table_size - 1), 0) << ": table must be power of two";
   const int shift = 32 - Bits::Log2Floor(table_size);
-  DCHECK_EQ(kuint32max >> shift, table_size - 1);
+  DCHECK_EQ(kuint32max >> shift, (uint32_t)table_size - 1);
   const char* ip_end = input + input_size;
   const char* base_ip = ip;
   // Bytes in [next_emit, ip) will be emitted as literal bytes.  Or
@@ -312,7 +312,7 @@ char* CompressFragment(const char* input,
   const char* next_emit = ip;
 
   const int kInputMarginBytes = 15;
-  if (PREDICT_TRUE(input_size >= kInputMarginBytes)) {
+  if (PREDICT_TRUE((int)input_size >= kInputMarginBytes)) {
     const char* ip_limit = input + input_size - kInputMarginBytes;
 
     for (uint32 next_hash = Hash(++ip, shift); ; ) {
@@ -503,91 +503,91 @@ static const uint16 char_table[256] = {
 DEFINE_bool(snappy_dump_decompression_table, false,
             "If true, we print the decompression table at startup.");
 
-static uint16 MakeEntry(unsigned int extra,
-                        unsigned int len,
-                        unsigned int copy_offset) {
-  // Check that all of the fields fit within the allocated space
-  DCHECK_EQ(extra,       extra & 0x7);          // At most 3 bits
-  DCHECK_EQ(copy_offset, copy_offset & 0x7);    // At most 3 bits
-  DCHECK_EQ(len,         len & 0x7f);           // At most 7 bits
-  return len | (copy_offset << 8) | (extra << 11);
-}
+//static uint16 MakeEntry(unsigned int extra,
+//                        unsigned int len,
+//                        unsigned int copy_offset) {
+//  // Check that all of the fields fit within the allocated space
+//  DCHECK_EQ(extra,       extra & 0x7);          // At most 3 bits
+//  DCHECK_EQ(copy_offset, copy_offset & 0x7);    // At most 3 bits
+//  DCHECK_EQ(len,         len & 0x7f);           // At most 7 bits
+//  return len | (copy_offset << 8) | (extra << 11);
+//}
 
-static void ComputeTable() {
-  uint16 dst[256];
-
-  // Place invalid entries in all places to detect missing initialization
-  int assigned = 0;
-  for (int i = 0; i < 256; i++) {
-    dst[i] = 0xffff;
-  }
-
-  // Small LITERAL entries.  We store (len-1) in the top 6 bits.
-  for (unsigned int len = 1; len <= 60; len++) {
-    dst[LITERAL | ((len-1) << 2)] = MakeEntry(0, len, 0);
-    assigned++;
-  }
-
-  // Large LITERAL entries.  We use 60..63 in the high 6 bits to
-  // encode the number of bytes of length info that follow the opcode.
-  for (unsigned int extra_bytes = 1; extra_bytes <= 4; extra_bytes++) {
-    // We set the length field in the lookup table to 1 because extra
-    // bytes encode len-1.
-    dst[LITERAL | ((extra_bytes+59) << 2)] = MakeEntry(extra_bytes, 1, 0);
-    assigned++;
-  }
-
-  // COPY_1_BYTE_OFFSET.
-  //
-  // The tag byte in the compressed data stores len-4 in 3 bits, and
-  // offset/256 in 5 bits.  offset%256 is stored in the next byte.
-  //
-  // This format is used for length in range [4..11] and offset in
-  // range [0..2047]
-  for (unsigned int len = 4; len < 12; len++) {
-    for (unsigned int offset = 0; offset < 2048; offset += 256) {
-      dst[COPY_1_BYTE_OFFSET | ((len-4)<<2) | ((offset>>8)<<5)] =
-        MakeEntry(1, len, offset>>8);
-      assigned++;
-    }
-  }
-
-  // COPY_2_BYTE_OFFSET.
-  // Tag contains len-1 in top 6 bits, and offset in next two bytes.
-  for (unsigned int len = 1; len <= 64; len++) {
-    dst[COPY_2_BYTE_OFFSET | ((len-1)<<2)] = MakeEntry(2, len, 0);
-    assigned++;
-  }
-
-  // COPY_4_BYTE_OFFSET.
-  // Tag contents len-1 in top 6 bits, and offset in next four bytes.
-  for (unsigned int len = 1; len <= 64; len++) {
-    dst[COPY_4_BYTE_OFFSET | ((len-1)<<2)] = MakeEntry(4, len, 0);
-    assigned++;
-  }
-
-  // Check that each entry was initialized exactly once.
-  CHECK_EQ(assigned, 256);
-  for (int i = 0; i < 256; i++) {
-    CHECK_NE(dst[i], 0xffff);
-  }
-
-  if (FLAGS_snappy_dump_decompression_table) {
-    printf("static const uint16 char_table[256] = {\n  ");
-    for (int i = 0; i < 256; i++) {
-      printf("0x%04x%s",
-             dst[i],
-             ((i == 255) ? "\n" : (((i%8) == 7) ? ",\n  " : ", ")));
-    }
-    printf("};\n");
-  }
-
-  // Check that computed table matched recorded table
-  for (int i = 0; i < 256; i++) {
-    CHECK_EQ(dst[i], char_table[i]);
-  }
-}
-REGISTER_MODULE_INITIALIZER(snappy, ComputeTable());
+//static void ComputeTable() {
+//  uint16 dst[256];
+//
+//  // Place invalid entries in all places to detect missing initialization
+//  int assigned = 0;
+//  for (int i = 0; i < 256; i++) {
+//    dst[i] = 0xffff;
+//  }
+//
+//  // Small LITERAL entries.  We store (len-1) in the top 6 bits.
+//  for (unsigned int len = 1; len <= 60; len++) {
+//    dst[LITERAL | ((len-1) << 2)] = MakeEntry(0, len, 0);
+//    assigned++;
+//  }
+//
+//  // Large LITERAL entries.  We use 60..63 in the high 6 bits to
+//  // encode the number of bytes of length info that follow the opcode.
+//  for (unsigned int extra_bytes = 1; extra_bytes <= 4; extra_bytes++) {
+//    // We set the length field in the lookup table to 1 because extra
+//    // bytes encode len-1.
+//    dst[LITERAL | ((extra_bytes+59) << 2)] = MakeEntry(extra_bytes, 1, 0);
+//    assigned++;
+//  }
+//
+//  // COPY_1_BYTE_OFFSET.
+//  //
+//  // The tag byte in the compressed data stores len-4 in 3 bits, and
+//  // offset/256 in 5 bits.  offset%256 is stored in the next byte.
+//  //
+//  // This format is used for length in range [4..11] and offset in
+//  // range [0..2047]
+//  for (unsigned int len = 4; len < 12; len++) {
+//    for (unsigned int offset = 0; offset < 2048; offset += 256) {
+//      dst[COPY_1_BYTE_OFFSET | ((len-4)<<2) | ((offset>>8)<<5)] =
+//        MakeEntry(1, len, offset>>8);
+//      assigned++;
+//    }
+//  }
+//
+//  // COPY_2_BYTE_OFFSET.
+//  // Tag contains len-1 in top 6 bits, and offset in next two bytes.
+//  for (unsigned int len = 1; len <= 64; len++) {
+//    dst[COPY_2_BYTE_OFFSET | ((len-1)<<2)] = MakeEntry(2, len, 0);
+//    assigned++;
+//  }
+//
+//  // COPY_4_BYTE_OFFSET.
+//  // Tag contents len-1 in top 6 bits, and offset in next four bytes.
+//  for (unsigned int len = 1; len <= 64; len++) {
+//    dst[COPY_4_BYTE_OFFSET | ((len-1)<<2)] = MakeEntry(4, len, 0);
+//    assigned++;
+//  }
+//
+//  // Check that each entry was initialized exactly once.
+//  CHECK_EQ(assigned, 256);
+//  for (int i = 0; i < 256; i++) {
+//    CHECK_NE(dst[i], 0xffff);
+//  }
+//
+//  if (FLAGS_snappy_dump_decompression_table) {
+//    printf("static const uint16 char_table[256] = {\n  ");
+//    for (int i = 0; i < 256; i++) {
+//      printf("0x%04x%s",
+//             dst[i],
+//             ((i == 255) ? "\n" : (((i%8) == 7) ? ",\n  " : ", ")));
+//    }
+//    printf("};\n");
+//  }
+//
+//  // Check that computed table matched recorded table
+//  for (int i = 0; i < 256; i++) {
+//    CHECK_EQ(dst[i], char_table[i]);
+//  }
+//}
+//REGISTER_MODULE_INITIALIZER(snappy, ComputeTable());
 #endif /* !NDEBUG */
 
 // Helper class for decompression
@@ -815,7 +815,7 @@ size_t Compress(Source* reader, Sink* writer) {
     size_t bytes_read = fragment_size;
 
     int pending_advance = 0;
-    if (bytes_read >= num_to_read) {
+    if (bytes_read >= (size_t)num_to_read) {
       // Buffer returned by reader is large enough
       pending_advance = num_to_read;
       fragment_size = num_to_read;
@@ -830,18 +830,18 @@ size_t Compress(Source* reader, Sink* writer) {
       memcpy(scratch, fragment, bytes_read);
       reader->Skip(bytes_read);
 
-      while (bytes_read < num_to_read) {
+      while (bytes_read < (size_t)num_to_read) {
         fragment = reader->Peek(&fragment_size);
         size_t n = min<size_t>(fragment_size, num_to_read - bytes_read);
         memcpy(scratch + bytes_read, fragment, n);
         bytes_read += n;
         reader->Skip(n);
       }
-      DCHECK_EQ(bytes_read, num_to_read);
+      DCHECK_EQ(bytes_read, (size_t)num_to_read);
       fragment = scratch;
       fragment_size = num_to_read;
     }
-    DCHECK_EQ(fragment_size, num_to_read);
+    DCHECK_EQ(fragment_size, (size_t)num_to_read);
 
     // Get encoding table for compression
     int table_size;
@@ -910,7 +910,7 @@ class SnappyArrayWriter {
       UNALIGNED_STORE64(op, UNALIGNED_LOAD64(ip));
       UNALIGNED_STORE64(op + 8, UNALIGNED_LOAD64(ip + 8));
     } else {
-      if (space_left < len) {
+      if ((uint32)space_left < len) {
         return false;
       }
       memcpy(op, ip, len);
@@ -931,10 +931,10 @@ class SnappyArrayWriter {
       UNALIGNED_STORE64(op, UNALIGNED_LOAD64(op - offset));
       UNALIGNED_STORE64(op + 8, UNALIGNED_LOAD64(op - offset + 8));
     } else {
-      if (space_left >= len + kMaxIncrementCopyOverflow) {
+      if ((uint32)space_left >= len + kMaxIncrementCopyOverflow) {
         IncrementalCopyFastPath(op - offset, op, len);
       } else {
-        if (space_left < len) {
+        if ((uint32)space_left < len) {
           return false;
         }
         IncrementalCopy(op - offset, op, len);

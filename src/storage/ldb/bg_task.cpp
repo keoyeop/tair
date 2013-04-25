@@ -169,7 +169,7 @@ namespace tair
             uint64_t limit_filenumber = std::max(round_largest_filenumber_, gc_node.file_number_);
 
             DUMP_GCNODE(warn, gc_node,
-                        "[%d] gc type: %d, count: %d, start time: %s, limit filenumber: %"PRI64_PREFIX"u",
+                        "[%d] gc type: %d, count: %lu, start time: %s, limit filenumber: %"PRI64_PREFIX"u",
                         db_->index(), gc_type, gc_scan_keys.size(),
                         tair::util::time_util::time_to_str(start_time).c_str(), limit_filenumber);
 
@@ -192,7 +192,7 @@ namespace tair
 
             if (i >= gc_scan_keys.size()) // all is ok
             {
-              DUMP_GCNODE(warn, gc_node, "[%d] gc success. type: %d, cost: %u",
+              DUMP_GCNODE(warn, gc_node, "[%d] gc success. type: %d, cost: %lu",
                           db_->index(), gc_type, (time(NULL) - start_time));
               db_->gc_factory()->remove(gc_node, gc_type);
               // // may can evict some

@@ -242,7 +242,7 @@ namespace tair {
 
         //ok,we will delete one mdb_item
         mdb_item *item = id_to_item((*it)->this_item_list[area].item_tail);
-        if (exceed_bytes >= (item->key_len + item->data_len)) {
+        if (exceed_bytes >= (uint64_t)(item->key_len + item->data_len)) {
           exceed_bytes -= (item->key_len + item->data_len);
         } else {
           exceed_bytes = 0;
@@ -270,7 +270,7 @@ namespace tair {
 
   void mem_cache::display_statics()
   {
-    TBSYS_LOG(WARN, "total slab : %u", slab_managers.size());
+    TBSYS_LOG(WARN, "total slab : %lu", slab_managers.size());
 
     for(vector<slab_manager *>::iterator it = slab_managers.begin();
         it != slab_managers.end(); ++it) {
@@ -516,7 +516,7 @@ namespace tair {
     {
       if (PAGE_ID((info->free_head)) != info->id)
       {
-        TBSYS_LOG(ERROR,"the page id of free_head [%d] != info->id [%d]",PAGE_ID(info->free_head),info->id);
+        TBSYS_LOG(ERROR,"the page id of free_head [%ld] != info->id [%u]",PAGE_ID(info->free_head),info->id);
       }
     }
     return item;
@@ -656,7 +656,7 @@ namespace tair {
     item->next = 0;
 
     TBSYS_LOG(DEBUG,
-              "id:%lu before free:page id:%d,%p,info->free_nr:%d,info->free_head:%lu,SLAB_ID(id):%d,",
+              "id:%lu before free:page id:%u,%p,info->free_nr:%d,info->free_head:%lu,SLAB_ID(id):%lu,",
               item->item_id,info->id,info, info->free_nr, info->free_head, SLAB_ID(item->item_id));
 
     item->h_next = info->free_head;
@@ -680,7 +680,7 @@ namespace tair {
       link_partial_page(info);
     }
 
-    TBSYS_LOG(DEBUG, "after free:page id:%d,%p,info->free_nr:%d,info->free_head:%lu,SLAB_ID(id):%d,info->free_head->next : %lu",
+    TBSYS_LOG(DEBUG, "after free:page id:%u,%p,info->free_nr:%d,info->free_head:%lu,SLAB_ID(id):%lu,info->free_head->next : %lu",
         info->id,info,info->free_nr,info->free_head,SLAB_ID(item->item_id),item->h_next);
   }
 

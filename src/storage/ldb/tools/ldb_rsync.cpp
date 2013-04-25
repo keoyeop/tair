@@ -248,7 +248,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
 
             if (total_size > MAX_BATCH_SIZE)
             {
-              log_debug("@@ size %d %d", kvs.size(), total_size);
+              log_debug("@@ size %lu %d", kvs.size(), total_size);
               if (g_wait_ms > 0)
               {
                 ::usleep(g_wait_ms * 1000);
@@ -311,7 +311,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
       // last packet
       if (!kvs.empty())
       {
-        log_debug("@@ size %d %d", kvs.size(), total_size);
+        log_debug("@@ size %lu %d", kvs.size(), total_size);
         ret = remote_handler->client()->direct_update(ds_ids, &kvs);
         if (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_TIMEOUT)
         {
@@ -326,7 +326,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
         total_size = 0;
       }
 
-      log_warn("sync bucket %d over, cost: %d(s), stat:\n",
+      log_warn("sync bucket %d over, cost: %lu(s), stat:\n",
                bucket, time(NULL) - start_time);
       // only dump bucket stat
       stat.dump(bucket, -1);
@@ -482,7 +482,7 @@ int main(int argc, char* argv[])
     uint32_t start_time = time(NULL);
     ret = do_rsync(db_path, manifest_file, bucket_container, local_handler, remote_handler, mtime_care, filter, stat, fail_logger);
 
-    log_warn("rsync data over, stopped: %s, cost: %u(s), stat:", g_stop ? "yes" : "no", time(NULL) - start_time);
+    log_warn("rsync data over, stopped: %s, cost: %lu(s), stat:", g_stop ? "yes" : "no", time(NULL) - start_time);
     stat.dump_all();
   }
 

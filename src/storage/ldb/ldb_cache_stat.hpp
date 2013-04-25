@@ -23,14 +23,20 @@
 #include "storage/mdb/mdb_stat.hpp"
 #include <climits>
 
+//class tair::common::FileOperation;
+
 namespace tair
 {
+  namespace common
+  {
+    class FileOperation;
+  };
+
   namespace storage
   {
     namespace ldb
     {
       typedef tair::mdb_area_stat cache_stat;
-      class tair::common::FileOperation;
 
 #define SET_LDB_STAT_BLOOM_GET_COUNT(stat, get_count) (stat)->space_usage |= static_cast<uint64_t>(get_count) << 38
 #define SET_LDB_STAT_BLOOM_MISS_COUNT(stat, miss_count) (stat)->quota |= static_cast<uint64_t>(miss_count) << 38

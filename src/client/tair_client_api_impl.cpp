@@ -896,7 +896,7 @@ FAIL:
       uint32_t ser_idx = server_select;
       if (server_list.size() <= ser_idx)
       {
-        TBSYS_LOG(DEBUG, "select:%d not in server_list,size %d",server_select, server_list.size());
+        TBSYS_LOG(DEBUG, "select:%d not in server_list,size %lu",server_select, server_list.size());
         ser_idx = 0;
       }
       request_get *packet = NULL;
@@ -1976,7 +1976,7 @@ FAIL:
       ++send_success;
     }
 
-    TBSYS_LOG(DEBUG,"mdelete keys size: %d, send success: %u, return packet size: %u",
+    TBSYS_LOG(DEBUG,"mdelete keys size: %lu, send success: %d, return packet size: %lu",
         keys.size(), send_success, tpk.size());
     if (keys.size() != send_success)
     {
@@ -2544,7 +2544,7 @@ FAIL:
           if (buffer != NULL) {
             int unret = uncompress((unsigned char*)buffer, &uncompressed_data_size,
                 (unsigned char*)resp->stat_value->get_data(),resp->stat_value->get_size());
-            log_info("uncompressed_data (%d => %d)", resp->stat_value->get_size(), uncompressed_data_size);
+            log_info("uncompressed_data (%d => %lu)", resp->stat_value->get_size(), uncompressed_data_size);
             if (unret == Z_OK) {
               group_count =  (int)resp->group_count; //safe
               buffer_size = uncompressed_data_size;
@@ -2587,7 +2587,7 @@ FAIL:
     }
     if (std::find(invalid_server_list.begin(), invalid_server_list.end(),
           invalid_server_id) == invalid_server_list.end()) {
-      log_error("the invalid server: %d is not in the list.", invalid_server_id);
+      log_error("the invalid server: %"PRI64_PREFIX"u is not in the list.", invalid_server_id);
       return TAIR_RETURN_FAILED;
     }
     wait_object *cwo = this_wait_object_manager->create_wait_object();
@@ -2613,7 +2613,7 @@ FAIL:
       ret = resolve_packet(packet, server_id, data, data_size, group_count);
     }
     if (ret == TAIR_RETURN_SUCCESS) {
-      log_info("buffer: %s, size: %d",(data == NULL ? "empty" : "ok") , data_size);
+      log_info("buffer: %s, size: %lu",(data == NULL ? "empty" : "ok") , data_size);
       stat = new inval_stat_data_t();
       stat->group_count = group_count;
       stat->stat_data = data;
@@ -3008,7 +3008,7 @@ FAIL:
     }
 
     int config_server_index = 0;
-    uint32_t old_config_version = 0;
+    //uint32_t old_config_version = 0;
     // int loopCount = 0;
 
     while (!is_stop) {
@@ -3025,7 +3025,7 @@ FAIL:
       //    if (new_config_version == old_config_version && (loopCount % 30) != 0) {
       //        continue;
       //    }
-      old_config_version = new_config_version;
+      // old_config_version = new_config_version;
 
       config_server_index ++;
       config_server_index %= config_server_list.size();
@@ -3095,7 +3095,7 @@ FAIL:
     }
 
     resp = (response_get_migrate_machine *)tpacket;
-    log_debug("resp->_vec_ms = %d", resp->vec_ms.size());
+    log_debug("resp->_vec_ms = %lu", resp->vec_ms.size());
     result = resp->vec_ms;
 
     this_wait_object_manager->destroy_wait_object(cwo);
@@ -3172,23 +3172,23 @@ FAIL:
     struct timeval tm_beg;
     struct timeval tm_end;
     gettimeofday(&tm_beg, NULL);
-    bool ret = true;
+//    bool ret = true;
     do {
       if (send_request(server_id, req, cwo->get_id()) != 0) {
         log_error("send ping packet failed.");
-        ret = false;
+//        ret = false;
         delete req;
         break;
       }
 
       if (get_response(cwo, 1, bp) != 0) {
         log_error("get ping packet timeout.");
-        ret = false;
+//        ret = false;
         break;
       }
       if (bp == NULL || bp->getPCode() != TAIR_RESP_RETURN_PACKET) {
         log_error("got bad packet.");
-        ret = false;
+//        ret = false;
         break;
       }
     } while (false);
@@ -3400,8 +3400,9 @@ FAIL:
 
     this_wait_object_manager->destroy_wait_object(cwo);
 
-    thread.start(this, (void *)heart_type);
-    response_thread.start(this, (void *)response_type);
+//    thread.start(this, (void *)heart_type);
+    thread.start(this, reinterpret_cast<void *>(heart_type));
+    response_thread.start(this, reinterpret_cast<void *>(response_type));
 
     return true;
 OUT:

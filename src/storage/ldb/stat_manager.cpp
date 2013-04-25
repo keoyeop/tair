@@ -59,7 +59,7 @@ namespace tair {
           msync(stat_info, DBSTATINFO_SIZE, MS_SYNC);
           munmap(stat_info, DBSTATINFO_SIZE);
           stat_info = NULL;
-          log_debug("mmap unmapped, size is: [%d]", DBSTATINFO_SIZE);
+          log_debug("mmap unmapped, size is: [%lu]", DBSTATINFO_SIZE);
         }
         if(fd < 0) {
           log_info("file [%s] not opened, need not close", file_name);

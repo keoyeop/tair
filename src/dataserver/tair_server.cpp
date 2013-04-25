@@ -488,11 +488,11 @@ namespace tair {
           ctrl_packet->set_status(status);
           ctrl_packet->set_ns(stat.ns);
           ctrl_packet->setChannelId(-1);
-          int size = ctrl_packet->size();
+//          int size = ctrl_packet->size();
           if (conn->postPacket(ctrl_packet) == false)
           {
             delete ctrl_packet;
-            size = 0;
+//            size = 0;
           }
           // don't addup flow control. flow_ctrl->AddUp(0, 0, 0);
         }

@@ -98,11 +98,11 @@ Flowrate FlowControllerImpl::GetFlowrate(int ns)
   ASSERTNS(ns);
   AreaFlow &flow = flows_[ns];
   Flowrate rate = {
-                     atomic_read(&flow.in.last_per_second), 
+                     (uint32_t)atomic_read(&flow.in.last_per_second), 
                      flow.in.status,
-                     atomic_read(&flow.out.last_per_second), 
+                     (uint32_t)atomic_read(&flow.out.last_per_second), 
                      flow.out.status,
-                     atomic_read(&flow.ops.last_per_second),
+                     (uint32_t)atomic_read(&flow.ops.last_per_second),
                      flow.ops.status,
                      flow.status
                   };
@@ -202,20 +202,20 @@ void FlowControllerImpl::BackgroundCalFlows()
       AreaFlow &flow  = flows_[ns];
       FlowStatus status_in = CalCurrentFlow(flow.in);
       if (status_in != DOWN)
-        log_info("Flow IN Limit: ns %d %s", ns, FlowStatusStr(status_in));
+        log_info("Flow IN Limit: ns %lu %s", ns, FlowStatusStr(status_in));
       FlowStatus status_out = CalCurrentFlow(flow.out);
       if (status_out != DOWN)
-        log_info("Flow OUT Limit: ns %d %s", ns, FlowStatusStr(status_out));
+        log_info("Flow OUT Limit: ns %lu %s", ns, FlowStatusStr(status_out));
       FlowStatus status_ops = CalCurrentFlow(flow.ops);
       if (status_ops != DOWN)
-        log_info("Flow OPS Limit: ns %d %s", ns, FlowStatusStr(status_ops));
+        log_info("Flow OPS Limit: ns %lu %s", ns, FlowStatusStr(status_ops));
 
       if (TBSYS_LOGGER._level >= TBSYS_LOG_LEVEL_DEBUG && 
           (atomic_read(&flow.in.last_per_second) != 0 ||
           atomic_read(&flow.out.last_per_second) != 0 ||
           atomic_read(&flow.ops.last_per_second) != 0))
       {
-        log_debug("Flow rate: ns %d; in %d %s; out %d %s; ops %d %s",
+        log_debug("Flow rate: ns %lu; in %d %s; out %d %s; ops %d %s",
             ns,
             atomic_read(&flow.in.last_per_second), FlowStatusStr(status_in),
             atomic_read(&flow.out.last_per_second), FlowStatusStr(status_out),
