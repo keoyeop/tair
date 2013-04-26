@@ -132,9 +132,9 @@ namespace tair {
 
       writer = new log_writer(this, tail_lsn);
 
-      lsn_type last_lsn = get_hlsn();
-      lsn_type real_lsn = tail_lsn > last_lsn ? last_lsn : tail_lsn;
-      real_lsn = 0;
+//      lsn_type last_lsn = get_hlsn();
+//      lsn_type real_lsn = tail_lsn > last_lsn ? last_lsn : tail_lsn;
+//      real_lsn = 0;
    }
 
    void update_log::log(sn_operation_type operation_type, data_entry &key, data_entry &value, uint16_t db_id)
@@ -185,7 +185,7 @@ namespace tair {
                return INVALID_LSN;
             if (restart_lsn != 0 && file_manager->find_log_file(restart_lsn - 1))
                break;
-            log_error("can not find lsn:llu%", restart_lsn);
+            log_error("can not find lsn: %"PRI64_PREFIX"u", restart_lsn);
          }
          restart_lsn = file->full() ? file->get_end_lsn() : max(restart_lsn, file->get_tail_hint());
       }while(file->full());
@@ -209,7 +209,7 @@ namespace tair {
          uint32_t offset = tail_lsn - start_lsn + LOG_PAGE_HDR_SIZE;
          uint32_t read_len = file->read(buff, LOG_READ_BUFF_SIZE, offset);
          lsn_type next_lsn = tail_lsn;
-         lsn_type temp_lsn = 0;
+//         lsn_type temp_lsn = 0;
          uint32_t buf_offset  = 0;
 
          while(offset + buf_offset < size ){
@@ -223,7 +223,7 @@ namespace tair {
                uint32_t total_size = LOG_RECORD_HDR_TSIZE + key_size + val_size;
                if (total_size <= read_len - buf_offset) {
                   buf_offset += total_size;
-                  temp_lsn = next_lsn;
+//                  temp_lsn = next_lsn;
                   next_lsn = next_lsn + total_size;
                } else {
                   offset += buf_offset;
@@ -358,10 +358,10 @@ namespace tair {
          //lfm->createNewFile(MIN_LSN);
          return lfm;
       }
-      bool is_file_exist = false;
+//      bool is_file_exist = false;
       for (uint32_t i = 0; i < current_log_file_number; ++i) {
          if (access(lfm->make_file_name(i).c_str(), 0) == 0){
-            is_file_exist = true;
+//            is_file_exist = true;
          } else {
             log_error("log file %d not exist", i);
          }
@@ -411,7 +411,7 @@ namespace tair {
 
    log_file* log_file_manager::create_new_file(lsn_type start_lsn)
    {
-      log_debug("create log file timestamp: %llu", start_lsn);
+      log_debug("create log file timestamp: %"PRI64_PREFIX"u", start_lsn);
       mutex.lock();
       size_t file_num = log_files.size();
       std::string  file_name = make_file_name((uint32_t)file_num);
@@ -487,7 +487,7 @@ namespace tair {
    //reuse log file
    void log_file::reset(lsn_type startLsn)
   {
-      log_debug("reset log file startLsn: %llu", startLsn);
+      log_debug("reset log file startLsn: %"PRI64_PREFIX"u", startLsn);
       set_start_lsn(startLsn);
       set_end_lsn(startLsn  + FILE_PAYLOAD);
       set_tail_hint(startLsn);

@@ -60,9 +60,9 @@ namespace tair {
       this->bucket_count = bucket_count;
       assert((size % get_hash_table_size()) == 0);
 #ifdef TAIR_DEBUG
-      log_debug("list a new table size = %d ", size);
+      log_debug("list a new table size = %lu ", size);
       for (size_t i = 0; i < size; ++i) {
-         log_debug("serverTable[%d] = %s", i, tbsys::CNetUtil::addrToString(new_table[i]).c_str() );
+         log_debug("serverTable[%lu] = %s", i, tbsys::CNetUtil::addrToString(new_table[i]).c_str() );
       }
 #endif
 
@@ -88,7 +88,7 @@ namespace tair {
       for (size_t i=0; i<get_hash_table_size(); i++) {
          available_server_ids.insert(new_table[i]);
          if (new_table[i] == local_server_ip::ip) {
-            log_debug("take bucket: %d", (i%this->bucket_count));
+            log_debug("take bucket: %lu", (i%this->bucket_count));
             temp_holding_buckets.push_back(i % this->bucket_count);
 
             if (i < this->bucket_count && size > get_hash_table_size()) {
@@ -98,7 +98,7 @@ namespace tair {
          }
       }
 #ifdef TAIR_DEBUG
-      log_debug("caculate migrate ok size = %d", migrates.size());
+      log_debug("caculate migrate ok size = %lu", migrates.size());
       bucket_server_map_it it = migrates.begin();
       for (; it != migrates.end() ; ++it) {
          for(vector<uint64_t>::iterator it2 = it->second.begin(); it2 != it->second.end(); it2++) {
@@ -140,11 +140,11 @@ namespace tair {
        return;
      }
 
-     for (int i = 0; i < bucket_count; i++) {
+     for (int i = 0; i < (int)bucket_count; i++) {
         if ((tmp_table[i] == local_server_ip::ip) && (server_table[i] != local_server_ip::ip)) {
           tair::common::CScopedRwLock __scoped_lock(&m_mutex, true);
           log_error("change table of bucket %d", i);
-          for (int j = 0; j < copy_count; j++) {
+          for (int j = 0; j < (int)copy_count; j++) {
             server_table[i + j * bucket_count] = tmp_table[i + j * bucket_count];
           }
         }
@@ -251,7 +251,7 @@ namespace tair {
          }
          if (has_migrated) {
             migrate_done_set.set(bucket_number, true);
-            log_debug("bucket[%d] has migrated");
+            log_debug("bucket[%d] has migrated", bucket_number);
          }
       }
    }

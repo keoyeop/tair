@@ -425,7 +425,7 @@ namespace tair {
          int size = result->size();
          resp->set_key_count(size);
          if (size == 0){
-            log_info("no data return from get_range rc:%d, key", rc, request->key_start.get_data()+4);
+            log_info("no data return from get_range rc:%d, key: %s", rc, request->key_start.get_data()+4);
          } else {
             resp->set_key_data_vector(result);
          }
@@ -454,7 +454,7 @@ namespace tair {
 
       if (request->key_list != NULL) {
 
-         log_info("bo batch remove,area=%d,size=%d",request->area,request->key_list->size());
+         log_info("bo batch remove,area=%u, size=%lu",request->area,request->key_list->size());
          return tair_mgr->batch_remove(request->area,request->key_list,request,heart_beat->get_client_version());
 
       } else if (request->key != NULL) {
@@ -499,7 +499,7 @@ namespace tair {
 
       int rc = 0;
       if (request->record_vec != NULL) {
-         log_debug("batch put, area: %d, size: %d", request->area, request->record_vec->size());
+         log_debug("batch put, area: %u, size: %lu", request->area, request->record_vec->size());
          rc = tair_mgr->batch_put(request->area, request->record_vec, request, heart_beat->get_client_version());
       }
       send_return = request->server_flag != TAIR_SERVERFLAG_DUPLICATE ?

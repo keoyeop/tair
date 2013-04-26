@@ -97,7 +97,7 @@ namespace tair {
          do_run();
          after = tbsys::CTimeUtil::getTime();
          uint64_t interval = after - before;
-         log_debug("this migrate consume time:%llu", interval);
+         log_debug("this migrate consume time:%"PRI64_PREFIX"u", interval);
          {
             tbsys::CThreadGuard guard(&mutex);
             is_running = 0;
@@ -356,7 +356,7 @@ namespace tair {
       delete packet;
       packet = NULL;
       storage_mgr->end_scan(info);
-      log_warn("migrate bucket db data end. total count: %d, all_done: %d, send suc: %d", total_count, !have_item, flag);
+      log_warn("migrate bucket db data end. total count: %"PRI64_PREFIX"d, all_done: %d, send suc: %d", total_count, !have_item, flag);
       return flag;
    }
 
@@ -379,7 +379,7 @@ namespace tair {
          // get prefix size here
          key.set_prefix_size(key.data_meta.prefixsize);
          key.has_merged = true;
-         log_debug("logis:%S", key.get_data());
+         log_debug("key data: %s", key.get_data());
          data_entry value;
          if (log_entry->operation_type == (uint8_t)SN_PUT) {
             // skip embedded cache when migrating
@@ -464,7 +464,7 @@ namespace tair {
          uint64_t server_id = *it;
          request_migrate_finish *temp_packet = new request_migrate_finish(packet);
          if (conn_mgr->sendPacket(server_id, temp_packet, NULL, (void*)((long)cwo->get_id())) == false) {
-            log_error("Send Migratefinishpacket:%d to CS %S failure.", bucket_number, tbsys::CNetUtil::addrToString(server_id).c_str());
+            log_error("Send Migratefinishpacket:%d to CS %s failure.", bucket_number, tbsys::CNetUtil::addrToString(server_id).c_str());
             delete temp_packet;
             --i;
          }

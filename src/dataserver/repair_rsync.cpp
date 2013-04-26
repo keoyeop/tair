@@ -274,7 +274,7 @@ int do_repair_rsync(ClusterHandler& local_handler, RecordLogger* logger, RecordL
     delete it->second;
   }
 
-  log_warn("repair over. stopped: %s, total count: %ld, fail count: %ld, cost: %d(s)",
+  log_warn("repair over. stopped: %s, total count: %ld, fail count: %ld, cost: %lu(s)",
            g_stop ? "yes" : "no", count, fail_count, time(NULL) - start_time);
 
   return fail_count > 0 ? TAIR_RETURN_FAILED : TAIR_RETURN_SUCCESS;

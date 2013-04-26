@@ -35,10 +35,14 @@ namespace std {
 #include "common/tair_atomic.hpp"
 #include "client/tair_client_api_impl.hpp"
 
-class tair::common::RecordLogger;
+//class tair::common::RecordLogger;
 
 namespace tair
 {
+  namespace common
+  {
+	  class RecordLogger;
+  };
   class tair_client_impl;
   class tair_manager;
   class ClusterHandler;
