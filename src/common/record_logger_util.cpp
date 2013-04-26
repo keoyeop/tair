@@ -116,7 +116,7 @@ namespace tair
           // skip index
           base_ += HEADER_SIZE;
 
-          log_warn("init ring buffer record logger success, base_: %lx, w_offset: %"PRI64_PREFIX"d, r_offset: %"PRI64_PREFIX"d, reverse: %d",
+          log_warn("init ring buffer record logger success, base_: %p, w_offset: %"PRI64_PREFIX"d, r_offset: %"PRI64_PREFIX"d, reverse: %d",
                    base_, *w_offset_, *r_offset_, *reverse_);
         }
       }
@@ -148,7 +148,7 @@ namespace tair
       }
       else
       {
-        log_debug("@@ %lx pos: %lx %d %ld %ld", base_, mem_pos, total_size, *w_offset_, *r_offset_);
+        log_debug("@@ %p pos: %p %d %ld %ld", base_, mem_pos, total_size, *w_offset_, *r_offset_);
         memcpy(mem_pos, buf, total_size);
         *w_offset_ = mem_pos - base_ + total_size;
       }
@@ -189,12 +189,12 @@ namespace tair
         }
 
         pos += RecordLogger::common_decode_record(pos, type, key, value);
-        log_debug("@@ found %lx", pos);
+        log_debug("@@ found %lx", (long unsigned int)pos);
         *r_offset_ = pos - base_;
         break;
       }
 
-      log_debug("@@ ge %ld %ld %d %lx", *w_offset_, *r_offset_, type, key);
+      log_debug("@@ ge %ld %ld %d %lx", *w_offset_, *r_offset_, type, (long unsigned int)key);
       return ret;
     }
 
@@ -244,7 +244,7 @@ namespace tair
       // SKIP_TYPE
       skip[sizeof(int32_t)] = static_cast<char>(LOGGER_SKIP_TYPE);
       memcpy(pos, skip, sizeof(skip));
-      log_debug("@@ fill tailer, %lx, %d", pos, size);
+      log_debug("@@ fill tailer, %lx, %d", (long unsigned int)pos, size);
     }
 
     bool RingBufferRecordLogger::is_skip_tailer(const char* pos)
@@ -350,7 +350,7 @@ namespace tair
         int64_t w_size = file_->pwrite_file(buf, total_size, w_offset_);
         if (w_size != total_size)
         {
-          log_error("write data fail, offset: %"PRI64_PREFIX"d, size: %"PRI64_PREFIX"d", w_offset_, total_size);
+          log_error("write data fail, offset: %"PRI64_PREFIX"d, size: %d", w_offset_, total_size);
         }
         else
         {

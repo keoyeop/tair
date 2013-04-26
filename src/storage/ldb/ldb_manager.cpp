@@ -830,7 +830,7 @@ namespace tair
         {
           PROFILER_BEGIN("db_instance get_range");
           rc = db_instance->get_range(bucket_number, key_start, key_end, offset, limit, type, result, has_next);
-          log_debug("after get_range key_count:%d", result.size());
+          log_debug("after get_range key_count:%lu", result.size());
           PROFILER_END();
         }
         return rc;
@@ -883,7 +883,7 @@ namespace tair
 
       bool LdbManager::init_buckets(const std::vector<int>& buckets)
       {
-        log_warn("ldb::init buckets: %d", buckets.size());
+        log_warn("ldb::init buckets: %lu", buckets.size());
         tbsys::CThreadGuard guard(&lock_);
         bool ret = false;
 
@@ -904,7 +904,7 @@ namespace tair
 
           for (int32_t i = 0; i < db_count_; ++i)
           {
-            log_warn("instance %d own %d buckets.", i, index_map[i].size());
+            log_warn("instance %d own %lu buckets.", i, index_map[i].size());
             ret = ldb_instance_[i]->init_buckets(index_map[i]);
             if (!ret)
             {
@@ -919,7 +919,7 @@ namespace tair
 
       void LdbManager::close_buckets(const std::vector<int>& buckets)
       {
-        log_warn("ldb::close buckets: %d", buckets.size());
+        log_warn("ldb::close buckets: %lu", buckets.size());
         tbsys::CThreadGuard guard(&lock_);
         if (1 == db_count_)
         {
@@ -1000,7 +1000,7 @@ namespace tair
             ::usleep(migrate_wait_us_);
           }
           ret = scan_ldb_->get_next_items(list);
-          log_debug("get items %d", list.size());
+          log_debug("get items %lu", list.size());
         }
         return ret;
       }
@@ -1083,7 +1083,7 @@ namespace tair
           {
             if (params.size() < 2)
             {
-              log_error("set config but invalid params size: %d", params.size());
+              log_error("set config but invalid params size: %lu", params.size());
               ret = TAIR_RETURN_FAILED;
             }
             else if (params[0] == TAIR_PROFILER_THRESHOLD)
@@ -1250,7 +1250,7 @@ namespace tair
         {
           new_ldb_instance[i] = new LdbInstance(i, db_version_care,
                                                 new_cache != NULL ? new_cache[i % cache_count_] : NULL);
-          log_debug("reinit instance %d own %d buckets.", i, tmp_buckets[i].size());
+          log_debug("reinit instance %d own %lu buckets.", i, tmp_buckets[i].size());
           if (!new_ldb_instance[i]->init_buckets(tmp_buckets[i]))
           {
             log_error("resetdb reinit db fail. instance: %d", i);

@@ -145,12 +145,12 @@ namespace tair {
           PROFILER_BEGIN("new item");
           item_manager->new_item(item);
           PROFILER_END();
-          log_debug("this is a new item, meta_offset: %llu",
+          log_debug("this is a new item, meta_offset: %u",
                     item.meta_offset);
         }
 
         psize += (item.meta.size - total_size);        // when use freeblock, we need recalc padsize
-        log_debug("new padsize: %d, new size: %d, total size: %d", psize,
+        log_debug("new padsize: %d, new size: %"PRI64_PREFIX"d, total size: %d", psize,
                   item.meta.size, total_size);
 
         item.data.keysize = key.get_size();

@@ -120,7 +120,7 @@ namespace tair {
         if (handler->get_instance()->get_hook_point() & HOOK_POINT_REQUEST) {
           map<int, plugin_handler*>::iterator it_ph = root->request_plugins.find(property);
           if (it_ph != root->request_plugins.end()) {
-            log_error("have same property in request %s %s",
+            log_error("have same property in request %s",
                 it_ph->second->get_dll_name().c_str());
             delete handler;
             return false;
@@ -130,7 +130,7 @@ namespace tair {
         if (handler->get_instance()->get_hook_point() & HOOK_POINT_RESPONSE) {
           map<int, plugin_handler*>::iterator it_ph = root->response_plugins.find(property);
           if (it_ph != root->response_plugins.end()) {
-            log_error("have same property in response %s %s",
+            log_error("have same property in response %s",
                 it_ph->second->get_dll_name().c_str());
             delete handler;
             return false;

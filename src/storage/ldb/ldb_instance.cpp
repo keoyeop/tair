@@ -119,7 +119,7 @@ namespace tair
             {
               sanitize_option();
 
-              log_warn("init ldb %d: table_cache_size: %lu, write_buffer: %d, use_bloomfilter: %s, use_mmap: %s",
+              log_warn("init ldb %d: table_cache_size: %lu, write_buffer: %lu, use_bloomfilter: %s, use_mmap: %s",
                        index_, options_.table_cache_size, options_.write_buffer_size,
                        options_.filter_policy != NULL ? "yes" : "no",
                        options_.kUseMmapRandomAccess ? "yes" : "no");
@@ -872,7 +872,7 @@ namespace tair
         }
 
         int ret = TAIR_RETURN_SUCCESS;
-        log_warn("op cmd %d, param size: %d", cmd, params.size());
+        log_warn("op cmd %d, param size: %lu", cmd, params.size());
 
         switch (cmd) {
         case TAIR_SERVER_CMD_FLUSH_MMT:
@@ -1012,7 +1012,7 @@ namespace tair
               value_size = ldb_item.value_size();
               if (key_size >= TAIR_MAX_KEY_SIZE_WITH_AREA || key_size < 1 || value_size >= TAIR_MAX_DATA_SIZE || value_size < 1)
               {
-                log_error("kv size invalid: k: %d, v: %d [%d %d] [%x %x %s]", key_size, value_size, scan_it_->key().size(), scan_it_->value().size(), *(ldb_key.key()), *(ldb_key.key()+1), ldb_key.key() + 2);
+                log_error("kv size invalid: k: %d, v: %d [%lu %lu] [%x %x %s]", key_size, value_size, scan_it_->key().size(), scan_it_->value().size(), *(ldb_key.key()), *(ldb_key.key()+1), ldb_key.key() + 2);
                 ::sleep(2);
               }
               total_size = ITEM_HEADER_LEN + key_size + value_size;
@@ -1041,7 +1041,7 @@ namespace tair
               break;
             }
           }
-          log_debug("migrate count: %d, size: %d", list.size(), batch_size);
+          log_debug("migrate count: %lu, size: %d", list.size(), batch_size);
           if (list.empty())
           {
             still_have_ = false;
@@ -1121,7 +1121,7 @@ namespace tair
         int ret = TAIR_RETURN_SUCCESS;
         if (params.size() < 2)
         {
-          log_error("set config but invalid params size: %d", params.size());
+          log_error("set config but invalid params size: %lu", params.size());
           ret = TAIR_RETURN_FAILED;
         }
         // leveldb::config is global static actually

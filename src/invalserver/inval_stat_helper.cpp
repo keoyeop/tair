@@ -92,7 +92,7 @@ namespace tair {
     last_update_time = now;
     interval /= 1000000; // conver to second
     if (interval == 0) interval = 1;
-    log_info("inval server start calculate ratio, interval: %d", interval);
+    log_info("inval server start calculate ratio, interval: %"PRI64_PREFIX"u", interval);
     //for every group, every area and every type.
     for (size_t i = 0; i < group_count; i++)
     {
@@ -136,7 +136,7 @@ namespace tair {
       compressed_data = new char [data_size];
       memcpy(compressed_data, compressed_data_buffer, data_size);
       compressed_data_size = data_size;
-      log_info("compress inval server stats done (%d=>%d)", uncompressed_data_size, compressed_data_size);
+      log_info("compress inval server stats done (%lu=>%u)", uncompressed_data_size, compressed_data_size);
     }
     else
     {

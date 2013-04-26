@@ -146,7 +146,7 @@ namespace tair
           if (last_log_record_->size() <= 0)
           {
             ret = get_log_record();
-            log_debug("@@ get new record: %d", last_log_record_->size());
+            log_debug("@@ get new record: %lu", last_log_record_->size());
           }
 
           // read one log record

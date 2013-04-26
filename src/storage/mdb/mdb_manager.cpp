@@ -177,7 +177,7 @@ namespace tair {
     it->exptime = expired > 0 ? ((expired > crrnt_time) ? expired : crrnt_time + expired) : 0;
 
     SET_ITEM_FLAGS(it->item_id, flag | old_flag);
-    log_debug("ITEM_FLAGS(it->item_id):%u", ITEM_FLAGS(it->item_id));
+    log_debug("ITEM_FLAGS(it->item_id):%lu", ITEM_FLAGS(it->item_id));
     memcpy(ITEM_KEY(it), key, it->key_len);
     memcpy(ITEM_DATA(it), value, it->data_len);
 
@@ -551,7 +551,7 @@ namespace tair {
 
     set_flag(old_flag, data.data_meta.flag);
     SET_ITEM_FLAGS(it->item_id, old_flag);
-    TBSYS_LOG(DEBUG, "ITEM_FLAGS(it->item_id):%u", ITEM_FLAGS(it->item_id));
+    TBSYS_LOG(DEBUG, "ITEM_FLAGS(it->item_id):%lu", ITEM_FLAGS(it->item_id));
     memcpy(ITEM_KEY(it), key.get_data(), it->key_len);
     memcpy(ITEM_DATA(it), data.get_data(), it->data_len);
 
@@ -867,7 +867,7 @@ namespace tair {
     it->key_len = 0;
     it->version = 0;
     it->update_time = 0;
-    TBSYS_LOG(DEBUG,"after free item [%p],id [%lu],h_next [%lu] next [%lu],prev[%lu],key_len[%d],data_len[%lu], version[%d]",it,it->item_id,it->h_next,it->next,it->prev,it->key_len,it->data_len,it->version);
+    TBSYS_LOG(DEBUG,"after free item [%p],id [%lu],h_next [%lu] next [%lu],prev[%lu],key_len[%d],data_len[%u], version[%d]",it,it->item_id,it->h_next,it->next,it->prev,it->key_len,it->data_len,it->version);
   }
 
 
@@ -940,7 +940,7 @@ namespace tair {
     map<int, int> slab_info;
     cache->calc_slab_balance_info(slab_info);
 
-    TBSYS_LOG(INFO, "slabinfo.size():%d", slab_info.size());
+    TBSYS_LOG(INFO, "slabinfo.size():%lu", slab_info.size());
 
     for(map<int, int>::iterator it = slab_info.begin();
         it != slab_info.end(); ++it) {

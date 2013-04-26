@@ -230,7 +230,7 @@ Status Table::InternalGet(const ReadOptions& options, const Slice& k,
         !filter->KeyMayMatch(handle.offset(), k)) {
       // Not found
     } else {
-      Slice handle = iiter->value();
+//      Slice handle = iiter->value();
       PROFILER_BEGIN("sst read block");
       Iterator* block_iter = BlockReader(this, options, iiter->value());
       PROFILER_END();

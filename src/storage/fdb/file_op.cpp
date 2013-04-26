@@ -136,13 +136,13 @@ namespace tair {
 
         if(is_mapped && (offset + size) <= map_file->get_size()) {
           // use mmap first
-          log_debug("read data from mmap[%s], offset [%llu], size [%u]",
+          log_debug("read data from mmap[%s], offset [%lu], size [%lu]",
                     file_name, offset, size);
           memcpy(buffer, (char *) map_file->get_data() + offset, size);
           return true;
         }
 
-        log_debug("read from [%s], offset: [%llu], size: [%u]", file_name,
+        log_debug("read from [%s], offset: [%lu], size: [%lu]", file_name,
                   offset, size);
         return::pread(fd, buffer, size, offset) == (ssize_t) size;
       }
@@ -169,12 +169,12 @@ namespace tair {
 
         if(is_mapped && (offset + size) <= map_file->get_size()) {
           // use mmap first
-          log_debug("read data from mmap[%s], offset [%llu], size [%u]",
+          log_debug("read data from mmap[%s], offset [%lu], size [%lu]",
                     file_name, offset, size);
           memcpy(buffer, (char *) map_file->get_data() + offset, size);
           return size;
         }
-        log_debug("read from [%s], offset: [%llu], size: [%u]", file_name,
+        log_debug("read from [%s], offset: [%lu], size: [%lu]", file_name,
                   offset, size);
         return::pread(fd, buffer, size, offset);
       }
@@ -184,7 +184,7 @@ namespace tair {
         if(!is_opened())
           return false;
 
-        log_debug("write data into with size of [%u] at offset [%llu]", size,
+        log_debug("write data into with size of [%lu] at offset [%lu]", size,
                   get_position());
 
         off_t offset = get_position();
@@ -193,7 +193,7 @@ namespace tair {
         }
 
         if(is_mapped && (offset + size) <= map_file->get_size()) {
-          log_debug("write data use mmap at offset [%llu] with size [%u]",
+          log_debug("write data use mmap at offset [%lu] with size [%lu]",
                     offset, size);
           memcpy((char *) map_file->get_data() + offset, buffer, size);
           return true;
@@ -210,7 +210,7 @@ namespace tair {
         if(offset < 0)
           offset = get_position();
 
-        log_debug("sizeof(off_t): %d, write[%s]: size [%u] at offset [%llu]",
+        log_debug("sizeof(off_t): %lu, write[%s]: size [%lu] at offset [%lu]",
                   sizeof(off_t), file_name, size, offset);
 
         if(is_mapped && (offset + size) > map_file->get_size()) {
@@ -219,7 +219,7 @@ namespace tair {
 
         if(is_mapped && (offset + size) <= map_file->get_size()) {
           // use mmap first
-          log_debug("pwrite data use mmap at offset [%llu] with size [%u]",
+          log_debug("pwrite data use mmap at offset [%lu] with size [%lu]",
                     offset, size);
           memcpy((char *) map_file->get_data() + offset, buffer, size);
           return true;

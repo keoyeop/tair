@@ -190,7 +190,7 @@ namespace tair {
                                         && sync_config_server_id !=
                                         util::local_server_ip::ip);
       }
-      log_info("machine count: %d, group count: %d",
+      log_info("machine count: %lu, group count: %lu",
                data_server_info_map.size(), group_info_map_data.size());
       server_info_rw_locker.unlock();
       group_info_rw_locker.unlock();
@@ -826,7 +826,7 @@ namespace tair {
         }
         else
         {
-          log_error("dataserver: %s UP, accept strategy is: %d illegal.",
+          log_error("dataserver: %d UP, accept strategy is: %s illegal.",
               p_server->group_info_data->get_accept_strategy(), tbsys::CNetUtil::addrToString(req->server_id).c_str());
           server_info_rw_locker.unlock();
           group_info_rw_locker.unlock();
@@ -939,7 +939,7 @@ namespace tair {
         if (group_info_founded->is_migrating()
             && req->loop_count != group_info_founded->get_migrate_version())
         {
-          log_debug("send back server list as the migrate version diff, ds is %llu, local is %llu",
+          log_debug("send back server list as the migrate version diff, ds is %u, local is %u",
                     req->loop_count, group_info_founded->get_migrate_version());
           // send back table
           resp->bucket_count = group_info_founded->get_server_bucket_count();
@@ -1293,7 +1293,7 @@ namespace tair {
       vector<uint64_t> ds_ids;
       vector<string>::const_iterator it = params.begin();
       ++it;
-      log_info("resetds group: %s, requeset resetds size: %d", cmd_group, params.size() - 1);
+      log_info("resetds group: %s, requeset resetds size: %lu", cmd_group, params.size() - 1);
       for (; it != params.end(); it++)
       {
         log_info("reset ds: %s", it->c_str());
@@ -1420,7 +1420,7 @@ namespace tair {
         size_t peer_pos = peer_ip.find(":");
         string default_m_ip = tbsys::CNetUtil::addrToString(config_server_info_list[0]->server_id).c_str();
         size_t default_m_pos = default_m_ip.find(":");
-        log_warn("master conflict. local id: %s, peer id: %s, pos: %u, ip: %s, default id: %s, pos: %u, ip: %s",
+        log_warn("master conflict. local id: %s, peer id: %s, pos: %lu, ip: %s, default id: %s, pos: %lu, ip: %s",
             tbsys::CNetUtil::addrToString(util::local_server_ip::ip).c_str(),
             peer_ip.c_str(), peer_pos, peer_ip.substr(0, peer_pos).c_str(),
             default_m_ip.c_str(), default_m_pos, default_m_ip.substr(0, default_m_pos).c_str());

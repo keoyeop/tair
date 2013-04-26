@@ -102,7 +102,7 @@ void MemTable::Add(SequenceNumber s, ValueType type,
   p += 8;
   p = EncodeVarint32(p, val_size);
   memcpy(p, value.data(), val_size);
-  assert((p + val_size) - buf == encoded_len);
+  assert((p + val_size) - buf == (int)encoded_len);
   table_.Insert(buf);
 }
 
@@ -140,9 +140,13 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s) {
             return true;
           }
         }
-        case kTypeDeletion:
+        case kTypeDeletion: {
           *s = Status::NotFound(Slice());
           return true;
+		}
+		default: {
+		  return false;
+	    }
       }
     }
   }

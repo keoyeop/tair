@@ -481,7 +481,7 @@
       const char *data_dir = TBSYS_CONFIG.getString(INVALSERVER_SECTION, TAIR_INVAL_DATA_DIR,
           TAIR_INVAL_DEFAULT_DATA_DIR);
       log_info("invalid server data path: %s", data_dir);
-      char *queue_name = "disk_queue";
+      const char *queue_name = "disk_queue";
       //the packet's count default value is 10,000.
       const int cached_packet_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION, TAIR_INVAL_CACHED_PACKET_COUNT,
           TAIR_INVAL_DEFAULT_CACHED_PACKET_COUNT);

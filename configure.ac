@@ -8,6 +8,9 @@ AC_PROG_LIBTOOL
 
 m4_include([tcmalloc.m4])
 
+BITS=`if [[ 64 -eq $(getconf LONG_BIT) ]]; then echo -n $(getconf LONG_BIT); fi`
+AC_SUBST(BITS)
+
 dnl attain svn info url, depending on `svn(1.4.2) info`'s output format.
 dnl God bless SVN doesn't change its printf.'
 svn_info="NONE"
@@ -21,10 +24,10 @@ AC_ARG_WITH([release],
 			   [use optimize (default is NO)]),
 			   [
 			    if test "$withval" = "yes"; then
-				    CXXFLAGS="-g -O2 -finline-functions -fno-strict-aliasing -Wall -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNDEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""
+				    CXXFLAGS="-g -O2 -finline-functions -fno-strict-aliasing -Wall -Werror -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNDEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""
 			    fi
 			    ],
-			    [CXXFLAGS="-g -Wall -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE  -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DTAIR_DEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""]
+			    [CXXFLAGS="-g -Wall -Werror -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE  -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DTAIR_DEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""]
 			    )
 GCOV_LIB=
 AC_SUBST(GCOV_LIB)
@@ -38,6 +41,18 @@ AC_ARG_WITH([profile],
 			    fi
 			    ])
 
+
+dnl -------------------------------------------------------------------------
+dnl Checking hashmap
+dnl -------------------------------------------------------------------------
+AC_CHECK_HEADERS([ext/hash_map], [], AC_MSG_FAILURE([hash_map not found]))
+AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <ext/hash_map>]],
+							   [[#ifdef _BACKWARD_BACKWARD_WARNING_H
+								 return 1;
+								 #endif]])
+			  ], 
+			  [],
+			  [CXXFLAGS="${CXXFLAGS} -Wno-deprecated"])
 
 ac_default_prefix=${HOME}/tair_bin # for convenience
 

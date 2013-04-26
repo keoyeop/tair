@@ -131,18 +131,18 @@ namespace tair {
         }
 
       }
-      int mtoken_per_node_min;
-      int mtoken_per_node_max_count;
-      int mtoken_per_node_min_count;
-      int otoken_per_node_min;
-      int otoken_per_node_max_count;
-      int otoken_per_node_min_count;
-      int mmaster_token_per_node_min;
-      int mmaster_token_per_node_max_count;
-      int mmaster_token_per_node_min_count;
-      int omaster_token_per_node_min;
-      int omaster_token_per_node_max_count;
-      int omaster_token_per_node_min_count;
+      int mtoken_per_node_min = 0;
+      int mtoken_per_node_max_count = 0;
+      int mtoken_per_node_min_count = 0;
+      int otoken_per_node_min = 0;
+      int otoken_per_node_max_count = 0;
+      int otoken_per_node_min_count = 0;
+      int mmaster_token_per_node_min = 0;
+      int mmaster_token_per_node_max_count = 0;
+      int mmaster_token_per_node_min_count = 0;
+      int omaster_token_per_node_min = 0;
+      int omaster_token_per_node_max_count = 0;
+      int omaster_token_per_node_min_count = 0;
 
 
       assert(build_stat_normal);

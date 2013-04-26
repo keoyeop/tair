@@ -98,7 +98,7 @@ put_thread(void *arg)
     ta->total_time += end_time - start_time;
 
     TBSYS_LOG(WARN,
-              "[%d]in %d seconds,success:%d,failed:%d,total data : %ld bytes",
+              "[%d]in %ld seconds,success:%d,failed:%d,total data : %ld bytes",
               ta->index, ta->total_time, ta->success, ta->failed, total_len);
   }
   return NULL;
@@ -114,7 +114,7 @@ get_thread(void *arg)
   data_entry pkey;
   data_entry pdata;
   char key[16];
-  int64_t total_len;
+  int64_t total_len = 0;
 
 
   int report_per_times = ta->items_between_each_report;
@@ -142,7 +142,7 @@ get_thread(void *arg)
     ta->total_time += end_time - start_time;
 
     TBSYS_LOG(WARN,
-              "[%d]in %d seconds,success:%d,failed:%d,total data : %ld bytes",
+              "[%d]in %ld seconds,success:%d,failed:%d,total data : %ld bytes",
               ta->index, ta->total_time, ta->success, ta->failed, total_len);
   }
   return NULL;
@@ -180,7 +180,7 @@ remove_thread(void *arg)
 
     ta->total_time += end_time - start_time;
 
-    TBSYS_LOG(WARN, "[%d]in %d seconds,success:%d,failed:%d", ta->index,
+    TBSYS_LOG(WARN, "[%d]in %ld seconds,success:%d,failed:%d", ta->index,
               ta->total_time, ta->success, ta->failed);
   }
   return NULL;
@@ -195,7 +195,7 @@ main(int argc, char *argv[])
   int min_data_size = 1;
   int max_data_size = 1024;
   int report_interval = 100000;
-  char *mdb_type = "mdb_shm";
+  const char *mdb_type = "mdb_shm";
   int key_base = 0;
   char *operation = 0;
   int area = 0;
@@ -244,8 +244,10 @@ main(int argc, char *argv[])
     exit(-1);
   }
 
+  TBSYS_LOG(DEBUG, "mdb type: %s", mdb_type);
+
   TBSYS_LOG(WARN,
-            "thread_count : %d,loop times per thread : %d,min_data_size : %d,max_data_size : %d,report_interval : %d,mdb size : %dM",
+            "thread_count : %d,loop times per thread : %d,min_data_size : %d,max_data_size : %d,report_interval : %d,mdb size : %ldM",
             thread_count, max_loop, min_data_size, max_data_size,
             report_interval, size / (1L << 20));
 

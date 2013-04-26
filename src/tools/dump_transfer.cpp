@@ -161,7 +161,7 @@ void DumpTransfer::run(tbsys::CThread *thread, void *args)
                         }
                     }
                 } else {
-                    log_error("thread %d put failed, version error.");
+                    log_error("thread %d put failed, version error.", thread_idx);
                 }
             }
             delete kv;
@@ -200,10 +200,10 @@ void DumpTransfer::parse_dump_file()
         fread(&kv->mdate, sizeof(uint32_t), 1, dump_fd_);
         fread(&kv->edate, sizeof(uint32_t), 1, dump_fd_);
         fread(&kv->key_len, sizeof(uint32_t), 1, dump_fd_);
-        assert(kv->key_len <= kbuf_size);
+        assert(kv->key_len <= (size_t)kbuf_size);
         fread(kbuf, sizeof(char), kv->key_len, dump_fd_);
         fread(&kv->value_len, sizeof(uint32_t), 1, dump_fd_);
-        assert(kv->value_len <= vbuf_size);
+        assert(kv->value_len <= (size_t)vbuf_size);
         fread(vbuf, sizeof(char), kv->value_len, dump_fd_);
 
         char *key = new char[kv->key_len];
@@ -216,7 +216,7 @@ void DumpTransfer::parse_dump_file()
         kv->value->set_alloced_data(value, kv->value_len);
 
         qcond_.lock();
-        while (!_stop && taskq_.size() >= max_qsize_) {
+        while (!_stop && taskq_.size() >= (size_t)max_qsize_) {
             qcond_.wait();
         }
         if (_stop) {

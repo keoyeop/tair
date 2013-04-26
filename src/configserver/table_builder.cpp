@@ -69,7 +69,7 @@ namespace tair {
     }
     void table_builder::print_available_server()
     {
-      log_debug("available server size: %u", available_server.size());
+      log_debug("available server size: %lu", available_server.size());
       log_debug("    ");
       for(server_list_type::iterator it = available_server.begin();
           it != available_server.end(); it++) {
@@ -280,20 +280,20 @@ namespace tair {
                         hash_table_type & hash_table_dest,
                         server_id_type & original_node)
     {
-      map <server_id_type, int>*ptokens_node;
-      map <int, server_list_type> *pcount_server;
-      server_capable_type *pcapable;
+//      map <server_id_type, int>*ptokens_node;
+//      map <int, server_list_type> *pcount_server;
+//      server_capable_type *pcapable;
       map<int, server_list_type> *pcandidate_node;
       if(line_num == 0) {
-        ptokens_node = &mtokens_count_in_node;
-        pcount_server = &mcount_server;
-        pcapable = &master_server_capable;
+//        ptokens_node = &mtokens_count_in_node;
+//        pcount_server = &mcount_server;
+//        pcapable = &master_server_capable;
         pcandidate_node = &mcandidate_node;
       }
       else {
-        ptokens_node = &tokens_count_in_node;
-        pcount_server = &count_server;
-        pcapable = &server_capable;
+//        ptokens_node = &tokens_count_in_node;
+//        pcount_server = &count_server;
+//        pcapable = &server_capable;
         pcandidate_node = &scandidate_node;
       }
       server_id_type suitable_node = make_pair(INVALID_FLAG, INVALID_FLAG);
@@ -421,7 +421,7 @@ namespace tair {
         return BUILD_ERROR;
       }
       if(available_server.size() < copy_count) {
-        log_error("rebuild table fail, available size: %u, copy count: %u", available_server.size(), copy_count);
+        log_error("rebuild table fail, available size: %lu, copy count: %u", available_server.size(), copy_count);
         return BUILD_ERROR;
       }
       //

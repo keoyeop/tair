@@ -128,7 +128,7 @@ namespace tair {
       interval /= 1000000; // conver to second
       if (interval == 0) interval = 1;
 
-      log_debug("start calculate ratio, interval: %d", interval);
+      log_debug("start calculate ratio, interval: %"PRI64_PREFIX"u", interval);
       for (int i=0; i<STAT_LENGTH; i++) {
          tair_stat *cs = curr_stat + i;
          cs->set_get_count(cs->get_count() / interval);
@@ -159,7 +159,7 @@ namespace tair {
          compressed_data = (char *)malloc(dest_len);
          memcpy(compressed_data, dest, dest_len);
          data_size = dest_len;
-         log_debug("compress stats done (%d=>%d)", STAT_TOTAL_SIZE, dest_len);
+         log_debug("compress stats done (%d=>%lu)", STAT_TOTAL_SIZE, dest_len);
       } else {
          log_error("compress stats error: %d", ret);
       }

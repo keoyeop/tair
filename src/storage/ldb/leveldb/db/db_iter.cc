@@ -181,6 +181,8 @@ void DBIter::FindNextUserEntry(bool skipping, std::string* skip) {
             return;
           }
           break;
+        default:
+          break;
       }
     }
     iter_->Next();

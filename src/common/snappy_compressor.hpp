@@ -22,7 +22,7 @@ namespace tair {
         } else {
           *dest = tmp_data;
           *dest_len = tmp_len;
-          log_debug("snappy compress ok, from %d to %d", src_len, tmp_len);
+          log_debug("snappy compress ok, from %u to %lu", src_len, tmp_len);
         }
         return ret;
       }
@@ -50,7 +50,7 @@ namespace tair {
             } else {
               *dest = tmp_data;
               *dest_len = tmp_len;
-              log_debug("snappy decompress ok, from %d to %d", src_len, tmp_len);
+              log_debug("snappy decompress ok, from %u to %lu", src_len, tmp_len);
             }
           }
         }

@@ -204,7 +204,7 @@ namespace tair {
       for(uint32_t i = 0; i < node_list.size(); i++) {
         vector<char *>ip_list;
         tbsys::CStringUtil::split(node_list[i], ",", ip_list);
-        server_info *sinfo;
+        server_info *sinfo = NULL;
         for(uint32_t j = 0; j < ip_list.size(); j++) {
           uint64_t id = tbsys::CNetUtil::strToAddr(ip_list[j], default_port);
           if(id == 0)
@@ -377,7 +377,11 @@ namespace tair {
 
         bool tmp_ret = server_table_manager.
           create(file_name, bucket_count, copy_count);
-        assert(tmp_ret);
+        if (!tmp_ret)
+        {
+          log_error("create file: %s failed, bucket_count: %d, copy_count: %d", file_name, bucket_count, copy_count);
+          exit(1);
+        }
 
         log_info("set bucket count = %u ok",
                  server_table_manager.get_server_bucket_count());
@@ -466,7 +470,7 @@ namespace tair {
                 10);
       if(pos_mask == 0)
         pos_mask = TAIR_POS_MASK;
-      log_info(" %s = %llX", TAIR_STR_POS_MASK, pos_mask);
+      log_info(" %s = %"PRI64_PREFIX"X", TAIR_STR_POS_MASK, pos_mask);
 
       always_update_capacity_info = config.getInt(group_name, TAIR_ALWAYS_UPDATE_CAPACITY_INFO, 0) > 0;
 
@@ -569,7 +573,7 @@ namespace tair {
           if(tbnet::ConnectionManager::isAlive((*it)->server->server_id)) {
             (*it)->server->status = server_info::ALIVE;
             (*it)->server->last_time = now;
-            log_debug("set server %s alive lastTime = %u",
+            log_debug("set server %s alive lastTime = %lu",
                       tbsys::CNetUtil::addrToString((*it)->server->server_id).
                       c_str(), now);
             changed2 = true;
@@ -783,7 +787,7 @@ namespace tair {
         log_debug("quick table build ok");
         // init migrate version in cs;
         *(server_table_manager.migrate_version) = 0;
-        log_debug("reset migrate_version of group, migrate_version is %lld");
+        log_debug("reset migrate_version of group, migrate_version is 0");
       }
       p_grp_locker->unlock();
       int ret =
@@ -894,7 +898,7 @@ namespace tair {
       inc_version(server_table_manager.client_version);
       inc_version(server_table_manager.server_version);
       inc_version(server_table_manager.area_capacity_version);        //data server count changed, so capacity for every data server will be change at the same time
-      log_warn("[%s] version changed: clientVersion: %u",
+      log_warn("[%s] version changed: clientVersion: %u, serverVersion: %u",
                group_name, *server_table_manager.client_version,
                *server_table_manager.server_version);
       deflate_hash_table();
@@ -988,7 +992,7 @@ namespace tair {
             return true;
           }
         }
-        log_info("[%s] still have %d data server are in migrating.",
+        log_info("[%s] still have %lu data server are in migrating.",
                  group_name, migrate_machine.size());
         if(TBSYS_LOGGER._level >= TBSYS_LOG_LEVEL_DEBUG) {
           for(it = migrate_machine.begin(); it != migrate_machine.end(); it++) {
@@ -1008,7 +1012,7 @@ namespace tair {
                     server_table_manager.get_hash_table_byte_size()) == 0);
       inc_version(server_table_manager.client_version);
       inc_version(server_table_manager.server_version);
-      log_warn("[%s] version changed: clientVersion: %u",
+      log_warn("[%s] version changed: clientVersion: %u, serverVersion: %u",
                group_name, *server_table_manager.client_version,
                *server_table_manager.server_version);
       memcpy((void *) server_table_manager.hash_table,
@@ -1078,7 +1082,7 @@ namespace tair {
         (*server_table_manager.last_load_config_time) = 0;        // force to reload config file, since the file is changed
         log_info
           ("[%s] accept servertable successed, hashcode: %u, migrateBlockCount: %d, "
-           "version changed: clientVersion: %u",
+           "version changed: clientVersion: %u, serverVersion: %u",
            group_name, util::string_util::mur_mur_hash(mdata, size),
            *server_table_manager.migrate_block_count,
            *server_table_manager.client_version,
@@ -1128,7 +1132,7 @@ namespace tair {
          || is_migrating() == false)
         return;
       if(server_table_manager.m_hash_table[bucket_id] != server_id) {
-        log_error("where you god this ? old hashtable? bucket_id: %u, m_server: %s, server: %s",
+        log_error("where you god this ? old hashtable? bucket_id: %lu, m_server: %s, server: %s",
             bucket_id, tbsys::CNetUtil::addrToString(server_table_manager.m_hash_table[bucket_id]).c_str(),
             tbsys::CNetUtil::addrToString(server_id).c_str());
         return;
@@ -1165,7 +1169,7 @@ namespace tair {
         if(it->second == 0) {
           migrate_machine.erase(it);
         }
-        log_info("setMigratingHashtable bucketNo %d serverId %s, finish migrate this bucket.",
+        log_info("setMigratingHashtable bucketNo %lu serverId %s, finish migrate this bucket.",
                  bucket_id, tbsys::CNetUtil::addrToString(server_id).c_str());
         should_syn_mig_info = true;
       }
@@ -1181,7 +1185,7 @@ namespace tair {
     }
     void group_info::get_migrating_machines(vector <pair< uint64_t, uint32_t > >&vec_server_id_count) const
     {
-      log_debug("machine size = %d", migrate_machine.size());
+      log_debug("machine size = %lu", migrate_machine.size());
       map<uint64_t, int>::const_iterator it = migrate_machine.begin();
       for(; it != migrate_machine.end(); ++it)
       {
@@ -1296,7 +1300,7 @@ namespace tair {
     int group_info::clear_down_server(const vector<uint64_t>& server_ids)
     {
       int ret = TAIR_RETURN_SUCCESS;
-      log_debug("clear down server. server size: %d, clear size: %d", tmp_down_server.size(), server_ids.size());
+      log_debug("clear down server. server size: %lu, clear size: %lu", tmp_down_server.size(), server_ids.size());
       //do it when has down server
       if (!tmp_down_server.empty())
       {
@@ -1367,7 +1371,7 @@ namespace tair {
         set<uint64_t>::iterator it = reported_serverid.find(req.server_id);
         if(it == reported_serverid.end()) {
           reported_serverid.insert(req.server_id);        //this will clear when migrate complete.
-          log_info("insert reported server: %s, bucket_count: %u",
+          log_info("insert reported server: %s, bucket_count: %lu",
               tbsys::CNetUtil::addrToString(req.server_id).c_str(), req.vec_bucket_no.size());
           for(size_t i = 0; i < req.vec_bucket_no.size(); i++) {
             set_migrating_hashtable(req.vec_bucket_no[i], req.server_id);
@@ -1395,7 +1399,7 @@ namespace tair {
 
       if (pos_count.size() <= 1)
       {
-        log_warn("pos_count size: %u, table builder3 use build_strategy 1", pos_count.size());
+        log_warn("pos_count size: %lu, table builder3 use build_strategy 1", pos_count.size());
         strategy = 1;
       }
       else
@@ -1418,12 +1422,12 @@ namespace tair {
         if (ratio > diff_ratio || ava_server.size() < server_table_manager.get_copy_count()
             || ratio > 0.9999)
         {
-          log_warn("pos_count size: %u, ratio: %f, table builder3 use build_strategy 1", pos_count.size(), ratio);
+          log_warn("pos_count size: %lu, ratio: %f, table builder3 use build_strategy 1", pos_count.size(), ratio);
           strategy = 1;
         }
         else
         {
-          log_warn("pos_count size: %u, ratio: %f, table builder3 use build_strategy 2", pos_count.size(), ratio);
+          log_warn("pos_count size: %lu, ratio: %f, table builder3 use build_strategy 2", pos_count.size(), ratio);
           strategy = 2;
         }
         log_warn("diff_server = %d ratio = %f diff_ratio=%f",

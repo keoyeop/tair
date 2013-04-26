@@ -280,7 +280,7 @@ namespace tair {
         }
         else {
           buckets[old_item.bucket_index] = child_off;
-          log_debug("update bucket index to: %d", child_off);
+          log_debug("update bucket index to: %"PRI64_PREFIX"u", child_off);
         }
 
         fdb_item fitem;
@@ -292,7 +292,7 @@ namespace tair {
           tbsys::CThreadGuard guard(&header_lock);
           if(header->free_idx_head != 0) {
             fitem.meta.left = header->free_idx_head;
-            log_debug("set free index head, old: %llu, new: %u",
+            log_debug("set free index head, old: %u, new: %u",
                       header->free_idx_head, old_item.meta_offset);
           }
           else {
@@ -324,10 +324,10 @@ namespace tair {
         if(header->free_idx_head != 0) {
           fdb_item temp_item;
           temp_item.meta_offset = header->free_idx_head;
-          log_debug("read from freeindex, offset: %llu",
+          log_debug("read from freeindex, offset: %u",
                     temp_item.meta_offset);
           if(read_meta(temp_item) && (temp_item.meta.size == 0)) {
-            log_debug("set new item's meta offset to: %llu",
+            log_debug("set new item's meta offset to: %u",
                       temp_item.meta_offset);
             ret_item.meta_offset = temp_item.meta_offset;
             header->free_idx_head = temp_item.meta.left;
@@ -337,7 +337,7 @@ namespace tair {
 
         if(ret_item.meta_offset == 0) {
           ret_item.meta_offset = header->idx_file_size;
-          log_debug("set meta offset to index file: %llu",
+          log_debug("set meta offset to index file: %u",
                     header->idx_file_size);
           header->idx_file_size += FDB_ITEM_META_SIZE;
         }

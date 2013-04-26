@@ -15,7 +15,7 @@
 #include "stat_info.hpp"
 
 namespace {
-  char *format_str[] = {
+  const char *format_str[] = {
     "unknow",
     "getCount",
     "putCount",

@@ -513,7 +513,7 @@ namespace tair
       }
     }
 
-    log_debug("need reshard bucket: %d", reshard_buckets->size());
+    log_debug("need reshard bucket: %lu", reshard_buckets->size());
 
     for (std::unordered_map<cluster_info, std::vector<int32_t>, hash_cluster_info>::iterator
            it = sharding_buckets.begin(); it != sharding_buckets.end(); ++it)

@@ -371,7 +371,7 @@ namespace tair {
         hash_table_deflate_size = dest_len;
         memcpy(hash_table_deflate_data, dest, hash_table_deflate_size);
 
-        log_info("[%s] hashCount: %d, compress: %d => %d", file_name.c_str(),
+        log_info("[%s] hashCount: %d, compress: %lu => %lu", file_name.c_str(),
                  index, source_len, dest_len);
       }
       else {

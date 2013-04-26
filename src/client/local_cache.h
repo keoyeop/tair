@@ -105,7 +105,7 @@ protected:
     return lru.size();
   }
 
-  typedef struct internal_entry
+  struct internal_entry
   {
     KeyT    key;
     ValueT  value;

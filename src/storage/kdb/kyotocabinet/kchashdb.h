@@ -940,6 +940,9 @@ public:
     if (!dump_meta()) err = true;
     if (!set_flag(FOPEN, true)) err = true;
     trigger_meta(MetaTrigger::CLEAR, "clear");
+	if (err) {
+		return false;
+	}
     return true;
   }
   /**

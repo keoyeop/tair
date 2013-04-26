@@ -340,7 +340,7 @@ namespace tair
           manager_->resume_service(bucket);
         }
 
-        log_warn("balance %s, itemcount: %"PRI64_PREFIX"d, datasize: %"PRI64_PREFIX"d, process: %d, cost: %d(s), suc: %s",
+        log_warn("balance %s, itemcount: %"PRI64_PREFIX"d, datasize: %"PRI64_PREFIX"d, process: %d, cost: %lu(s), suc: %s",
                  unit.to_string().c_str(), item_count, data_size, process, time(NULL) - start_time,
                  (process == COMMIT && ret == TAIR_RETURN_SUCCESS) ? "yes" : "no");
 

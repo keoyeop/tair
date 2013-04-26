@@ -49,7 +49,11 @@ namespace tair {
                  use_size / server_info_file_mapper::CELL_COUNT_PER_FILE);
         server_info_file_mapper *psif = new server_info_file_mapper();
         bool tmp_ret = psif->open(file_name);
-        assert(tmp_ret);
+        if (!tmp_ret)
+        {
+          log_error("open file: %s failed", file_name);
+          exit(1);
+        }
         vec_server_infos.push_back(psif);
       }
       int vecidx = use_size / server_info_file_mapper::CELL_COUNT_PER_FILE;
