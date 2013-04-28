@@ -399,8 +399,8 @@ namespace tair {
       if (cmd == NULL || strcmp(cmd, "delall") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
-                 "SYNOPSIS   : delall area\n"
-                 "DESCRIPTION: delete all data of [area]\n"
+                 "SYNOPSIS   : delall area [all | -s ip:port]\n"
+                 "DESCRIPTION: delete all data of area\n"
                  );
 
       }
@@ -1232,7 +1232,7 @@ namespace tair {
     
    void tair_client::do_cmd_remove_area(VSTRING &param)
    {
-      if (param.size() != 1U) {
+      if (param.size() < 2U) {
          print_help("delall");
          return;
       }
@@ -1241,9 +1241,51 @@ namespace tair {
          return;
       }
       // remove
-      int ret = client_helper.remove_area(area);
-      fprintf(stderr, "removeArea: area:%d,%s\n", area,client_helper.get_error_msg(ret));
-      return;
+      int ret = TAIR_RETURN_SUCCESS;
+      if (strncmp("all", param[1], 3) == 0)
+      {
+        std::set<uint64_t> ds_set;
+        //remove all ds in the cluster.
+        client_helper.get_servers(ds_set);
+        for (std::set<uint64_t>::iterator it = ds_set.begin(); it != ds_set.end(); it++)
+        {
+          ret = client_helper.remove_area(area, *it);
+          fprintf(stderr, "removeArea: area:%d, ds: %s, %s\n", area,
+              tbsys::CNetUtil::addrToString(*it).c_str(),
+              client_helper.get_error_msg(ret));
+        }
+      }
+      else if (strncmp("-s", param[1], 2) == 0)
+      {
+        //remove area on special ds.
+        if (param.size() != 3U)
+        {
+          print_help("delall");
+        }
+        else
+        {
+          //if id is not avaliable, `remove_area returns `invalid_args code.
+          std::string ipport = param[2];
+          size_t pos = ipport.find_first_of(':');
+          if (pos == std::string::npos || pos == ipport.size())
+          {
+            fprintf(stderr, "should be ip:port, %s", ipport.c_str());
+            print_help("delall");
+          }
+          else
+          {
+            std::string ipstr = ipport.substr(0, pos);
+            std::string portstr = ipport.substr(pos + 1, ipport.size());
+            uint64_t id = tbsys::CNetUtil::strToAddr(ipstr.c_str(), atoi(portstr.c_str()));
+            ret = client_helper.remove_area(area, id);
+            fprintf(stderr, "removeArea: area:%d,ds: %s, %s\n", area, param[2], client_helper.get_error_msg(ret));
+          }
+        }
+      }
+      else
+      {
+        print_help("delall");
+      }
    }
 
    void tair_client::do_cmd_dump_area(VSTRING &param)

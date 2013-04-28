@@ -2063,60 +2063,45 @@ FAIL:
     return ret;
   }
 
-  int tair_client_impl::remove_area(int area)
+  int tair_client_impl::remove_area(int area, uint64_t server_id)
   {
-
-    if( UNLIKELY(area < -4  || area >= TAIR_MAX_AREA_COUNT)){
+    //0. param avaliable
+    if( UNLIKELY(area < -4  || area >= TAIR_MAX_AREA_COUNT || server_id == 0)){
+      return TAIR_RETURN_INVALID_ARGUMENT;
+    }
+    std::set<uint64_t> ds_set;
+    get_servers(ds_set);
+    if (ds_set.find(server_id) == ds_set.end())
+    {
       return TAIR_RETURN_INVALID_ARGUMENT;
     }
 
-    //1.send request to all server
-    map<uint64_t,request_remove_area *> request_list;
-    map<uint64_t,request_remove_area *>::iterator it;
-    for (uint32_t i=0; i<my_server_list.size(); i++) {
-      uint64_t server_id = my_server_list[i];
-      if (server_id == 0) {
-        continue;
-      }
-      it = request_list.find(server_id);
-      if (it == request_list.end()) {
-        request_remove_area *packet = new request_remove_area();
-        packet->area = area;
-        request_list[server_id] = packet;
-      }
-    }
-    if(request_list.empty()){
-      return TAIR_RETURN_SUCCESS;
-    }
+    //1.create request packet.
+    request_remove_area *packet = new request_remove_area();
+    packet->area = area;
+
     //2. send request
-
     wait_object *cwo = this_wait_object_manager->create_wait_object();
-
-    int send_count = 0;
     int ret = TAIR_RETURN_SEND_FAILED;
-    for (it=request_list.begin(); it!=request_list.end(); ++it) {
-      uint64_t server_id = it->first;
-      request_remove_area *packet = it->second;
-      TBSYS_LOG(INFO, "request_remove_area=>%s", tbsys::CNetUtil::addrToString(server_id).c_str());
-
-
-      if( (ret = send_request(server_id,packet,cwo->get_id())) < 0){
-
-        delete packet;
-      }else {
-        ++send_count;
-      }
-    }
-    base_packet *tpacket = 0;
-    if(send_count > 0){
-      if( (ret = get_response(cwo,send_count,tpacket)) < 0){
-        //TODO log
-      }
+    TBSYS_LOG(INFO, "request_remove_area=>%s", tbsys::CNetUtil::addrToString(server_id).c_str());
+    if ((ret = send_request(server_id, packet, cwo->get_id())) != TAIR_RETURN_SUCCESS)
+    {
+      TBSYS_LOG(DEBUG, "failed to send request to ds: %s , rc: %d", tbsys::CNetUtil::addrToString(server_id).c_str(), ret);
+      delete packet;
     }
 
+    //3. get response
+    if (ret == TAIR_RETURN_SUCCESS)
+    {
+      base_packet *tpacket = NULL;
+      ret = get_response(cwo, 1, tpacket);
+      if (ret != TAIR_RETURN_SUCCESS)
+      {
+        TBSYS_LOG(DEBUG, "failed to get response from ds: %s , rc: %d", tbsys::CNetUtil::addrToString(server_id).c_str(), ret);
+      }
+    }
 
     this_wait_object_manager->destroy_wait_object(cwo);
-
     return ret;
   }
 

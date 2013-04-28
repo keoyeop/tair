@@ -238,7 +238,7 @@ namespace tair {
 
     int direct_update(std::vector<uint64_t>& servers, std::vector<operation_record *>* opercs);
 
-    int remove_area(int area);
+    int remove_area(int area, uint64_t id);
     //    int getStatInfo(int type, int area, vector<ResponseStatPacket *> &list);
     int dump_area(std::set<dump_meta_info>& info);
 
