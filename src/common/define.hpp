@@ -74,6 +74,7 @@
 #define TAIR_DTM_VERSION             0x31766256
 #define TAIR_HTM_VERSION             0x31766257
 
+#define TAIR_DATA_MAX_VERSION (uint16_t)(-1)
 #define TAIR_DEFAULT_COMPRESS_THRESHOLD 8192
 #define TAIR_COMPRESS_TYPE_NUM          1
 #define TAIR_ITEM_FLAG_COMPRESS         4

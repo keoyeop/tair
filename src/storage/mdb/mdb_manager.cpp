@@ -536,7 +536,12 @@ namespace tair {
     it->key_len = key.get_size();
     it->data_len = data.get_size();
     it->update_time = crrnt_time;
-    it->version = version_care ? version + 1 : key.get_version();
+    if (version_care) {
+      it->version = UNLIKELY(it->version == TAIR_DATA_MAX_VERSION - 1) ? 1 : version + 1;
+    } else {
+      it->version = key.get_version();
+    }
+
     TBSYS_LOG(DEBUG, "actually put,version:%d,key.getVersion():%d\n",
               it->version, key.get_version());
     if (expired > 0) {

@@ -356,15 +356,20 @@ namespace tair
           ldb_item.meta().base_.flag_ = value.data_meta.flag | TAIR_ITEM_FLAG_NEWMETA;
           ldb_item.meta().base_.cdate_ = cdate;
           ldb_item.meta().base_.mdate_ = mdate;
-          if (expire_time >= 0) {
+          if (expire_time >= 0)
+          {
             ldb_item.meta().base_.edate_ = edate;
-          } else {
+          }
+          else
+          {
             ldb_key.build_key_meta(ldb_key.data(), bucket_number, ldb_item.meta().base_.edate_);
           }
           ldb_item.set_prefix_size(key.get_prefix_size());
+
           if (version_care)
           {
-            ldb_item.meta().base_.version_++;
+            ldb_item.meta().base_.version_ =
+              UNLIKELY(ldb_item.version() == TAIR_DATA_MAX_VERSION - 1) ? 1 : ldb_item.version() + 1;
           }
           else
           {
