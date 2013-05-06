@@ -51,7 +51,7 @@ keycleantool_LDFLAGS= -static
 
 libtairclientapi_la_SOURCES=${api_source_list}
 libtairclientapi_impl_la_SOURCES=${api_source_list}
-libtairclientapi_c_la_SOURCES=tair_client_capi.cpp
+libtairclientapi_c_la_SOURCES=${api_source_list} tair_client_capi.cpp
 libtairclientapi_c_la_LIBADD=libtairclientapi.la
 
 include_HEADERS=tair_client_api.hpp tair_client_capi.hpp local_cache.h local_cache.hpp data_entry_local_cache.h
