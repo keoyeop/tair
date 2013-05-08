@@ -312,7 +312,7 @@ namespace tair {
               tpacket->set_direction(DIRECTION_SEND);
                async_task_queue_thread.push(tpacket);
             } else {
-               if (tair_mgr->clear(npacket->area) == false) {
+               if (tair_mgr->clear(npacket->area) != 0) {
                   ret = EXIT_FAILURE;
                }
             }
