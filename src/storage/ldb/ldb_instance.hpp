@@ -60,6 +60,7 @@ namespace tair
         int remove(int bucket_number, tair::common::data_entry& key, bool version_care);
 
         int get_range(int bucket_number, tair::common::data_entry& key_start, tair::common::data_entry& end_key, int offset, int limit, int type, std::vector<tair::common::data_entry*>& result, bool &has_next);
+        int del_range(int bucket_number, tair::common::data_entry& key_start, tair::common::data_entry& end_key, int offset, int limit, int type, std::vector<tair::common::data_entry*>& result, bool &has_next);
 
         int op_cmd(ServerCmdType cmd, std::vector<std::string>& params);
 

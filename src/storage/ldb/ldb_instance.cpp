@@ -660,11 +660,22 @@ namespace tair
         {
           return TAIR_RETURN_SERVER_CAN_NOT_WORK;
         }
+        if (CMD_RANGE_ALL > type || CMD_RANGE_KEY_ONLY_REVERSE < type)
+        {
+          log_error("unknown cmd type:%d", type);
+          return TAIR_RETURN_INVALID_ARGUMENT; 
+        }
 
         int total_size = 0;
         bool end_break = false;
+        bool reverse = CMD_RANGE_ALL_REVERSE == type || CMD_RANGE_VALUE_ONLY_REVERSE == type 
+            ||CMD_RANGE_KEY_ONLY_REVERSE == type ;
+        bool build_key = CMD_RANGE_ALL == type || CMD_RANGE_KEY_ONLY == type 
+            ||CMD_RANGE_ALL_REVERSE == type || CMD_RANGE_KEY_ONLY_REVERSE == type;
+        bool build_value = CMD_RANGE_ALL == type || CMD_RANGE_VALUE_ONLY == type 
+            ||CMD_RANGE_ALL_REVERSE == type || CMD_RANGE_VALUE_ONLY_REVERSE == type;
 
-       leveldb::Iterator *iter;
+        leveldb::Iterator *iter;
         int rc = TAIR_RETURN_SUCCESS;
         int count = 0;
         LdbKey ldb_key;
@@ -672,10 +683,6 @@ namespace tair
         static int range_max_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_RANGE_MAX_SIZE, 1<<20); // 1M
         data_entry *nkey = NULL, *nvalue = NULL;
 
-        if (CMD_RANGE_ALL != type && CMD_RANGE_VALUE_ONLY != type && CMD_RANGE_KEY_ONLY != type)
-        {
-          return TAIR_RETURN_INVALID_ARGUMENT; 
-        }
         log_debug("start range. startkey size:%d prefixsize:%d key:%s,%s.", key_start.get_size(), key_start.get_prefix_size(), key_start.get_data() +4, key_start.get_data()+2+key_start.get_prefix_size());
 
         leveldb::ReadOptions scan_read_options = read_options_;
@@ -685,19 +692,41 @@ namespace tair
         LdbKey ldbkey(key_start.get_data(), key_start.get_size(), bucket_number);
         LdbKey ldbendkey(key_end.get_data(), key_end.get_size(), bucket_number);
 
+        bool reverse_find_next = false;
         // if key_end's skey is "",  add_prefix to key_end for scan all prefix. 
-        if (key_end.get_size()- key_end.get_prefix_size() == TAIR_AREA_ENCODE_SIZE)  
+        if (!reverse && (key_end.get_size()- key_end.get_prefix_size() == TAIR_AREA_ENCODE_SIZE))
         {
           add_prefix(ldbendkey, key_end.get_prefix_size()); 
+        }
+        // if reverse scan && key_start's skey is "",  add_prefix to key_start for scan all prefix. 
+        if (reverse && (key_start.get_size()- key_start.get_prefix_size() == TAIR_AREA_ENCODE_SIZE))
+        {
+          add_prefix(ldbkey, key_start.get_prefix_size()); 
+          reverse_find_next = true;
         }
         leveldb::Slice slice_key_start(ldbkey.data(), ldbkey.size());
         leveldb::Slice slice_key_end(ldbendkey.data(), ldbendkey.size());
 
+        // find first key
+        iter->Seek(slice_key_start);
+        if (reverse_find_next)
+        {
+          if (iter->Valid())
+          {
+            iter->Prev();
+          }
+          else //seek to the end of the db
+          {
+            iter->SeekToLast(); 
+          }
+        }
+
         //iterate all keys
-        for(iter->Seek(slice_key_start) ;iter->Valid() && count < limit; iter->Next()) 
+        while(iter->Valid() && count < limit) 
         {
           leveldb::Slice slice_iter_key(iter->key().data(), iter->key().size());
-          if (options_.comparator->Compare(slice_iter_key,slice_key_end) >= 0)
+          if ((!reverse && options_.comparator->Compare(slice_iter_key,slice_key_end) >= 0)
+            ||(reverse && options_.comparator->Compare(slice_iter_key,slice_key_end) <= 0))
           {
             end_break = true;
             break;
@@ -707,16 +736,18 @@ namespace tair
           if (ldb_item.prefix_size() != key_start.get_prefix_size())
           {
             log_debug("iter key skip. size:%d prefixsize:%d key:%s,%s. iter prefixsize:%d", key_start.get_size(), key_start.get_prefix_size(), key_start.get_data() +4, key_start.get_data()+2+key_start.get_prefix_size(), ldb_item.prefix_size());
+            reverse ? iter->Prev() : iter->Next();
             continue;
           }
 
           if (offset > 0)
           {
             offset --;
+            reverse ? iter->Prev() : iter->Next();
             continue; 
           }
 
-          if (CMD_RANGE_ALL == type || CMD_RANGE_KEY_ONLY == type)
+          if (build_key)
           {
             nkey = new data_entry(ldb_key.key() + key_start.get_prefix_size() + LDB_KEY_AREA_SIZE,  
                                 ldb_key.key_size() - key_start.get_prefix_size() - LDB_KEY_AREA_SIZE, true);
@@ -724,7 +755,7 @@ namespace tair
             result.push_back(nkey);
             total_size += ldb_key.size();
           }
-          if (CMD_RANGE_ALL == type || CMD_RANGE_VALUE_ONLY == type)
+          if (build_value)
           {
             nvalue = new data_entry(ldb_item.value(), ldb_item.value_size(), true);
             fill_meta(nvalue, ldb_key, ldb_item);
@@ -736,6 +767,7 @@ namespace tair
           
           if (total_size > range_max_size)
             break;
+          reverse ? iter->Prev() : iter->Next();
         }
         
         if (limit != count && !end_break && iter->Valid())        
@@ -748,6 +780,158 @@ namespace tair
         }
 
         if (0 == count)
+        {
+          rc = TAIR_RETURN_DATA_NOT_EXIST;
+        }
+        if(iter != NULL) 
+        {
+          delete iter;
+        }
+        return rc;
+      }
+
+      int LdbInstance::del_range(int bucket_number, data_entry& key_start, data_entry& key_end, int offset, int limit, int type, std::vector<data_entry*> &result, bool &has_next)
+      {
+        if (db_ == NULL)
+        {
+          return TAIR_RETURN_SERVER_CAN_NOT_WORK;
+        }
+        if (type != CMD_DEL_RANGE && type != CMD_DEL_RANGE_REVERSE)
+        {
+          log_error("unknown cmd type:%d", type);
+          return TAIR_RETURN_INVALID_ARGUMENT;
+        }
+
+        bool reverse = (type == CMD_DEL_RANGE_REVERSE);
+        bool synced = false;
+        bool end_break = false;
+        leveldb::Iterator *iter;
+        leveldb::WriteBatch batch;
+        int rc = TAIR_RETURN_SUCCESS;
+        int total_size = 0;
+        int count = 0, batch_count = 0, batch_size = 0;
+        LdbKey ldb_key;
+        LdbItem ldb_item;
+        data_entry *nkey = NULL;
+
+        static const int range_max_size = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_RANGE_MAX_SIZE, 1<<20); // 1M
+        static const int32_t delrange_batch_size =
+          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DELRANGE_BATCH_SIZE, 1048576); // 1M default
+        static const int32_t delrange_batch_count = 
+          TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DELRANGE_BATCH_COUNT, 2000); // 2000 default
+
+        log_debug("start del_range. startkey size:%d prefixsize:%d key:%s,%s.", key_start.get_size(), key_start.get_prefix_size(), key_start.get_data() +4, key_start.get_data()+2+key_start.get_prefix_size());
+
+        leveldb::ReadOptions scan_read_options = read_options_;
+        scan_read_options.fill_cache = false;
+        iter = db_->NewIterator(scan_read_options);
+
+        LdbKey ldbkey(key_start.get_data(), key_start.get_size(), bucket_number);
+        LdbKey ldbendkey(key_end.get_data(), key_end.get_size(), bucket_number);
+
+        bool reverse_find_next = false;
+        // if key_end's skey is "",  add_prefix to key_end for scan all prefix. 
+        if (!reverse && (key_end.get_size()- key_end.get_prefix_size() == TAIR_AREA_ENCODE_SIZE))
+        {
+          add_prefix(ldbendkey, key_end.get_prefix_size()); 
+        }
+        // if reverse scan && key_start's skey is "",  add_prefix to key_start for scan all prefix. 
+        if (reverse && (key_start.get_size()- key_start.get_prefix_size() == TAIR_AREA_ENCODE_SIZE))
+        {
+          add_prefix(ldbkey, key_start.get_prefix_size()); 
+          reverse_find_next = true;
+        }
+        leveldb::Slice slice_key_start(ldbkey.data(), ldbkey.size());
+        leveldb::Slice slice_key_end(ldbendkey.data(), ldbendkey.size());
+
+        // find first key
+        iter->Seek(slice_key_start);
+        if (reverse_find_next)
+        {
+          if (iter->Valid())
+          {
+            iter->Prev();
+          }
+          else //seek to the end of the db
+          {
+            iter->SeekToLast(); 
+          }
+        }
+
+        //iterate all keys
+        while(iter->Valid() && count < limit) 
+        {
+          leveldb::Slice slice_iter_key(iter->key().data(), iter->key().size());
+          if ((!reverse && options_.comparator->Compare(slice_iter_key,slice_key_end) >= 0)
+            ||(reverse && options_.comparator->Compare(slice_iter_key,slice_key_end) <= 0))
+          {
+            end_break = true;
+            break;
+          }
+          ldb_key.assign(const_cast<char*>(iter->key().data()), iter->key().size());
+
+          if (offset > 0)
+          {
+            offset --;
+            reverse ? iter->Prev() : iter->Next();
+            continue; 
+          }
+
+          nkey = new data_entry(ldb_key.key() + key_start.get_prefix_size() + LDB_KEY_AREA_SIZE,  
+                              ldb_key.key_size() - key_start.get_prefix_size() - LDB_KEY_AREA_SIZE, true);
+          result.push_back(nkey);
+          total_size += ldb_key.size();
+          count++;
+          batch.Delete(leveldb::Slice(ldb_key.data(), ldb_key.size()), synced);
+          batch_count++;
+          batch_size += ldb_key.size();
+          
+          if (total_size > range_max_size)
+            break;
+          reverse ? iter->Prev() : iter->Next();
+
+          if (cache_ != NULL)
+          {
+            // no lock here, may be dirty the cache :(
+            int ret = cache_->raw_remove(ldb_key.key(), ldb_key.key_size());
+            if (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_DATA_NOT_EXIST)
+            {
+              log_warn("delete cache failed: %d", ret);
+            }
+          }
+          if (batch_count >= delrange_batch_count || batch_size >= delrange_batch_size)
+          {
+            leveldb::Status status = db_->Write(write_options_, &batch);
+            if (!status.ok())
+            {
+              log_error("batch delete failed: %s", status.ToString().c_str());
+              rc = TAIR_RETURN_FAILED;
+            }
+            batch_count = 0;
+            batch_size = 0;
+            batch.Clear();
+          }
+        }
+
+        if (batch_count != 0)
+        {
+          leveldb::Status status = db_->Write(write_options_, &batch);
+          if (!status.ok())
+          {
+            log_error("batch delete failed: %s", status.ToString().c_str());
+            rc = TAIR_RETURN_FAILED;
+          }
+        }
+        if (limit != count && !end_break && iter->Valid())
+        {
+          has_next = true;
+        }
+        else
+        {
+          has_next = false;
+        }
+
+        if (0 == count && TAIR_RETURN_SUCCESS == rc)
         {
           rc = TAIR_RETURN_DATA_NOT_EXIST;
         }

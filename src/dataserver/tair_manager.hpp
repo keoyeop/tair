@@ -91,6 +91,7 @@ namespace tair {
       int direct_remove(data_entry &key);
 
       int get_range(int32_t area, data_entry &key_start, data_entry &key_end, int offset, int limit, int type, std::vector<data_entry*> &result, bool &has_next);
+      int del_range(int32_t area, data_entry &key_start, data_entry &key_end, int offset, int limit, int type, std::vector<data_entry*> &result, bool &has_next);
       int lock(int area, LockType lock_type, data_entry& key, base_packet *request = NULL, int heart_version = 0);
 
       bool is_migrating();

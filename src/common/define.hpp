@@ -202,6 +202,8 @@
 #define LDB_USE_CACHE_COUNT             "ldb_use_cache_count"
 #define LDB_MIGRATE_BATCH_COUNT         "ldb_migrate_batch_count"
 #define LDB_MIGRATE_BATCH_SIZE          "ldb_migrate_batch_size"
+#define LDB_DELRANGE_BATCH_COUNT        "ldb_delrange_batch_count"
+#define LDB_DELRANGE_BATCH_SIZE         "ldb_delrange_batch_size"
 #define LDB_COMPARATOR_TYPE             "ldb_comparator_type"
 #define LDB_USERKEY_SKIP_META_SIZE      "ldb_userkey_skip_meta_size"
 #define LDB_USERKEY_NUM_DELIMITER       "ldb_userkey_num_delimiter"
@@ -464,6 +466,12 @@ typedef enum {
   CMD_RANGE_ALL = 1,  
   CMD_RANGE_VALUE_ONLY,  
   CMD_RANGE_KEY_ONLY,  
+  CMD_RANGE_ALL_REVERSE,  
+  CMD_RANGE_VALUE_ONLY_REVERSE,  
+  CMD_RANGE_KEY_ONLY_REVERSE,  
+  // all GET_RANGE_CMD should < DEL_RANGE_CMD
+  CMD_DEL_RANGE,
+  CMD_DEL_RANGE_REVERSE,
 } RangeCmdType;
 
 typedef enum {

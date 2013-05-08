@@ -381,6 +381,7 @@ namespace tair {
       return rc;
     }
 
+   // both get_range and del_range use this packet
    int request_processor::process(request_get_range *request, bool &send_return)
    {
       send_return = true;
@@ -390,10 +391,12 @@ namespace tair {
       }
 
       int rc = TAIR_RETURN_FAILED;
+      int size = 0;
       plugin::plugins_root* plugin_root = NULL;
       uint64_t target_server_id = 0;
+      bool has_next;
 
-      PROFILER_START("get_range operation start");
+      PROFILER_START("range operation start");
       request->key_start.server_flag = request->server_flag;
       request->key_end.server_flag = request->server_flag;
 
@@ -410,11 +413,20 @@ namespace tair {
          log_error("plugin return %d, skip excute", plugin_ret);
          rc = TAIR_RETURN_PLUGIN_ERROR;
       } else {
-         PROFILER_BEGIN("do get_range");
          tair_dataentry_vector *result = new tair_dataentry_vector();
-         bool has_next;
-         rc = tair_mgr->get_range(request->area, request->key_start, request->key_end, request->offset ,request->limit, request->cmd, *result, has_next);
-         PROFILER_END();
+         if (request->cmd < CMD_DEL_RANGE){
+            PROFILER_BEGIN("do get_range");
+            rc = tair_mgr->get_range(request->area, request->key_start, request->key_end, request->offset ,request->limit, request->cmd, *result, has_next);
+            PROFILER_END();
+         } else {
+            PROFILER_BEGIN("del get_range");
+            // key_start may be changed after del_range, save this key for plocker
+            data_entry saved_key = request->key_start;
+            plocker.lock(saved_key);
+            rc = tair_mgr->del_range(request->area, request->key_start, request->key_end, request->offset ,request->limit, request->cmd, *result, has_next);
+            plocker.unlock(saved_key);
+            PROFILER_END();
+         }
 
          response_get_range *resp = new response_get_range();
          resp->config_version = heart_beat->get_client_version();
@@ -422,9 +434,11 @@ namespace tair {
          resp->set_code(rc); 
          resp->set_hasnext(has_next); 
          resp->set_cmd(request->cmd);
-         int size = result->size();
+         size = result->size();
          resp->set_key_count(size);
          if (size == 0){
+            delete result;
+            result = NULL;
             log_info("no data return from get_range rc:%d, key: %s", rc, request->key_start.get_data()+4);
          } else {
             resp->set_key_data_vector(result);

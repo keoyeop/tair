@@ -836,6 +836,26 @@ namespace tair
         return rc;
       }
 
+      int LdbManager::del_range(int bucket_number, data_entry& key_start, data_entry& key_end, int offset, int limit, int type, std::vector<data_entry*>& result, bool &has_next)
+      {
+        int rc = TAIR_RETURN_SUCCESS;
+        LdbInstance* db_instance = get_db_instance(bucket_number, false);
+
+        if (db_instance == NULL)
+        {
+          log_error("ldb_bucket[%d] not exist", bucket_number);
+          rc = TAIR_RETURN_FAILED;
+        }
+        else 
+        {
+          PROFILER_BEGIN("db_instance del_range");
+          rc = db_instance->del_range(bucket_number, key_start, key_end, offset, limit, type, result, has_next);
+          log_debug("after del_range key_count:%lu", result.size());
+          PROFILER_END();
+        }
+        return rc;
+      }
+
       int LdbManager::remove(int bucket_number, data_entry& key, bool version_care)
       {
         log_debug("ldb::remove");

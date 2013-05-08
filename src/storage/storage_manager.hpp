@@ -74,6 +74,8 @@ const int ITEM_HEAD_LENGTH = 2;
 
       virtual int get_range(int bucket_number,data_entry & key_start,data_entry & key_end, int offset, int limit, int type, std::vector<data_entry*> &result, bool &has_next){return TAIR_RETURN_NOT_SUPPORTED;}
 
+      virtual int del_range(int bucket_number,data_entry & key_start,data_entry & key_end, int offset, int limit, int type, std::vector<data_entry*> &result, bool &has_next){return TAIR_RETURN_NOT_SUPPORTED;}
+
       virtual int clear(int area) = 0;
 
       virtual bool init_buckets(const std::vector<int> &buckets) = 0;

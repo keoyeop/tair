@@ -826,6 +826,32 @@
       return rc;
     }
 
+    int tair_manager::del_range(int32_t area, data_entry &key_start, data_entry &key_end, int offset, int limit, int type, std::vector<data_entry*> &result, bool &has_next)
+    {
+      if (status != STATUS_CAN_WORK) {
+        return TAIR_RETURN_SERVER_CAN_NOT_WORK;
+      }
+      if (key_start.get_size() >= TAIR_MAX_KEY_SIZE || key_start.get_size() < 1) {
+        return TAIR_RETURN_ITEMSIZE_ERROR;
+      }
+
+      if (area < 0 || area >= TAIR_MAX_AREA_COUNT) {
+        return TAIR_RETURN_INVALID_ARGUMENT;
+      }
+
+      int bucket_number = get_bucket_number(key_start);
+
+      key_start.merge_area(area);
+      key_end.merge_area(area);
+
+      PROFILER_BEGIN("del range from storage engine");
+      int rc = storage_mgr->del_range(bucket_number, key_start, key_end, offset, limit, type, result, has_next);
+      PROFILER_END();
+
+      //TAIR_STAT.stat_remove(area);
+      return rc;
+    }
+
     int tair_manager::hide(int area, data_entry &key, base_packet *request, int heart_version)
     {
       if (status != STATUS_CAN_WORK) {

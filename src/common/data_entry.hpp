@@ -414,7 +414,7 @@ namespace tair
 
        void encode_with_compress(tbnet::DataBuffer *output) const
        {
-         encode(output, true);
+         encode(output, false);
        }
 
        bool decode(tbnet::DataBuffer *input, bool need_decompress = false)
