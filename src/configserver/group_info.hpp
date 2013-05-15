@@ -75,6 +75,18 @@ namespace tair {
       void set_migrating_hashtable(size_t bucket_no, uint64_t server_id);
       void hard_check_migrate_complete(uint64_t slave_server_id);
 
+      /*
+       * only support migrate one bucket at a time.
+       * bucket_no: bucket which should be migrate
+       * copy_index: copy count index
+       * src_server_id: server who hold bucket now, just for check
+       * dest_server_id: server who hold bucket after migrate
+       */
+      int force_migrate_bucket(uint32_t bucket_no, uint32_t copy_index,
+          uint64_t src_server_id, uint64_t dest_server_id,
+          tbsys::CRWSimpleLock * p_grp_locker,
+          tbsys::CRWSimpleLock * p_server_locker);
+
       uint32_t get_plugins_count() const
       {
         return plugins_name_info.size();

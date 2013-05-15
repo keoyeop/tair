@@ -1213,6 +1213,11 @@ namespace tair {
           rc = do_reset_ds_packet(resp, req->params);
           break;
         }
+        case TAIR_SERVER_CMD_MIGRATE_BUCKET:
+        {
+          rc = do_force_migrate_bucket(resp, req->params);
+          break;
+        }
         default:
         {
           log_error("unknown command %d received", cmd);
@@ -1322,6 +1327,40 @@ namespace tair {
       mit->second->inc_version();
       mit->second->set_force_send_table();
       group_info_rw_locker.unlock();
+      return ret;
+    }
+
+    int server_conf_thread::do_force_migrate_bucket(response_op_cmd* resp, const vector<string>& params)
+    {
+      //params
+      //group_name bucket_no copy_no src_ds_addr dest_ds_addr
+      int ret = TAIR_RETURN_SUCCESS;
+      if (params.size() != 5)
+      {
+        log_error("force migrate bucket cmd, but parameter is illegal");
+        ret = TAIR_RETURN_FAILED;
+      }
+
+      if (ret == TAIR_RETURN_SUCCESS)
+      {
+        const char* cmd_group = params[0].c_str();
+        group_info_map::iterator mit = group_info_map_data.find(cmd_group);
+        if (mit == group_info_map_data.end())
+        {
+          log_error("force migrate bucket cmd, group name: %s", cmd_group);
+          ret = TAIR_RETURN_FAILED;
+        }
+        else
+        {
+          int bucket_no = atoi(params[1].c_str());
+          int copy_no = atoi(params[2].c_str());
+          uint64_t src_ds_addr = tbsys::CNetUtil::strToAddr(params[3].c_str(), 0);
+          uint64_t dest_ds_addr = tbsys::CNetUtil::strToAddr(params[4].c_str(), 0);
+
+          ret = mit->second->force_migrate_bucket(bucket_no, copy_no, src_ds_addr, dest_ds_addr,
+                                         &group_info_rw_locker, &server_info_rw_locker);
+        }
+      }
       return ret;
     }
 

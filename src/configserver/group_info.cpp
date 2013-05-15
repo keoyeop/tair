@@ -686,6 +686,120 @@ namespace tair {
         }
       }
     }
+
+    int group_info::force_migrate_bucket(uint32_t bucket_no, uint32_t copy_index, uint64_t src_server_id, uint64_t dest_server_id,
+                                   tbsys::CRWSimpleLock* p_grp_locker, tbsys::CRWSimpleLock* p_server_locker)
+    {
+      int ret = TAIR_RETURN_SUCCESS;
+      if (src_server_id == dest_server_id)
+      {
+        log_error("serverid equal");
+        ret = TAIR_RETURN_FAILED;
+      }
+
+      //check migrating ?
+      if (ret == TAIR_RETURN_SUCCESS && (*server_table_manager.migrate_block_count) != -1)
+      {
+        log_error("server is migrating. migrate block count: %d", *(server_table_manager.migrate_block_count));
+        ret = TAIR_RETURN_FAILED;
+      }
+
+      //check bucket no
+      if (ret == TAIR_RETURN_SUCCESS && bucket_no >= server_table_manager.get_server_bucket_count())
+      {
+        log_error("bucket_no is illegal. bucket_no: %d, server_bucket_count: %d",
+            bucket_no, server_table_manager.get_server_bucket_count());
+        ret = TAIR_RETURN_FAILED;
+      }
+
+      //check copy_index
+      if (ret == TAIR_RETURN_SUCCESS && copy_index >= server_table_manager.get_copy_count())
+      {
+        log_error("copy_index is illegal. copy_index: %d, server_copy_count: %d", copy_index, server_table_manager.get_copy_count());
+        ret = TAIR_RETURN_FAILED;
+      }
+
+      if (ret == TAIR_RETURN_SUCCESS)
+      {
+        set<node_info*> upnode_list;
+        p_server_locker->rdlock();
+        get_up_node(upnode_list);
+        p_server_locker->unlock();
+        size_t size = upnode_list.size();
+        log_info("[%s] upnodeList.size = %"PRI64_PREFIX"u", group_name, size);
+        //make sure migrate is closed
+        if (size >= static_cast<size_t>(min_data_server_count))
+        {
+          log_error("min_data_server_count should be large than alive server number. min server count: %d, alive server: %"PRI64_PREFIX"u",
+              min_data_server_count, size);
+          ret = TAIR_RETURN_FAILED;
+        }
+      }
+
+      // check src_server_id and dest_server_id
+      if (ret == TAIR_RETURN_SUCCESS && (available_server.find(src_server_id) == available_server.end()
+          || available_server.find(dest_server_id) == available_server.end()))
+      {
+        log_error("server is not exist in available server. src_server: %s, dest_server: %s",
+             tbsys::CNetUtil::addrToString(src_server_id).c_str(), tbsys::CNetUtil::addrToString(dest_server_id).c_str());
+        ret = TAIR_RETURN_FAILED;
+      }
+
+      if (ret == TAIR_RETURN_SUCCESS)
+      {
+        int bucket_index = bucket_no + copy_index * server_table_manager.get_server_bucket_count();
+        // check src_server_id again
+        if (server_table_manager.m_hash_table[bucket_index] != src_server_id)
+        {
+          log_error("src server is wrong. server in m_hash_table: %s, src_server: %s",
+              tbsys::CNetUtil::addrToString(server_table_manager.m_hash_table[bucket_index]).c_str(), 
+              tbsys::CNetUtil::addrToString(src_server_id).c_str());
+          ret = TAIR_RETURN_FAILED;
+        }
+        else
+        {
+          //check if dest_server_id already hold this bucket?
+          for (uint32_t i = 0; i < server_table_manager.get_copy_count(); ++i)
+          {
+            if (i != copy_index)
+            {
+              int tmp_bucket_index = bucket_no + i * server_table_manager.get_server_bucket_count();
+              if (server_table_manager.m_hash_table[tmp_bucket_index] == dest_server_id)
+              {
+                log_error("dest server is already hold this bucket. line: %d, server in m_hash_table: %s, dest_server: %s", i,
+                    tbsys::CNetUtil::addrToString(server_table_manager.m_hash_table[tmp_bucket_index]).c_str(), 
+                    tbsys::CNetUtil::addrToString(dest_server_id).c_str());
+                ret = TAIR_RETURN_FAILED;
+                break;
+              }
+            }
+          }
+        }
+
+        if (ret == TAIR_RETURN_SUCCESS)
+        {
+          p_grp_locker->wrlock();
+          log_warn("d_hash_table, bucket_index: %d, src_server: %s, dest_server: %s",
+              bucket_index, tbsys::CNetUtil::addrToString(src_server_id).c_str(),
+              tbsys::CNetUtil::addrToString(dest_server_id).c_str());
+          server_table_manager.d_hash_table[bucket_index] = dest_server_id;
+
+          int diff_count = fill_migrate_machine();
+          (*server_table_manager.migrate_block_count) =
+            diff_count > 0 ? diff_count : -1;
+
+          inc_version(server_table_manager.client_version);
+          inc_version(server_table_manager.server_version);
+          *(server_table_manager.migrate_version) = 0;
+          deflate_hash_table();
+          server_table_manager.sync();
+          set_force_send_table();
+          p_grp_locker->unlock();
+        }
+      }
+      return ret;
+    }
+
     void group_info::rebuild(uint64_t slave_server_id,
                              tbsys::CRWSimpleLock * p_grp_locker,
                              tbsys::CRWSimpleLock * p_server_locker)
@@ -1183,6 +1297,7 @@ namespace tair {
         migrate_machine.clear();
       }
     }
+
     void group_info::get_migrating_machines(vector <pair< uint64_t, uint32_t > >&vec_server_id_count) const
     {
       log_debug("machine size = %lu", migrate_machine.size());

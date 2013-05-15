@@ -66,3 +66,10 @@ version 2.3.2.1
 * fixbug:
 * 1. get_bucket_number检查data_entry是否has_merged
 * 2. update_log记录prefix size
+
+2013-05-15
+version 2.3.x.x
+* feature:
+* 1. 增加迁移工具，针对ldb，可以把指定的bucket迁移到某台server. tairclient
+migrate_bucket
+

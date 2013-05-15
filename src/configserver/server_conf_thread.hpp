@@ -122,6 +122,7 @@ namespace tair {
           const vector<string> &params, const char *group_file_name);
 
       int do_reset_ds_packet(response_op_cmd *resp, const std::vector<std::string>& params);
+      int do_force_migrate_bucket(response_op_cmd *resp, const std::vector<std::string>& params);
 
     private:
       group_info_map group_info_map_data;

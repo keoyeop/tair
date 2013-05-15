@@ -68,6 +68,7 @@ namespace tair {
       cmd_map["getstatus"] = &tair_client::do_cmd_getstatus;
       cmd_map["gettmpdownsvr"] = &tair_client::do_cmd_gettmpdownsvr;
       cmd_map["resetserver"] = &tair_client::do_cmd_resetserver;
+      cmd_map["migrate_bucket"] = &tair_client::do_cmd_migrate_bucket;
       cmd_map["flushmmt"] = &tair_client::do_cmd_flushmmt;
       cmd_map["resetdb"] = &tair_client::do_cmd_resetdb;
       cmd_map["set_migrate_wait"] = &tair_client::do_cmd_set_migrate_wait_ms;
@@ -572,6 +573,19 @@ namespace tair {
                  "DESCRIPTION: clear the all or some specified by `ds_addr down server in group, namely 'tmp_down_server' in group.conf\n"
                  "\tgroup: groupname to reset\n"
                  "\tds_addr: dataserver to reset\n"
+            );
+      }
+
+      if (cmd == NULL || strcmp(cmd, "migrate_bucket") == 0) {
+         fprintf(stderr,
+                 "------------------------------------------------\n"
+                 "SYNOPSIS   : migrate_bucket group bucket_no copy_no src_ds_addr(ip:port) dest_ds_addr(ip:port)\n"
+                 "DESCRIPTION: force migrate bucket bucket_no from src_ds_addr to dest_ds_addr\n"
+                 "\tgroup: groupname to migrate\n"
+                 "\tbucket_no: bucket_no to migrate\n"
+                 "\tcopy_no: which copy of bucket_no to migrate\n"
+                 "\tsrc_ds_addr: who hold this copy of bucket_no, for check\n"
+                 "\tdest_ds_addr: migrate destnation\n"
             );
       }
 
@@ -1771,6 +1785,20 @@ namespace tair {
      }
      std::vector<std::string> cmd_params(params.begin(), params.end());
      int ret = client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_RESET_DS, &cmd_params, NULL);
+     if (ret == TAIR_RETURN_SUCCESS) {
+       fprintf(stderr, "successful\n");
+     } else {
+       fprintf(stderr, "failed with %d\n", ret);
+     }
+   }
+
+   void tair_client::do_cmd_migrate_bucket(VSTRING &params) {
+     if (params.size() < 1) {
+       print_help("migrate_bucket");
+       return ;
+     }
+     std::vector<std::string> cmd_params(params.begin(), params.end());
+     int ret = client_helper.op_cmd_to_cs(TAIR_SERVER_CMD_MIGRATE_BUCKET, &cmd_params, NULL);
      if (ret == TAIR_RETURN_SUCCESS) {
        fprintf(stderr, "successful\n");
      } else {

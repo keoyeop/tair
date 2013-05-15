@@ -95,6 +95,7 @@ namespace tair {
       void do_cmd_getstatus(VSTRING &params);
       void do_cmd_gettmpdownsvr(VSTRING &params);
       void do_cmd_resetserver(VSTRING &params);
+      void do_cmd_migrate_bucket(VSTRING &params);
       void do_cmd_flushmmt(VSTRING &params);
       void do_cmd_resetdb(VSTRING &params);
       void do_cmd_set_migrate_wait_ms(VSTRING &param);
