@@ -73,3 +73,10 @@ version 2.3.x.x
 * 1. 增加迁移工具，针对ldb，可以把指定的bucket迁移到某台server. tairclient
 migrate_bucket
 
+2013-05-28
+version 2.3.2.7
+* feature:
+* 1. 添加ldb balance功能
+* 2. 添加手动migrate bucket功能
+* fixbug:
+* 1. 迁移导致prefix size丢失
