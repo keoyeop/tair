@@ -75,6 +75,7 @@ namespace tair {
       cmd_map["stat_db"] = &tair_client::do_cmd_stat_db;
       cmd_map["release_mem"] = &tair_client::do_cmd_release_mem;
       cmd_map["backup_db"] = &tair_client::do_cmd_backup_db;
+      cmd_map["unload_backuped_db"] = &tair_client::do_cmd_unload_backuped_db;
       cmd_map["pause_gc"] = &tair_client::do_cmd_pause_gc;
       cmd_map["resume_gc"] = &tair_client::do_cmd_resume_gc;
       cmd_map["start_balance"] = &tair_client::do_cmd_start_balance;
@@ -1827,6 +1828,11 @@ namespace tair {
    void tair_client::do_cmd_backup_db(VSTRING& param)
    {
      do_cmd_op_ds_or_not(param, "backup_db", TAIR_SERVER_CMD_BACKUP_DB);
+   }
+
+   void tair_client::do_cmd_unload_backuped_db(VSTRING& param)
+   {
+     do_cmd_op_ds_or_not(param, "unload_backuped_db", TAIR_SERVER_CMD_UNLOAD_BACKUPED_DB);
    }
 
    void tair_client::do_cmd_pause_gc(VSTRING& param)

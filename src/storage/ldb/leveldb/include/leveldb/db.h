@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <vector>
 #include "leveldb/iterator.h"
 #include "leveldb/options.h"
 
@@ -154,7 +155,7 @@ class DB {
                            void (*key_printer)(const Slice&, std::string&) = NULL) = 0;
 
   // operate some command to db
-  virtual Status OpCmd(int cmd) = 0;
+  virtual Status OpCmd(int cmd, const std::vector<std::string>* params = NULL, std::vector<std::string>* result = NULL) = 0;
 
   // For each i in [0,n-1], store in "sizes[i]", the approximate
   // file system space used by keys in "[range[i].start .. range[i].limit)".

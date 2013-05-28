@@ -800,6 +800,13 @@ VersionSet::VersionSet(const std::string& dbname,
 }
 
 VersionSet::~VersionSet() {
+  for (std::map<uint64_t, Version*>::iterator it = loaded_versions_.begin();
+       it != loaded_versions_.end();
+       ++it) {
+    it->second->Unref();
+    // not deletefile here
+  }
+  loaded_versions_.clear();
   current_->Unref();
   CleanupVersion();
   // assert(dummy_versions_.next_ == &dummy_versions_);  // List must be empty
@@ -941,7 +948,7 @@ Status VersionSet::LogAndApply(VersionEdit* edit, port::Mutex* mu) {
       pending_restart_manifest_ = false;
     }
     mu->Unlock();
-    // cleanup unused Version.
+    // cleanup unused Version, Version is only destroyed here.
     // no need lock, 'cause dummy_version list is only updated here.
     CleanupVersion();
   } else {
@@ -1137,6 +1144,8 @@ Status VersionSet::LoadBackupVersion() {
         v->next_->prev_ = v;
 
         ++count;
+        loaded_versions_[number] = v;
+        Log(options_->info_log, "load backup version id: %lu", number);
       }
 
       base_version->Unref();
@@ -1149,10 +1158,12 @@ Status VersionSet::LoadBackupVersion() {
   return s;
 }
 
+// mutex hold
 Status VersionSet::BackupCurrentVersion() {
   std::string bv_dir = dbname_ + "/" + VersionSet::kBackupVersionDir;
   env_->CreateDir(bv_dir);
-  std::string filename = DescriptorFileName(bv_dir, NewFileNumber());
+  uint64_t id = NewFileNumber();
+  std::string filename = DescriptorFileName(bv_dir, id);
   WritableFile* desc_file = NULL;
   Status s = env_->NewWritableFile(filename, &desc_file);
 
@@ -1174,6 +1185,8 @@ Status VersionSet::BackupCurrentVersion() {
         if (s.ok()) {
           // increase ref count of current version, because we want and do backup it.
           current_->Ref();
+          loaded_versions_[id] = current_;
+          Log(options_->info_log, "backup version, id: %lu", id);
         }
       }
     }
@@ -1181,6 +1194,36 @@ Status VersionSet::BackupCurrentVersion() {
     delete desc_file;
   }
   return s;
+}
+
+// mutex hold
+Status VersionSet::UnloadBackupedVersion(uint64_t id) {
+  std::string bv_dir = dbname_ + "/" + VersionSet::kBackupVersionDir;
+  if (id == 0) {
+    Log(options_->info_log, "unload all backuped version");
+    for (std::map<uint64_t, Version*>::iterator it = loaded_versions_.begin();
+         it != loaded_versions_.end();
+         ++it) {
+      // CleanupVersion() will destroy it.
+      it->second->Unref();
+      env_->DeleteFile(DescriptorFileName(bv_dir, it->first));
+    }
+    loaded_versions_.clear();
+  } else {
+    std::map<uint64_t, Version*>::iterator it = loaded_versions_.find(id);
+    if (it == loaded_versions_.end()) {
+      char buf[64];
+      snprintf(buf, sizeof(buf), "%lu", id);
+      return Status::InvalidArgument(std::string("invalid version id to unload: ") + buf);
+    }
+
+    Log(options_->info_log, "unload backuped version, id: %lu", id); 
+    // CleanupVersion() will destroy it.
+    it->second->Unref();
+    env_->DeleteFile(DescriptorFileName(bv_dir, it->first));
+    loaded_versions_.erase(it);
+  }
+  return Status::OK();
 }
 
 void VersionSet::MarkFileNumberUsed(uint64_t number) {

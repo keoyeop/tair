@@ -431,7 +431,8 @@ namespace tair
           if (TAIR_RETURN_SUCCESS == ret)
           {
             log_debug("@@ put op");
-            DO_REMOTE_SYNC_OP(TAIR_REMOTE_SYNC_TYPE_PUT, put(key->get_area(), *key, *value, 0, 0, false,
+            DO_REMOTE_SYNC_OP(TAIR_REMOTE_SYNC_TYPE_PUT, put(key->get_area(), *key, *value,
+                                                             value->data_meta.edate, value->data_meta.version, false,
                                                              &RemoteSyncManager::callback, arg));
           }
           else

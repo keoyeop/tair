@@ -36,6 +36,7 @@ namespace leveldb {
   bool config::kLimitCompactTimeReverse;
   int config::kLimitDeleteObsoleteFileInterval;
   bool config::kDoSeekCompaction;
+  bool config::kDoSplitMmtCompaction;
 
   void config::setConfig(const Options& src) {
     config::kL0_CompactionTrigger = src.kL0_CompactionTrigger;
@@ -62,6 +63,7 @@ namespace leveldb {
     SetLimitCompactTimeRange(src.kLimitCompactTimeStart, src.kLimitCompactTimeEnd);
     config::kLimitDeleteObsoleteFileInterval = src.kLimitDeleteObsoleteFileInterval;
     config::kDoSeekCompaction = src.kDoSeekCompaction;
+    config::kDoSplitMmtCompaction = src.kDoSplitMmtCompaction;
   }
 
   void config::SetLimitCompactTimeRange(int time_start, int time_end) {

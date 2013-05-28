@@ -55,11 +55,7 @@ namespace tair
           db_ = db;
 
           const char* time_range = TBSYS_CONFIG.getString(TAIRLDB_SECTION, LDB_COMPACT_GC_RANGE, "2-7");
-          if (!util::time_util::get_time_range(time_range, min_time_hour_, max_time_hour_))
-          {
-            log_warn("config compact hour range error: %s, use default 2-7", time_range);
-          }
-          log_info("compact hour range: %d - %d", min_time_hour_, max_time_hour_);
+          reset_time_range(time_range);
         }
         else
         {
@@ -77,6 +73,15 @@ namespace tair
       {
         log_warn("reset compact task");
         round_largest_filenumber_ = 0;
+      }
+
+      void LdbCompactTask::reset_time_range(const char* time_range)
+      {
+        if (!util::time_util::get_time_range(time_range, min_time_hour_, max_time_hour_))
+        {
+          log_warn("config compact hour range error: %s, use default 2-7", time_range);
+        }
+        log_warn("compact hour range: %d - %d", min_time_hour_, max_time_hour_);
       }
 
       bool LdbCompactTask::should_compact()
@@ -279,6 +284,14 @@ namespace tair
         if (compact_task_ != 0)
         {
           compact_task_->reset();
+        }
+      }
+
+      void BgTask::reset_compact_gc_range(const char* time_range)
+      {
+        if (compact_task_ != 0)
+        {
+          compact_task_->reset_time_range(time_range);
         }
       }
 

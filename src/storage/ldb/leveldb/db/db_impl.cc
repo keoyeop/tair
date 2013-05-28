@@ -534,7 +534,8 @@ Status DBImpl::WriteLevel0Table(MemTable* mem, VersionEdit* edit,
 
     {
       PROFILER_BEGIN("buildtab-");
-      s = BuildTable(dbname_, env_, options_, user_comparator(), table_cache_, iter, &meta);
+      s = BuildTable(dbname_, env_, options_, config::kDoSplitMmtCompaction ? user_comparator() : NULL,
+                     table_cache_, iter, &meta);
       PROFILER_END();
     }
 
@@ -1549,7 +1550,8 @@ Status DBImpl::MaybeRotate() {
 }
 
 bool DBImpl::ShouldLimitWrite(int32_t trigger) {
-  return options_.kL0_LimitWriteWithCount ? (versions_->NumLevelFiles(0) >= trigger) :
+  // without split, then limit with count, or with size
+  return !config::kDoSplitMmtCompaction ? (versions_->NumLevelFiles(0) >= trigger) :
     (versions_->NumLevelBytes(0) >= static_cast<int64_t>(options_.write_buffer_size * trigger));
 }
 
@@ -2189,13 +2191,22 @@ bool DBImpl::GetProperty(const Slice& property, std::string* value,
   return false;
 }
 
-Status DBImpl::OpCmd(int cmd) {
+Status DBImpl::OpCmd(int cmd, const std::vector<std::string>* params, std::vector<std::string>* result) {
   MutexLock l(&mutex_);
   Status s;
   switch (cmd) {
   case kCmdBackupDB:
     s = versions_->BackupCurrentVersion();
     break;
+  case kCmdUnloadBackupedDB:
+  {
+    uint64_t id = 0;
+    if (params != NULL && !params->empty() && !(*params)[0].empty()) {
+      id = atoll((*params)[0].c_str());
+    }
+    s = versions_->UnloadBackupedVersion(id);
+    break;
+  }
   default:
     return Status::InvalidArgument("unkonwn cmd type");
   }

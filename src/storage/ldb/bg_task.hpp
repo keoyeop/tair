@@ -49,6 +49,7 @@ namespace tair
         bool init(LdbInstance* db);
         void stop();
         void reset();
+        void reset_time_range(const char* time_range);
 
       private:
         bool is_compact_time();
@@ -83,6 +84,7 @@ namespace tair
         bool start(LdbInstance* db);
         void stop();
         void restart();
+        void reset_compact_gc_range(const char* time_range);
 
       private:
         bool init_compact_task(LdbInstance* db);

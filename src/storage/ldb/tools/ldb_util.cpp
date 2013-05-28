@@ -85,6 +85,7 @@ namespace tair
 
         options.error_if_exists = false; // exist is ok
         options.create_if_missing = false;
+        options.table_cache_size = 20 << 20;
         options.env = leveldb::Env::Instance();
 
         char buf[32];
@@ -216,10 +217,11 @@ namespace tair
       }
 
 
-      DataFilter::DataFilter(const char* yes_keys, const char* no_keys)
+      DataFilter::DataFilter(const char* yes_keys, const char* no_keys, KVFilter* filter)
       {
         init_set(yes_keys, yes_keys_);
         init_set(no_keys, no_keys_);
+        filter_ = filter;
       }
       DataFilter::~DataFilter()
       {
@@ -238,12 +240,17 @@ namespace tair
         }
       }
 
-      bool DataFilter::ok(int32_t key)
+      bool DataFilter::ok(int32_t k, LdbKey* key, LdbItem* value)
       {
         // yes_keys is not empty and match specified key, then no_keys will be ignored
         bool empty = false;
-        return ((empty = yes_keys_.empty()) || yes_keys_.find(key) != yes_keys_.end()) &&
-          (!empty || no_keys_.empty() || no_keys_.find(key) == no_keys_.end());
+        bool ret = ((empty = yes_keys_.empty()) || yes_keys_.find(k) != yes_keys_.end()) &&
+          (!empty || no_keys_.empty() || no_keys_.find(k) == no_keys_.end());
+        if (ret && filter_ != NULL && key != NULL && value != NULL)
+        {
+          ret = filter_->ok(key, value);
+        }
+        return ret;
       }
 
     }

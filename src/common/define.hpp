@@ -222,7 +222,6 @@
 #define LDB_ARENABLOCK_SIZE             "ldb_arenablock_size"
 #define LDB_COMPRESSION                 "ldb_compression"
 #define LDB_L0_COMPACTION_TRIGGER       "ldb_l0_compaction_trigger"
-#define LDB_L0_LIMIT_WRITE_WITH_COUNT   "ldb_l0_limit_write_with_count"
 #define LDB_L0_SLOWDOWN_WRITE_TRIGGER   "ldb_l0_slowdown_write_trigger"
 #define LDB_L0_STOP_WRITE_TRIGGER       "ldb_l0_stop_write_trigger"
 #define LDB_MAX_MEMCOMPACT_LEVEL        "ldb_max_memcompact_level"
@@ -238,6 +237,7 @@
 #define LDB_LIMIT_COMPACT_TIME_RANGE    "ldb_limit_compact_time_range"
 #define LDB_LIMIT_DELETE_OBSOLETE_FILE_INTERVAL      "ldb_limit_delete_obsolete_file_interval"
 #define LDB_DO_SEEK_COMPACTION          "ldb_do_seek_compaction"
+#define LDB_DO_SPLIT_MMT_COMPACTION     "ldb_do_split_mmt_compaction"
 
 // file storage engine config items
 #define FDB_INDEX_MMAP_SIZE             "index_mmap_size"
@@ -459,6 +459,7 @@ typedef enum {
   TAIR_SERVER_CMD_STOP_BALANCE,
   TAIR_SERVER_CMD_SET_BALANCE_WAIT_MS,
   TAIR_SERVER_CMD_MIGRATE_BUCKET,
+  TAIR_SERVER_CMD_UNLOAD_BACKUPED_DB,
   // all cmd type should be less TAIR_SERVER_CMD_MAX_TYPE
   TAIR_SERVER_CMD_MAX_TYPE,
 } ServerCmdType;

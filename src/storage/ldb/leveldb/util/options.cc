@@ -29,7 +29,6 @@ Options::Options()
       reserve_log(false),
       load_backup_version(false),
       kL0_CompactionTrigger(4),
-      kL0_LimitWriteWithCount(true),
       kL0_SlowdownWritesTrigger(8),
       kL0_StopWritesTrigger(12),
       kMaxMemCompactLevel(2),
@@ -45,7 +44,8 @@ Options::Options()
       kLimitCompactTimeStart(0),
       kLimitCompactTimeEnd(0),
       kLimitDeleteObsoleteFileInterval(0),
-      kDoSeekCompaction(true) {
+      kDoSeekCompaction(true),
+      kDoSplitMmtCompaction(false) {
 }
 
 

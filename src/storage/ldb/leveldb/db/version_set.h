@@ -192,9 +192,10 @@ class VersionSet {
   // when recover over, maybe some backupversion should be loaded to db.
   // backupversion is used to maintain some version(snapshot).
   Status LoadBackupVersion();
-
   // backup current version for future use.
   Status BackupCurrentVersion();
+  // unload backuped version, `id is MANIFEST filenumber
+  Status UnloadBackupedVersion(uint64_t id);
 
   // Return the current version.
   Version* current() const { return current_; }
@@ -368,6 +369,8 @@ class VersionSet {
   WritableFile* descriptor_file_;
   log::Writer* descriptor_log_;
   Version dummy_versions_;  // Head of circular doubly-linked list of versions.
+  // loaded versions, id => Version*, id is version's MANIFEST filenumber
+  std::map<uint64_t, Version*> loaded_versions_;
   Version* current_;        // == dummy_versions_.prev_
 
   // Per-level key at which the next compaction at that level should start.

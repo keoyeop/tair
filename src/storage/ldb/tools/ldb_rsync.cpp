@@ -107,6 +107,19 @@ int get_from_local_cluster(ClusterHandler& handler, data_entry& key, data_entry*
   return ret;
 }
 
+void log_fail(RecordLogger* logger, std::string& info, data_entry* key, int ret)
+{
+  log_error("fail one: %d", ret);
+  FailRecord record(key, info, ret);
+  data_entry entry;
+  FailRecord::record_to_entry(record, entry);
+  int tmp_ret = logger->add_record(0, TAIR_REMOTE_SYNC_TYPE_PUT, &entry, NULL);
+  if (tmp_ret != TAIR_RETURN_SUCCESS)
+  {
+    log_error("add fail record fail, ret: %d", tmp_ret);
+  }
+}
+
 void log_fail(RecordLogger* logger, std::string& info, tair_operc_vector& kvs, int ret)
 {
   log_error("fail one %d", ret);
@@ -123,15 +136,35 @@ void log_fail(RecordLogger* logger, std::string& info, tair_operc_vector& kvs, i
   }
 }
 
-int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t>& buckets, 
-             ClusterHandler* local_handler, ClusterHandler* remote_handler, bool mtime_care,
-             DataFilter& filter, DataStat& stat, RecordLogger* fail_logger)
+int do_batch_rsync(ClusterHandler* remote_handler, std::vector<uint64_t>& ds_ids,
+                   tair_operc_vector& kvs, RecordLogger* fail_logger)
+{
+  int ret = remote_handler->client()->direct_update(ds_ids, &kvs);
+  if (ret != TAIR_RETURN_SUCCESS)
+  {
+    // log fail key
+    log_fail(fail_logger, remote_handler->info(), kvs, ret);
+  }
+  for (size_t i = 0; i < kvs.size(); ++i)
+  {
+    delete kvs[i];
+  }
+  kvs.clear();
+
+  return ret;
+}
+
+int do_rsync(std::vector<int32_t>& buckets, DataFilter& filter,
+             const char* db_path, const char* manifest_file, const char* cmp_desc, 
+             ClusterHandler* local_handler, ClusterHandler* remote_handler,
+             bool mtime_care, bool batch_mode, 
+             DataStat& stat, RecordLogger* fail_logger)
 {
   static const int32_t MAX_BATCH_SIZE = 256 << 10; // 256K
   // open db with specified manifest(read only)
   leveldb::DB* db = NULL;
   leveldb::Options open_options;
-  leveldb::Status s = open_db_readonly(db_path, manifest_file, "bitcmp"/* TODO */, open_options, db);
+  leveldb::Status s = open_db_readonly(db_path, manifest_file, cmp_desc, open_options, db);
   if (!s.ok())
   {
     fprintf(stderr, "open db fail: %s\n", s.ToString().c_str());
@@ -156,10 +189,10 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
   data_entry* key = NULL;
   data_entry* value = NULL;
 
-  int32_t total_size = 0;
-
+  // for batch mode
   std::vector<uint64_t> ds_ids;
   tair_operc_vector kvs;
+  int32_t batch_size = 0;
 
   int32_t mtime_care_flag = mtime_care ? TAIR_CLIENT_DATA_MTIME_CARE : 0;
   int ret = TAIR_RETURN_SUCCESS;
@@ -176,6 +209,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
       start_time = time(NULL);
       area = -1;
       ds_ids.clear();
+      batch_size = 0;
 
       bucket = buckets[i];
       remote_handler->client()->get_server_id(bucket, ds_ids);
@@ -184,9 +218,9 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
       {
         log_warn("begin rsync bucket %d to %s", bucket, tbsys::CNetUtil::addrToString(ds_ids[i]).c_str());
       }
+
       // seek to bucket
       LdbKey::build_key_meta(scan_key, bucket);
-
       for (db_it->Seek(leveldb::Slice(scan_key, sizeof(scan_key))); !g_stop && db_it->Valid(); db_it->Next())
       {
         ret = TAIR_RETURN_SUCCESS;
@@ -204,7 +238,7 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
         }
 
         // skip this data
-        if (!filter.ok(area))
+        if (!filter.ok(area, &ldb_key, &ldb_item))
         {
           skip_in_bucket = true;
         }
@@ -238,92 +272,66 @@ int do_rsync(const char* db_path, const char* manifest_file, std::vector<int32_t
             // mtime care / skip cache
             key->data_meta.flag = mtime_care_flag | TAIR_CLIENT_PUT_SKIP_CACHE_FLAG;
             key->server_flag = TAIR_SERVERFLAG_RSYNC;
-            // sync to remote cluster
-            tair::operation_record *oprec = new tair::operation_record();
-            oprec->operation_type = 1;
-            oprec->key = key;
-            oprec->value = value;
-            kvs.push_back(oprec);
-            total_size += key->get_size() + value->get_size() + sizeof(tair::item_data_info) * 2;
 
-            if (total_size > MAX_BATCH_SIZE)
+            // batch mode rsync
+            if (batch_mode)
             {
-              log_debug("@@ size %lu %d", kvs.size(), total_size);
-              if (g_wait_ms > 0)
-              {
-                ::usleep(g_wait_ms * 1000);
-              }
-              ret = remote_handler->client()->direct_update(ds_ids, &kvs);
-              // consider timeout as success
-              if (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_TIMEOUT)
-              {
-                log_fail(fail_logger, remote_handler->info(), kvs, ret);
-              }
-              for (size_t i = 0; i < kvs.size(); ++i)
-              {
-                delete kvs[i];
-              }
-              kvs.clear();
-              total_size = 0;
-            }
-            // @@
-            // @@ use client put
-            // ret = remote_handler->client()->put(key->get_area(), *key, *value, 0, 0, false/* not fill cache */);
-            // if (ret == TAIR_RETURN_MTIME_EARLY)
-            // {
-            //   ret = TAIR_RETURN_SUCCESS;
-            // }
-            // @@ 
-          }
+              // sync to remote cluster
+              tair::operation_record *oprec = new tair::operation_record();
+              oprec->operation_type = 1;
+              oprec->key = key;
+              oprec->value = value;
+              kvs.push_back(oprec);
+              batch_size += key->get_size() + value->get_size() + sizeof(tair::item_data_info) * 2;
 
-          // // log failed key
-          // if (ret != TAIR_RETURN_SUCCESS)
-          // {
-          //   log_error("fail one: %d", ret);
-          //   FailRecord record(key, remote_handler->info(), ret);
-          //   data_entry entry;
-          //   FailRecord::record_to_entry(record, entry);
-          //   int tmp_ret = fail_logger->add_record(0, TAIR_REMOTE_SYNC_TYPE_PUT, &entry, NULL);
-          //   if (tmp_ret != TAIR_RETURN_SUCCESS)
-          //   {
-          //     log_error("add fail record fail, ret: %d", tmp_ret);
-          //   }
-          // }
+              if (batch_size > MAX_BATCH_SIZE)
+              {
+                if (g_wait_ms > 0)
+                {
+                  ::usleep(g_wait_ms * 1000);
+                }
+                ret = do_batch_rsync(remote_handler, ds_ids, kvs, fail_logger);
+                batch_size = 0;
+              }
+            }
+            else
+            {
+              // use client put
+              ret = remote_handler->client()->put(key->get_area(), *key, *value, value->data_meta.edate, value->data_meta.version, false/* not fill cache */);
+              if (ret == TAIR_RETURN_MTIME_EARLY)
+              {
+                ret = TAIR_RETURN_SUCCESS;
+              }
+              // log failed key
+              if (ret != TAIR_RETURN_SUCCESS)
+              {
+                log_fail(fail_logger, remote_handler->info(), key, ret);
+              }
+
+              // cleanup
+              if (key != NULL)
+              {
+                delete key;
+                key = NULL;
+              }
+              if (value != NULL)
+              {
+                delete value;
+                value = NULL;
+              }
+            }
+          }
         }
 
-        // update stat
+        // update stat (actually, stat of batch mode is updated advanced)
         stat.update(bucket, skip_in_bucket ? -1 : area, // skip in bucket, then no area to update
                     ldb_key.key_size() + ldb_item.value_size(), (skip_in_bucket || skip_in_area), ret == TAIR_RETURN_SUCCESS);
-
-        // // cleanup
-        // if (key != NULL)
-        // {
-        //   delete key;
-        //   key = NULL;
-        // }
-        // if (value != NULL)
-        // {
-        //   delete value;
-        //   value = NULL;
-        // }
       }
 
-      // last packet
+      // last part
       if (!kvs.empty())
       {
-        log_debug("@@ size %lu %d", kvs.size(), total_size);
-        ret = remote_handler->client()->direct_update(ds_ids, &kvs);
-        if (ret != TAIR_RETURN_SUCCESS && ret != TAIR_RETURN_TIMEOUT)
-        {
-          log_fail(fail_logger, remote_handler->info(), kvs, ret);
-        }
-
-        for (size_t i = 0; i < kvs.size(); ++i)
-        {
-          delete kvs[i];
-        }
-        kvs.clear();
-        total_size = 0;
+        do_batch_rsync(remote_handler, ds_ids, kvs, fail_logger);
       }
 
       log_warn("sync bucket %d over, cost: %lu(s), stat:\n",
@@ -352,12 +360,14 @@ void print_help(const char* name)
 {
   fprintf(stderr,
           "synchronize one ldb version data of specified buckets to remote cluster.\n"
-          "%s -p dbpath -f manifest_file -r remote_cluster_addr -e faillogger_file -b buckets [-a yes_areas] [-A no_areas] [-w wait_ms] [-l local_cluster_addr] [-n]\n"
+          "%s -p dbpath -f manifest_file -c cmp_desc -r remote_cluster_addr -e faillogger_file -b buckets [-a yes_areas] [-A no_areas] [-w wait_ms] [-l local_cluster_addr] [-m] [-n]\n"
           "NOTE:\n"
+          "\tcmp_desc like bitcmp OR numeric,:,2\n"
           "\tcluster_addr like: 10.0.0.1:5198,10.0.0.1:5198,group_1\n"
           "\tbuckets/areas like: 1,2,3\n"
           "\tconfig local cluster address mean that data WILL BE RE-GOT from local cluster\n"
           "\twait_ms means wait time after each request\n"
+          "\t-m : batch mode (batch-mode can ONLY be used when data is not updated during rsyncing)\n"
           "\t-n : NOT mtime_care\n", name);
 }
 
@@ -365,17 +375,19 @@ int main(int argc, char* argv[])
 {
   int ret = TAIR_RETURN_SUCCESS;
   char* db_path = NULL;
+  char* manifest_file = NULL;
+  char* cmp_desc = NULL;
   char* local_cluster_addr = NULL;
   char* remote_cluster_addr = NULL;
-  char* manifest_file = NULL;
   char* fail_logger_file = NULL;
   char* buckets = NULL;
   char* yes_areas = NULL;
   char* no_areas = NULL;
+  bool batch_mode = false;
   bool mtime_care = true;
   int i = 0;
 
-  while ((i = getopt(argc, argv, "p:f:l:r:e:b:a:A:w:n")) != EOF)
+  while ((i = getopt(argc, argv, "p:f:c:l:r:e:b:a:A:w:mn")) != EOF)
   {
     switch (i)
     {
@@ -384,6 +396,9 @@ int main(int argc, char* argv[])
       break;
     case 'f':
       manifest_file = optarg;
+      break;
+    case 'c':
+      cmp_desc = optarg;
       break;
     case 'l':
       local_cluster_addr = optarg;
@@ -406,6 +421,9 @@ int main(int argc, char* argv[])
     case 'w':
       g_wait_ms = atoll(optarg);
       break;
+    case 'm':
+      batch_mode = true;
+      break;
     case 'n':
       mtime_care = false;
       break;
@@ -415,7 +433,8 @@ int main(int argc, char* argv[])
     }
   }
 
-  if (db_path == NULL || manifest_file == NULL || remote_cluster_addr == NULL || fail_logger_file == NULL || buckets == NULL)
+  if (db_path == NULL || manifest_file == NULL || cmp_desc == NULL ||
+      remote_cluster_addr == NULL || fail_logger_file == NULL || buckets == NULL)
   {
     print_help(argv[0]);
     return 1;
@@ -466,13 +485,12 @@ int main(int argc, char* argv[])
 
   // init fail logger
   RecordLogger* fail_logger = new SequentialFileRecordLogger(fail_logger_file, 30<<20/*30M*/, true/*rotate*/);
-  if (fail_logger->init() != TAIR_RETURN_SUCCESS)
+  if ((ret = fail_logger->init()) != TAIR_RETURN_SUCCESS)
   {
     log_error("init fail logger fail, ret: %d", ret);
   }
   else
   {
-    // init data filter
     DataFilter filter(yes_areas, no_areas);
     // init data stat
     DataStat stat;
@@ -480,7 +498,11 @@ int main(int argc, char* argv[])
     log_warn("start rsync data, g_wait_ms: %"PRI64_PREFIX"d, mtime_care: %s", g_wait_ms, mtime_care ? "yes" : "no");
     // do data rsync
     uint32_t start_time = time(NULL);
-    ret = do_rsync(db_path, manifest_file, bucket_container, local_handler, remote_handler, mtime_care, filter, stat, fail_logger);
+    ret = do_rsync(bucket_container, filter,
+                   db_path, manifest_file, cmp_desc,
+                   local_handler, remote_handler,
+                   mtime_care, batch_mode,
+                   stat, fail_logger);
 
     log_warn("rsync data over, stopped: %s, cost: %lu(s), stat:", g_stop ? "yes" : "no", time(NULL) - start_time);
     stat.dump_all();

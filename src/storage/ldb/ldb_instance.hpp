@@ -63,6 +63,7 @@ namespace tair
         int del_range(int bucket_number, tair::common::data_entry& key_start, tair::common::data_entry& end_key, int offset, int limit, int type, std::vector<tair::common::data_entry*>& result, bool &has_next);
 
         int op_cmd(ServerCmdType cmd, std::vector<std::string>& params);
+        int op_cmd_to_db(int32_t cmd, const std::vector<std::string>& params);
 
         bool begin_scan(int bucket_number);
         bool end_scan();
@@ -70,7 +71,6 @@ namespace tair
         void get_stats(tair_stat* stat);
 
         int stat_db();
-        int backup_db();
         int set_config(std::vector<std::string>& params);
 
         int clear_area(int32_t area);

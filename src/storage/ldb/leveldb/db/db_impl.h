@@ -62,7 +62,7 @@ class DBImpl : public DB {
   virtual void ReleaseLogSnapshot(const Snapshot* snapshot);
   virtual bool GetProperty(const Slice& property, std::string* value,
                            void (*key_printer)(const Slice&, std::string&) = NULL);
-  virtual Status OpCmd(int cmd);
+  virtual Status OpCmd(int cmd, const std::vector<std::string>* params = NULL, std::vector<std::string>* result = NULL);
   virtual bool GetLevelRange(int level, std::string* smallest, std::string* largest);
   virtual void GetApproximateSizes(const Range* range, int n, uint64_t* sizes);
   virtual void CompactRange(const Slice* begin, const Slice* end);

@@ -72,6 +72,8 @@ static bool kLimitCompactTimeReverse;
 static int kLimitDeleteObsoleteFileInterval;
 // whether do compaction scheduled by seek count over-threshold
 static bool kDoSeekCompaction;
+// whether split mmt when compaction by user-defined logic
+static bool kDoSplitMmtCompaction;
 
 static bool IsLimitCompactTime();
 static void SetLimitCompactTimeRange(int time_start, int time_end);
@@ -83,6 +85,7 @@ static void setConfig(const Options& option);
 // db cmd type
 enum {
   kCmdBackupDB = 1,
+  kCmdUnloadBackupedDB,
 };
 }
 #endif  // STORAGE_LEVELDB_UTIL_CONFIG_H_

@@ -142,6 +142,8 @@ ldb_limit_compact_time_range=6-1
 ldb_limit_delete_obsolete_file_interval=5
 ## whether trigger compaction by seek
 ldb_do_seek_compaction=0
+## whether split mmt when compaction with user-define logic(bucket range, eg) 
+ldb_do_split_mmt_compaction=0
 
 #### following config effects on FastDump ####
 ## when ldb_db_instance_count > 1, bucket will be sharded to instance base on config strategy.
@@ -188,8 +190,6 @@ ldb_block_cache_size=16777216
 # ldb_compression=1
 ## compact when sstables count in level-0 is over this trigger
 ldb_l0_compaction_trigger=1
-## whether limit write with l0's filecount, if false
-ldb_l0_limit_write_with_count=0
 ## write will slow down when sstables count in level-0 is over this trigger
 ## or sstables' filesize in level-0 is over trigger * ldb_write_buffer_size if ldb_l0_limit_write_with_count=0
 ldb_l0_slowdown_write_trigger=32

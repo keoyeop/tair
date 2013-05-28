@@ -470,6 +470,7 @@ namespace tair
             ldb_item.meta().base_.mdate_ = value.data_meta.mdate;
             ldb_item.meta().base_.edate_ = value.data_meta.edate;
             ldb_item.meta().base_.version_ = value.data_meta.version;
+            ldb_item.set_prefix_size(key.get_prefix_size());
             ldb_item.set(value.get_data(), value.get_size());
 
             batch.Put(leveldb::Slice(ldb_key.data(), ldb_key.size()),
@@ -604,6 +605,7 @@ namespace tair
           //   cache_->raw_remove(ldb_key.key(), ldb_key.key_size());
           // }
 
+          ldb_item.set_prefix_size(key.get_prefix_size());
           ldb_item.meta().base_.meta_version_ = META_VER_PREFIX;
           ldb_item.meta().base_.flag_ = value.data_meta.flag | TAIR_ITEM_FLAG_NEWMETA;
           ldb_item.meta().base_.cdate_ = cdate;
@@ -982,6 +984,7 @@ namespace tair
           key.data_meta.version = value.data_meta.version = ldb_item.version();
           key.data_meta.keysize = value.data_meta.keysize = key.get_size();
           key.data_meta.valsize = value.data_meta.valsize = ldb_item.value_size();
+          key.data_meta.prefixsize = value.data_meta.prefixsize = ldb_item.prefix_size();
           key.set_prefix_size(ldb_item.prefix_size());
         }
 
@@ -1108,8 +1111,11 @@ namespace tair
           break;
         }
         case TAIR_SERVER_CMD_BACKUP_DB:
+        case TAIR_SERVER_CMD_UNLOAD_BACKUPED_DB:
         {
-          ret = backup_db();
+          // TODO: all db cmd should use op_cmd_to_db(),
+          //       FLUSH_MMT/STAT_DB eg.
+          ret = op_cmd_to_db(cmd, params);
           break;
         }
         case TAIR_SERVER_CMD_SET_CONFIG:
@@ -1293,16 +1299,39 @@ namespace tair
         return ret;
       }
 
-      int LdbInstance::backup_db()
+      int LdbInstance::op_cmd_to_db(int32_t cmd, const std::vector<std::string>& params)
       {
-        int ret = TAIR_RETURN_SUCCESS;
-        leveldb::Status s = db_->OpCmd(leveldb::kCmdBackupDB);
+        leveldb::Status s;
+        const char* desc = NULL;
+
+        switch (cmd)
+        {
+        case TAIR_SERVER_CMD_BACKUP_DB:
+        {
+          desc = "backup db";
+          s = db_->OpCmd(leveldb::kCmdBackupDB, &params);
+          break;
+        }
+        case TAIR_SERVER_CMD_UNLOAD_BACKUPED_DB:
+        {
+          desc = "unload backuped db";
+          s = db_->OpCmd(leveldb::kCmdUnloadBackupedDB, &params);
+          break;
+        }
+        default:
+        {
+          desc = "unknown cmd";
+          s = leveldb::Status::InvalidArgument("unkonwn cmd");
+          break;
+        }
+        }
+
         if (!s.ok())
         {
-          log_error("backupdb fail, error: %s", s.ToString().c_str());
-          ret = TAIR_RETURN_FAILED;
+          log_error("%s fail, cmd: %d, error: %s", desc, cmd, s.ToString().c_str());
         }
-        return ret;
+
+        return s.ok() ? TAIR_RETURN_SUCCESS : TAIR_RETURN_FAILED;
       }
 
       int LdbInstance::set_config(std::vector<std::string>& params)
@@ -1331,6 +1360,10 @@ namespace tair
             {
               leveldb::config::kLimitCompactLevelCount = count;
             }
+          }
+          else if (config_key == LDB_COMPACT_GC_RANGE)
+          {
+            bg_task_.reset_compact_gc_range(config_value.c_str());
           }
           else if (config_key == LDB_LIMIT_COMPACT_COUNT_INTERVAL)
           {
@@ -1363,7 +1396,11 @@ namespace tair
           }
           else if (config_key == LDB_DO_SEEK_COMPACTION)
           {
-            leveldb::config::kDoSeekCompaction = (strcasecmp(config_value.c_str(), "on") == 0);
+            leveldb::config::kDoSeekCompaction = (atoi(config_value.c_str()) > 0);
+          }
+          else if (config_key == LDB_DO_SPLIT_MMT_COMPACTION)
+          {
+            leveldb::config::kDoSplitMmtCompaction = (atoi(config_value.c_str()) > 0);
           }
           // ignore unknown config
         }
@@ -1590,7 +1627,6 @@ namespace tair
         options_.reserve_log = TBSYS_CONFIG.getInt(TAIRSERVER_SECTION, TAIR_DO_RSYNC, 0) > 0;
         options_.load_backup_version = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_LOAD_BACKUP_VERSION, 0) > 0;
         options_.kL0_CompactionTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_COMPACTION_TRIGGER, 4);
-        options_.kL0_LimitWriteWithCount = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_LIMIT_WRITE_WITH_COUNT, 0) > 0;
         options_.kL0_SlowdownWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_SLOWDOWN_WRITE_TRIGGER, 8);
         options_.kL0_StopWritesTrigger = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_L0_STOP_WRITE_TRIGGER, 12);
         options_.kMaxMemCompactLevel = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_MAX_MEMCOMPACT_LEVEL, 2);
@@ -1608,7 +1644,8 @@ namespace tair
                                         options_.kLimitCompactTimeEnd);
         options_.kLimitDeleteObsoleteFileInterval = TBSYS_CONFIG.getInt(TAIRLDB_SECTION,
                                                                         LDB_LIMIT_DELETE_OBSOLETE_FILE_INTERVAL, 0);
-        options_.kDoSeekCompaction = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DO_SEEK_COMPACTION, 1) > 0;
+        options_.kDoSeekCompaction = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DO_SEEK_COMPACTION, 0) > 0;
+        options_.kDoSplitMmtCompaction = TBSYS_CONFIG.getInt(TAIRLDB_SECTION, LDB_DO_SPLIT_MMT_COMPACTION, 0) > 0;
 
         // Env::Default() is a global static instance.
         // We allocate one env to one leveldb instance here.

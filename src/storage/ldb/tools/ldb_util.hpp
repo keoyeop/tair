@@ -78,15 +78,23 @@ namespace tair
       class DataFilter
       {
       public:
-        DataFilter(const char* yes_keys, const char* no_keys);
+        class KVFilter
+        {
+        public:
+          virtual bool ok(LdbKey* key, LdbItem* value) = 0;
+          virtual ~KVFilter() {}
+        };
+
+        DataFilter(const char* yes_keys, const char* no_keys, KVFilter* filter = NULL);
         ~DataFilter();
 
         void init_set(const char* keys, std::set<int32_t>& key_set);
-        bool ok(int32_t key);
+        bool ok(int32_t k, LdbKey* key = NULL, LdbItem* value = NULL);
 
       private:
         std::set<int32_t> yes_keys_;
         std::set<int32_t> no_keys_;
+        KVFilter* filter_;
       };
 
     }
