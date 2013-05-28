@@ -1459,7 +1459,7 @@ namespace tair
         int rc = from_cache ? do_cache_get(ldb_key, value, update_stat) : TAIR_RETURN_FAILED;
 
         // cache miss, but not expired, cause cache expired, db expired too.
-        if (rc != TAIR_RETURN_SUCCESS && rc != TAIR_RETURN_DATA_NOT_EXIST)
+        if (rc != TAIR_RETURN_SUCCESS)
         {
           PROFILER_BEGIN("db db get");
           leveldb::Status status = db_->Get(read_options_, leveldb::Slice(ldb_key.data(), ldb_key.size()),

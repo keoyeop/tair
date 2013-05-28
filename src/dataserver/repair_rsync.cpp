@@ -104,10 +104,6 @@ int get_from_local_cluster(ClusterHandler& handler, data_entry& key, data_entry*
   {
     ret  = TAIR_RETURN_SUCCESS;
   }
-  else if (ret == TAIR_RETURN_DATA_NOT_EXIST)
-  {
-    ret = TAIR_RETURN_DATA_NOT_EXIST;
-  }
 
   return ret;
 }

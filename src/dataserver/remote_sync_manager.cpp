@@ -490,10 +490,6 @@ namespace tair
     {
       ret = TAIR_RETURN_SUCCESS;
     }
-    else if (ret == TAIR_RETURN_DATA_NOT_EXIST)
-    {
-      ret = TAIR_RETURN_DATA_NOT_EXIST;
-    }
 
     return ret;
   }
