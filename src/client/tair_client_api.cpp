@@ -234,10 +234,25 @@ namespace tair {
     return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_get(area, pkey, skey, value);
   }
 
+  int tair_client_api::prefix_gets(int area, const data_entry &pkey, const tair_dataentry_set &skey_set,
+      tair_keyvalue_map &result_map, key_code_map_t &failed_map) {
+    return impl->prefix_gets(area, pkey, skey_set, result_map, failed_map);
+  }
+
+  int tair_client_api::prefix_gets(int area, const data_entry &pkey, const tair_dataentry_vector &skeys,
+      tair_keyvalue_map &result_map, key_code_map_t &failed_map) {
+    return impl->prefix_gets(area, pkey, skeys, result_map, failed_map);
+  }
+
   int tair_client_api::prefix_put(int area, const data_entry &pkey, const data_entry &skey,
       const data_entry &value, int expire, int version)
   {
     return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_put(area, pkey, skey, value, expire, version);
+  }
+
+  int tair_client_api::prefix_puts(int area, const data_entry &pkey,
+      const vector<key_value_pack_t*> &skey_value_packs, key_code_map_t &failed_map) {
+    return impl->prefix_puts(area, pkey, skey_value_packs, failed_map);
   }
 
   int tair_client_api::prefix_hide(int area, const data_entry &pkey, const data_entry &skey)

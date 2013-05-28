@@ -29,6 +29,7 @@ namespace tair
   using tair::common::data_entry;
   using tair::common::key_code_map_t;
   using tair::common::tair_dataentry_set;
+  namespace common { struct key_value_pack_t; }
   struct inval_stat_data_t;
   class i_tair_client_impl
   {
@@ -65,8 +66,17 @@ namespace tair
     { return TAIR_RETURN_NOT_SUPPORTED; }
     virtual int prefix_get(int area, const data_entry &pkey, const data_entry &skey, data_entry *&value)
     { return TAIR_RETURN_NOT_SUPPORTED; }
+    virtual int prefix_gets(int area, const data_entry &pkey, const tair_dataentry_set &skey_set,
+                            tair_keyvalue_map &result_map, key_code_map_t &failed_map)
+    { return TAIR_RETURN_NOT_SUPPORTED; }
+    virtual int prefix_gets(int area, const data_entry &pkey, const tair_dataentry_vector &skeys,
+                            tair_keyvalue_map &result_map, key_code_map_t &failed_map)
+    { return TAIR_RETURN_NOT_SUPPORTED; }
     virtual int prefix_put(int area, const data_entry &pkey, const data_entry &skey,
                            const data_entry &value, int expire, int version)
+    { return TAIR_RETURN_NOT_SUPPORTED; }
+    virtual int prefix_puts(int area, const data_entry &pkey,
+                            const vector<tair::common::key_value_pack_t*> &skey_value_packs, key_code_map_t &failed_map)
     { return TAIR_RETURN_NOT_SUPPORTED; }
     virtual int prefix_hide(int area, const data_entry &pkey, const data_entry &skey)
     { return TAIR_RETURN_NOT_SUPPORTED; }
