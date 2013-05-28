@@ -24,10 +24,10 @@ AC_ARG_WITH([release],
 			   [use optimize (default is NO)]),
 			   [
 			    if test "$withval" = "yes"; then
-				    CXXFLAGS="-g -O2 -finline-functions -fno-strict-aliasing -Wall -Werror -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNDEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""
+				    CXXFLAGS="-g -O2 -finline-functions -fno-strict-aliasing -Wall -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DNDEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""
 			    fi
 			    ],
-			    [CXXFLAGS="-g -Wall -Werror -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE  -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DTAIR_DEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""]
+			    [CXXFLAGS="-g -Wall -D__USE_LARGEFILE64 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE  -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -DTAIR_DEBUG -DTAIR_SVN_INFO=\\\"${svn_info}\\\""]
 			    )
 GCOV_LIB=
 AC_SUBST(GCOV_LIB)
