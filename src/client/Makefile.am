@@ -33,7 +33,7 @@ READLINE_LDFLAGS= -lreadline -ltermcap
 endif
 
 if WITH_COMPRESS
-COMPRESS_LDFLAGS= -lsnappy
+COMPRESS_LDFLAGS=-lsnappy
 endif
 
 AM_LDFLAGS=-lpthread -lz -lrt ${GCOV_LIB} ${COMPRESS_LDFLAGS}
