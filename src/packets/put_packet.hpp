@@ -321,7 +321,7 @@ namespace tair {
     {
       uint32_t temp = len + key.get_size() + 1 + data.get_size();
       if (temp > MAX_MPUT_PACKET_SIZE && count > 0) {
-        log_warn("mput packet size overflow: %u", temp);
+        log_info("mput packet size overflow: %u", temp);
         return false;
       }
       if (record_vec == NULL) {

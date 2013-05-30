@@ -345,92 +345,99 @@ FAIL:
     fail_request = 0;
     request_put_map request_puts;
     int ret = TAIR_RETURN_SUCCESS;
-    if ((ret = init_put_map(area, kvs, request_puts)) < 0)
+    tair_client_kv_map::const_iterator kv_iter = kvs.begin();
+    const tair_client_kv_map::const_iterator kv_end_iter = kvs.end();
+    // return once fail
+    while (ret == TAIR_RETURN_SUCCESS && kv_iter != kv_end_iter)
     {
-      return ret;
-    }
-
-    //typedef map<uint64_t, map<uint32_t, request_mput*> > request_put_map;
-    wait_object* cwo = this_wait_object_manager->create_wait_object();
-    request_put_map::iterator rq_iter = request_puts.begin();
-    int send_packet_size = 0;
-    while (rq_iter != request_puts.end())
-    {
-      map<uint32_t, request_mput*>::iterator mit = rq_iter->second.begin();
-      while (mit != rq_iter->second.end())
+      if ((ret = init_put_map(area, kv_iter, kv_end_iter, request_puts)) < 0)
       {
-        // compress here
-        if (compress)
+        return ret;
+      }
+
+      //typedef map<uint64_t, map<uint32_t, request_mput*> > request_put_map;
+      wait_object* cwo = this_wait_object_manager->create_wait_object();
+      request_put_map::iterator rq_iter = request_puts.begin();
+      int send_packet_size = 0;
+      while (rq_iter != request_puts.end())
+      {
+        map<uint32_t, request_mput*>::iterator mit = rq_iter->second.begin();
+        while (mit != rq_iter->second.end())
         {
-          mit->second->compress();
+          // compress here
+          if (compress)
+          {
+            mit->second->compress();
+          }
+          //server_id, request, wait_id
+          if (send_request(rq_iter->first, mit->second, cwo->get_id()) < 0)
+          {
+            log_error("send request fail: %s", tbsys::CNetUtil::addrToString(rq_iter->first).c_str());
+            delete mit->second;
+            rq_iter->second.erase(mit++);
+            ++fail_request;
+          }
+          else
+          {
+            ++send_packet_size;
+            ++mit;
+          }
         }
-        //server_id, request, wait_id
-        if (send_request(rq_iter->first, mit->second, cwo->get_id()) < 0)
+        //erase
+        if (rq_iter->second.size() == 0)
         {
-          log_error("send request fail: %s", tbsys::CNetUtil::addrToString(rq_iter->first).c_str());
-          delete mit->second;
-          rq_iter->second.erase(mit++);
-          ++fail_request;
+        }
+
+        rq_iter++;
+      }
+
+      vector<response_return*> resps;
+      ret = TAIR_RETURN_SEND_FAILED;
+
+      vector<base_packet*> tpk;
+      if ((ret = get_response(cwo, send_packet_size, tpk)) < 1)
+      {
+        this_wait_object_manager->destroy_wait_object(cwo);
+        TBSYS_LOG(ERROR, "all requests are failed");
+        return ret == 0 ? TAIR_RETURN_FAILED : ret;
+      }
+
+      vector<base_packet*>::iterator bp_iter = tpk.begin();
+      for (; bp_iter != tpk.end(); ++bp_iter)
+      {
+        if ((*bp_iter)->getPCode() == TAIR_RESP_RETURN_PACKET)
+        {
+          response_return* tpacket = dynamic_cast<response_return*>(*bp_iter);
+          if (tpacket != NULL)
+          {
+            ret = tpacket->get_code();
+            if (0 != ret)
+            {
+              if (TAIR_RETURN_SERVER_CAN_NOT_WORK == ret)
+              {
+                new_config_version = tpacket->config_version;
+                send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
+              }
+              log_error("get response fail: ret: %d", ret);
+              ++fail_request;
+            }
+          }
         }
         else
         {
-          ++send_packet_size;
-          ++mit;
+          log_error("not get response packet: %d", (*bp_iter)->getPCode());
+          ++fail_request;
         }
       }
-      //erase
-      if (rq_iter->second.size() == 0)
+
+      ret = TAIR_RETURN_SUCCESS;
+      if (fail_request > 0)
       {
+        ret = TAIR_RETURN_PARTIAL_SUCCESS;
       }
-
-      rq_iter++;
-    }
-
-    vector<response_return*> resps;
-    ret = TAIR_RETURN_SEND_FAILED;
-
-    vector<base_packet*> tpk;
-    if ((ret = get_response(cwo, send_packet_size, tpk)) < 1)
-    {
       this_wait_object_manager->destroy_wait_object(cwo);
-      TBSYS_LOG(ERROR, "all requests are failed");
-      return ret == 0 ? TAIR_RETURN_FAILED : ret;
     }
 
-    vector<base_packet*>::iterator bp_iter = tpk.begin();
-    for (; bp_iter != tpk.end(); ++bp_iter)
-    {
-      if ((*bp_iter)->getPCode() == TAIR_RESP_RETURN_PACKET)
-      {
-        response_return* tpacket = dynamic_cast<response_return*>(*bp_iter);
-        if (tpacket != NULL)
-        {
-          ret = tpacket->get_code();
-          if (0 != ret)
-          {
-            if (TAIR_RETURN_SERVER_CAN_NOT_WORK == ret)
-            {
-              new_config_version = tpacket->config_version;
-              send_fail_count = UPDATE_SERVER_TABLE_INTERVAL;
-            }
-            log_error("get response fail: ret: %d", ret);
-            ++fail_request;
-          }
-        }
-      }
-      else
-      {
-        log_error("not get response packet: %d", (*bp_iter)->getPCode());
-        ++fail_request;
-      }
-    }
-
-    ret = TAIR_RETURN_SUCCESS;
-    if (fail_request > 0)
-    {
-      ret = TAIR_RETURN_PARTIAL_SUCCESS;
-    }
-    this_wait_object_manager->destroy_wait_object(cwo);
     return ret;
   }
 
@@ -742,7 +749,8 @@ FAIL:
     return ret;
   }
 
-  int tair_client_impl::init_put_map(int area, const tair_client_kv_map& kvs, request_put_map& request_puts)
+  int tair_client_impl::init_put_map(int area, tair_client_kv_map::const_iterator& kv_iter,
+      const tair_client_kv_map::const_iterator& kv_end_iter, request_put_map& request_puts)
   {
     if (area < 0 || area >= TAIR_MAX_AREA_COUNT)
     {
@@ -754,8 +762,7 @@ FAIL:
     request_put_map::iterator rq_iter;
 
     //typedef std::map<data_entry*, value_entry*, data_entry_hash> tair_client_kv_map;
-    tair_client_kv_map::const_iterator kv_iter = kvs.begin();
-    for ( ; kv_iter != kvs.end(); ++kv_iter)
+    for ( ; kv_iter != kv_end_iter; ++kv_iter)
     {
       if (!key_entry_check(*(kv_iter->first)) || !data_entry_check(kv_iter->second->get_d_entry()))
       {
@@ -822,7 +829,11 @@ FAIL:
         packet->area = area;
       }
 
-      packet->add_put_key_data(*(kv_iter->first), *(kv_iter->second));
+      // enough for this round
+      if (!packet->add_put_key_data(*(kv_iter->first), *(kv_iter->second)))
+      {
+        break;  
+      }
       TBSYS_LOG(DEBUG,"get from server:%s, bucket_number: %u",
           tbsys::CNetUtil::addrToString(server_list[0]).c_str(), bucket_number);
     }

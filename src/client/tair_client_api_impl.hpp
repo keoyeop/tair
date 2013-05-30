@@ -324,7 +324,7 @@ namespace tair {
         request_remove_map &request_removes);
 
     int init_put_map(int area,
-        const tair_client_kv_map& kvs,
+        tair_client_kv_map::const_iterator& kv_iter, const tair_client_kv_map::const_iterator& kv_end_iter, 
         request_put_map& request_puts);
     bool get_send_para(const data_entry &key, vector<uint64_t>& server, uint32_t& bucket_number);
 
