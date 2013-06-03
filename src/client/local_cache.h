@@ -13,7 +13,16 @@
 #define LOCAL_CACHE_H
 
 #include <list>
+
+#if __cplusplus > 199711L || defined(__GXX_EXPERIMENTAL_CXX0X__) || defined(_MSC_VER)
+#include <unordered_map>
+#else
 #include <tr1/unordered_map>
+namespace std {
+  using tr1::hash;
+  using tr1::unordered_map;
+}
+#endif
 
 #include "Time.h"
 #include "threadmutex.h"
@@ -23,7 +32,7 @@ namespace tair
 
 template<typename KeyT, 
          typename ValueT, 
-         typename Hash = std::tr1::hash<KeyT>, 
+         typename Hash = std::hash<KeyT>, 
          typename Pred = std::equal_to<KeyT> > 
 class local_cache 
 {
@@ -137,7 +146,7 @@ protected:
 
   typedef std::list<internal_entry *> entry_list;
   typedef typename entry_list::iterator entry_list_iterator;
-  typedef std::tr1::unordered_map<const KeyT *, 
+  typedef std::unordered_map<const KeyT *, 
                                   entry_list_iterator, 
                                   hash_wrapper, 
                                   equal_to_wrapper> entry_cache;
