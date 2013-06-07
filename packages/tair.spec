@@ -10,14 +10,14 @@ Vendor: TaoBao
 Prefix:%{_prefix}
 Source:%{NAME}-%{VERSION}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-root
-BuildRequires: t-csrd-tbnet-devel >= 1.0.4
-BuildRequires: google-perftools >= 1.7
+BuildRequires: t-csrd-tbnet-devel >= 1.0.8
+BuildRequires: google-perftools = 1.7
 BuildRequires: automake >= 1.7.0
 BuildRequires: libtool >= 1.5.0
 BuildRequires: snappy >= 1.0.1
 #Requires: openssl-devel >= 0.9
-Requires: t-csrd-tbnet-devel >= 1.0.4
-Requires: google-perftools >= 1.7
+Requires: t-csrd-tbnet-devel >= 1.0.8
+Requires: google-perftools = 1.7
 #Requires: automake >= 1.7.0
 #Requires: libtool >= 1.5.0
 Requires: snappy >= 1.0.1
