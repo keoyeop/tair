@@ -106,7 +106,7 @@
        +------------------------------------------------------------+
        |                     item_id (uint64_t)                     |
        +------------------------------------------------------------+
-       |0              20             36             52        60 64|
+       |0              20             36             52        60 63|
        +---------------+--------------+--------------+---------+----+
        |   slab size   |offset in page|   page id    | slab id |flag|
        +---------------+--------------+--------------+---------+----+
@@ -144,7 +144,7 @@
    
        3) Partial.
           Not all items are used in partial pages. We want to use the most almost full page first, so partial pages
-	  are orgnized in bucket way. Pages are hashed by `free_nr(number of free items in page)/partial_bucket_count
+	  are organized in bucket way. Pages are hashed by `free_nr(number of free items in page)/partial_bucket_count
 	  of `page_info.
    
                             (Slab Vision)
