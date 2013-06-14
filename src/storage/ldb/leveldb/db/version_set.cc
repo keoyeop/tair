@@ -26,9 +26,9 @@ namespace leveldb {
 static const int64_t kExpandedCompactionByteSizeLimit = 25 * config::kTargetFileSize;
 
 static double MaxBytesForLevel(int level) {
-  if (level == 1) {
-    return config::kTargetFileSize;
-  }
+  //if (level == 1) {
+  //  return config::kTargetFileSize;
+  //}
   // Note: the result for level zero is not really used since we set
   // the level-0 compaction threshold based on number of files.
   double result = config::kBaseLevelSize * 1.0;  // Result for both level-0 and level-1
