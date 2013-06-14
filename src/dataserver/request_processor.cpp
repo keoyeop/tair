@@ -135,10 +135,15 @@ namespace tair {
                delete data;
                data = NULL;
             }
-            if(count == request->key_count){
-               rc = TAIR_RETURN_SUCCESS;
-            }else{
-               rc = TAIR_RETURN_PARTIAL_SUCCESS;
+
+            if (count == request->key_count) {
+              rc = TAIR_RETURN_SUCCESS;
+            }
+            else if (count > 0) {
+              rc = TAIR_RETURN_PARTIAL_SUCCESS;
+            }
+            else {
+              rc = TAIR_RETURN_DATA_NOT_EXIST;
             }
          } else if (request->key != NULL) {
             PROFILER_START("get operation start");
