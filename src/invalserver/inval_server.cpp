@@ -452,6 +452,35 @@
 
           resp->infos.push_back(buffer.str());
         }
+        else if (strncmp(cmd.c_str(), "switch_dump_key", 15) == 0)
+        {
+          if (cmd_set.size() != 2)
+          {
+            log_error("dumpkey cmd was not available.");
+            resp->infos.push_back("dumpkey cmd was not available.");
+            ret = TAIR_RETURN_FAILED;
+          }
+          else
+          {
+            std::string on_or_off = cmd_set[1];
+            if (strncmp(on_or_off.c_str(), "on", 2) == 0)
+            {
+              REQUEST_PROCESSOR.set_dumpkey_switch(true);
+              resp->infos.push_back("dumpkey switch on");
+            }
+            else if (strncmp(on_or_off.c_str(), "off", 3) == 0)
+            {
+              REQUEST_PROCESSOR.set_dumpkey_switch(false);
+              resp->infos.push_back("dumpkey switch off");
+            }
+            else
+            {
+              log_error("dumpkey cmd was not available.");
+              resp->infos.push_back("dumpkey cmd was not available.");
+              ret = TAIR_RETURN_FAILED;
+            }
+          }
+        }
         else
         {
           log_error("unknown cmd: %s", cmd.c_str());

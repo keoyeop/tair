@@ -529,7 +529,7 @@ namespace tair {
       if (cmd == NULL || strcmp(cmd, "invalcmd") == 0) {
          fprintf(stderr,
                  "------------------------------------------------\n"
-                 "SYNOPSIS(0)   : invalcmd [retryall [ip:port] | retrieve | info ip::iport]\n"
+                 "SYNOPSIS(0)   : invalcmd [retryall [ip:port] | retrieve | info ip::iport | dumpkey all[ip:port] on[off]]\n"
                  "DESCRIPTION: retry all request, retrieve all inval servers, get the inval server's info."
             );
       }
@@ -1894,6 +1894,117 @@ namespace tair {
      }
    }
 
+   int tair_client::do_cmd_inval_dumpkey_impl(uint64_t inval_server, bool on_or_off)
+   {
+     int ret = TAIR_RETURN_SUCCESS;
+     std::vector<uint64_t> inval_server_set;
+     int ret_retrieve = client_helper.retrieve_invalidserver(inval_server_set);
+     if (ret_retrieve == TAIR_RETURN_SUCCESS)
+     {
+       std::vector<uint64_t>::iterator it = std::find(inval_server_set.begin(), inval_server_set.end(), inval_server);
+       if (it == inval_server_set.end())
+       {
+         ret = TAIR_RETURN_FAILED;
+         fprintf(stderr, "ip:port not belong the this group");
+       }
+       else
+       {
+         std::string msg;
+         if (on_or_off)
+         {
+           ret = client_helper.switch_invalidserver_dumpkey(inval_server, true, msg);
+         }
+         else
+         {
+           ret = client_helper.switch_invalidserver_dumpkey(inval_server, false, msg);
+         }
+         if (ret == TAIR_RETURN_FAILED)
+         {
+           fprintf(stderr, "msg from invalid server: %s", msg.c_str());
+         }
+       }
+     }
+     else
+     {
+       fprintf(stderr, "none invalid server found");
+       ret = TAIR_RETURN_FAILED;
+     }
+     return ret;
+   }
+   int tair_client::do_cmd_inval_dumpkey(VSTRING &params)
+   {
+     int ret = TAIR_RETURN_SUCCESS;
+     if (params.size() != 3)
+     {
+       print_help("invalcmd");
+       ret = TAIR_RETURN_FAILED;
+     }
+     else
+     {
+       bool on_or_off = false;
+       std::string cmd = params[2];
+       if (strncmp(cmd.c_str(), "on", 2) == 0)
+       {
+         on_or_off = true;
+       }
+       else if (strncmp(cmd.c_str(), "off", 3) == 0)
+       {
+         on_or_off = false;
+       }
+       else
+       {
+         fprintf(stderr, "unknown cmd, %s", cmd.c_str());
+         ret = TAIR_RETURN_FAILED;
+       }
+
+       uint64_t inval_server = 0;
+       if (ret == TAIR_RETURN_SUCCESS)
+       {
+         std::string str = params[1];
+         if (strncmp(str.c_str(), "all", 3) == 0)
+         {
+           std::vector<uint64_t> inval_server_set;
+           int ret_retrieve = client_helper.retrieve_invalidserver(inval_server_set);
+           if (ret_retrieve == TAIR_RETURN_SUCCESS)
+           {
+             for (std::vector<uint64_t>::iterator it = inval_server_set.begin(); it != inval_server_set.end(); ++it)
+             {
+               inval_server = *it;
+               ret = do_cmd_inval_dumpkey_impl(inval_server, on_or_off);
+             }
+           }
+           else
+           {
+             fprintf(stderr, "none invalid server belong to this group");
+             ret = TAIR_RETURN_FAILED;
+           }
+         }
+         else
+         {
+           // get ip::port
+           std::string ipport = params[1];
+           size_t pos = ipport.find_first_of(':');
+           if (pos == std::string::npos || pos == ipport.size())
+           {
+             fprintf(stderr, "should be ip:port, %s", ipport.c_str());
+             ret = TAIR_RETURN_FAILED;
+           }
+           else
+           {
+             std::string ipstr = ipport.substr(0, pos);
+             std::string portstr = ipport.substr(pos + 1, ipport.size());
+             inval_server = tbsys::CNetUtil::strToAddr(ipstr.c_str(), atoi(portstr.c_str()));
+             if (inval_server != 0)
+             {
+               ret = do_cmd_inval_dumpkey_impl(inval_server, on_or_off);
+             }
+           }
+         }
+       }
+     }
+     return ret;
+   }
+
    int tair_client::do_cmd_inval_retryall(VSTRING &params)
    {
      int ret = TAIR_RETURN_SUCCESS;
@@ -2042,6 +2153,10 @@ namespace tair {
      else if (strncmp("retrieve", params[0], 8) == 0)
      {
        ret = do_cmd_inval_retrieve(params);
+     }
+     else if (strncmp("dumpkey", params[0], 7) == 0)
+     {
+       ret = do_cmd_inval_dumpkey(params);
      }
      else
      {

@@ -18,6 +18,7 @@ namespace tair {
     pcode_opname_map[TAIR_REQ_PREFIX_INVALIDS_PACKET] = InvalStatHelper::PREFIX_INVALID;
     pcode_opname_map[TAIR_REQ_HIDE_BY_PROXY_PACKET] = InvalStatHelper::HIDE;
     pcode_opname_map[TAIR_REQ_PREFIX_HIDES_BY_PROXY_PACKET] = InvalStatHelper::PREFIX_HIDE;
+    dump_key_switch = false;
   }
 
   void RequestProcessor::setThreadParameter(InvalRetryThread *retry_thread, InvalRequestStorage *request_storage)
@@ -183,6 +184,7 @@ namespace tair {
       {
         group->failed();
       }
+      dump_key("callback_failed", wrapper->get_shared_info());
     }
     //release wrapper
     log_debug("release wrapper by cluster %s", group->get_cluster_name().c_str());
@@ -232,6 +234,10 @@ namespace tair {
   }
   void RequestProcessor::end_request(PacketWrapper *wrapper)
   {
+    if (dump_key_switch)
+    {
+      dump_key("end_request", wrapper->get_shared_info());
+    }
     //if the request' status is COMMITTED_SUCCESS, to do nothing here.
     if (wrapper->get_request_status() == COMMITTED_FAILED)
     {
@@ -296,6 +302,7 @@ namespace tair {
               servers[0].c_str(), group->get_group_name().c_str());
         }
         wrapper->set_request_status(COMMITTED_FAILED);
+        dump_key("failed_send_request", wrapper->get_shared_info());
         delete wrapper;
       }
       else
@@ -340,6 +347,7 @@ namespace tair {
       if ((tair_client->*pproc)(wrapper->get_packet()->area, *(wrapper->get_keys()),&failed_key_code_map,
             client_callback_with_multi_keys, (void*)wrapper) != TAIR_RETURN_SUCCESS)
       {
+        dump_key("failed_send_request", wrapper->get_shared_info());
         log_debug("send request to cluster %s failed.",
             wrapper->get_group()->get_cluster_name().c_str());
         vector<std::string> servers;
@@ -382,5 +390,57 @@ namespace tair {
           wrapper->get_group()->get_group_name().c_str());
       delete wrapper;
     }
+  }
+
+  void RequestProcessor::do_dump_key(data_entry *key, const char *msg)
+  {
+    char* data = util::string_util::bin2ascii(key->get_data(), key->get_size(), NULL, 0);
+    if (data != NULL)
+    {
+      log_warn("DUMPMSG: %s, KEY: %s", msg, data);
+      free(data);
+    }
+  }
+
+  void RequestProcessor::dump_key(const std::string &tag, SharedInfo *shared)
+  {
+    request_inval_packet *req = shared->packet;
+    if (req != NULL)
+    {
+      int pcode = req->getPCode();
+      if (req->key_count == 1)
+      {
+       //single key
+        char msg[256];
+        snprintf(msg, sizeof(msg), "tag: %s, request type: %d, group: %s, area: %d, stauts: %d, retry times: %d", 
+            tag.c_str(), pcode, req->group_name, req->area, shared->get_request_status(), shared->get_retry_times());
+        do_dump_key(req->key, msg);
+      }
+      else
+      {
+        //multi keys
+        tair_dataentry_set* keys = req->key_list;
+        char msg[256];
+        int idx = 0;
+        for (tair_dataentry_set::const_iterator it = keys->begin(); it != keys->end(); it++)
+        {
+          data_entry *key = *it;
+          if (key != NULL)
+          {
+            snprintf(msg, sizeof(msg), "tag: %s, request type: %d, group: %s, area: %d, status: %d, retry times: %d, key[%d]",
+                tag.c_str(), req->getPCode(), req->group_name, req->area, shared->get_request_status(), shared->get_retry_times(), idx++);
+            do_dump_key(key, msg);
+          }
+        }
+      }
+    }
+    else
+    {
+      log_error("request without packet!");
+    }
+  }
+  void RequestProcessor::set_dumpkey_switch(bool on_or_off)
+  {
+    dump_key_switch = on_or_off;
   }
 }

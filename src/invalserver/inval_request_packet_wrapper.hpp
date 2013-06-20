@@ -93,6 +93,11 @@ namespace tair {
       atomic_set(&global_reference_count, ref_count);
     }
 
+    inline int get_request_reference_count()
+    {
+      return atomic_read(&global_reference_count);
+    }
+
     inline int dec_and_return_reference_count(int c)
     {
       return atomic_sub_return(c, &global_reference_count);
@@ -101,6 +106,11 @@ namespace tair {
     inline int dec_and_return_local_reference_count(int c)
     {
       return atomic_sub_return(c, &local_reference_count);
+    }
+
+    inline int get_local_reference_count()
+    {
+      return atomic_read(&local_reference_count);
     }
 
     inline void set_request_status(int status)

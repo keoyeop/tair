@@ -2416,7 +2416,15 @@ FAIL:
     return ret;
   }
 
-  int tair_client_impl::get_invalidserver_info(const uint64_t &invalid_server_id, std::string &buffer)
+  int tair_client_impl::switch_invalidserver_dumpkey(const uint64_t &invalid_server_id, bool on_or_off, std::string &msg)
+  {
+    std::vector<std::string> cmds;
+    cmds.push_back("switch_dump_key");
+    cmds.push_back(on_or_off ? "on" : "off");
+    return send_invalidserver_cmd(invalid_server_id, cmds, msg);
+  }
+
+  int tair_client_impl::send_invalidserver_cmd(const uint64_t &invalid_server_id, std::vector<std::string> cmds, std::string &buffer)
   {
     if (invalid_server_id == 0) {
       log_error("invalidate server id is not alive.");
@@ -2431,7 +2439,10 @@ FAIL:
     request_op_cmd *req = new request_op_cmd();
     int ret = TAIR_RETURN_SUCCESS;
     uint64_t server_id = invalid_server_id;
-    req->add_param("info");
+    for (int i = 0; i < cmds.size(); ++i)
+    {
+      req->add_param(cmds[i].c_str());
+    }
     // send request.
     wait_object *cwo = this_wait_object_manager->create_wait_object();
     log_debug("send request_invalid to %s.", tbsys::CNetUtil::addrToString(server_id).c_str());
@@ -2718,6 +2729,12 @@ FAIL:
     req->add_key(mkey.get_data(), mkey.get_size());
     //interact with invalid server(s)
     return do_interaction_with_is(req, 0);
+  }
+  int tair_client_impl::get_invalidserver_info(const uint64_t &invalid_server_id, std::string &buffer)
+  {
+    std::vector<std::string> cmd;
+    cmd.push_back("info");
+    return send_invalidserver_cmd(invalid_server_id, cmd, buffer);
   }
 
   int tair_client_impl::prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, bool is_sync)

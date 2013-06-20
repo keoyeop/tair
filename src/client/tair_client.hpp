@@ -117,6 +117,8 @@ namespace tair {
       int do_cmd_inval_retryall(VSTRING &param);
       int do_cmd_inval_retrieve(VSTRING &param);
       int do_cmd_inval_info(VSTRING &param);
+      int do_cmd_inval_dumpkey(VSTRING &param);
+      int do_cmd_inval_dumpkey_impl(uint64_t idx, bool on_or_off);
 #ifdef HAVE_LIBREADLINE
       char *input(char *buffer, size_t size);
       void update_history(const char *line);

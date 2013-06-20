@@ -149,6 +149,9 @@ namespace tair {
 
     int retry_all(uint64_t invalid_server_id);
 
+    //switch dump key
+    int switch_invalidserver_dumpkey(const uint64_t &invalid_server_id, bool on_or_off, std::string &msg);
+
     int retrieve_invalidserver(vector<uint64_t> &invalid_server_list);
 
     int query_from_invalidserver(uint64_t invalid_server_id, inval_stat_data_t* &stat);
@@ -393,6 +396,8 @@ namespace tair {
         const tair_dataentry_set &key, key_code_map_t *key_code_map,
         TAIRCALLBACKFUNC_EX pfunc, void *parg);
 
+    //send cmd to invalidserve with parameters.
+    int send_invalidserver_cmd(const uint64_t &invalid_server_id, std::vector<std::string> cmds, std::string &buffer);
   private:
     bool inited;
     bool is_stop;

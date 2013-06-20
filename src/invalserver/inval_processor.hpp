@@ -30,6 +30,7 @@ namespace tair {
 #define REQUEST_PROCESSOR tair::RequestProcessor::request_processor_instance
   class InvalRetryThread;
   class InvalRequestStorage;
+  class SharedInfo;
   class PacketWrapper;
   class SingleWrapper;
   class MultiWrapper;
@@ -38,6 +39,7 @@ namespace tair {
     RequestProcessor();
 
     void setThreadParameter(InvalRetryThread *retry_thread, InvalRequestStorage *request_storage);
+    void set_dumpkey_switch(bool on_or_off);
   public:
     static RequestProcessor request_processor_instance;
   public:
@@ -78,6 +80,9 @@ namespace tair {
     void do_process_request(PROCESS_RHS_FUNC_T pproc, PacketWrapper *wrapper);
     //obtain ds address with a key
     std::string obtain_ds_addr(PacketWrapper *wrapper);
+    //dump key
+    void dump_key(const std::string &tag, SharedInfo *shared);
+    void do_dump_key(data_entry *key, const char *msg);
   private:
     static tair_packet_factory packet_factory;
 
@@ -91,6 +96,8 @@ namespace tair {
     key_code_map_t failed_key_code_map;
 
     static const int DATA_EXPIRED = -3988;
+    //dump key, when `dump_key_switch's value equal to true, otherwise do not dump it.
+    bool dump_key_switch;
   };
 }
 #endif
