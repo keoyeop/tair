@@ -1,4 +1,4 @@
-SUBDIRS=interface_test unit_test statistics_test retry_all_test
+SUBDIRS=interface_test unit_test statistics_test retry_all_test  tair_mc_client_api_test
 AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 			 -I$(TBLIB_ROOT)/include/tbnet \
 			 -I${top_srcdir}/src/common \

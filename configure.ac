@@ -160,6 +160,7 @@ AC_CONFIG_FILES([\
 		 test/unit_test/Makefile \
 		 test/statistics_test/Makefile \
 		 test/retry_all_test/Makefile \
+       test/tair_mc_client_api_test/Makefile \
 		 scripts/Makefile \
 		 share/Makefile
 		 ])

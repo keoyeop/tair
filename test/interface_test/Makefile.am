@@ -8,7 +8,8 @@ AM_CPPFLAGS= -I$(TBLIB_ROOT)/include/tbsys \
 			 -I${top_srcdir}/src/storage \
 			 -I${top_srcdir}/src/client \
        -I${top_srcdir}/src  \
-       -I${top_srcdir}/src/storage/kdb/kyotocabinet
+       -I${top_srcdir}/src/storage/kdb/kyotocabinet \
+		 -I${top_srcdir}/test
 
 LDADD= \
 	  $(top_builddir)/src/client/.libs/libtairclientapi.a \

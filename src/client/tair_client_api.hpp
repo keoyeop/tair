@@ -40,6 +40,7 @@ namespace tair {
     // expire, entry expire time, unit ms
     // now, just support cache read
     void setup_cache(int area, size_t capacity = 30);
+    void setup_cache(int area, size_t capacity ,uint64_t expire_time );
 
     data_entry_local_cache* get_local_cache(int area)
     {
@@ -512,7 +513,7 @@ namespace tair {
      *
      * @param type: the type of compress algorithm, 0 means zlib
      */
-    void set_compress_type(TAIR_COMPRESS_TYPE type);
+    static void set_compress_type(TAIR_COMPRESS_TYPE type);
 
     /**
      * @brief set the compress threshold
@@ -520,7 +521,7 @@ namespace tair {
      * @param threshold: the threshold of compress, if the size of data is lower than
      *                   this value, skip the compress method. the unit is byte.
      */
-    void set_compress_threshold(int threshold);
+    static void set_compress_threshold(int threshold);
 #endif
 
     /**

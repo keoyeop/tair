@@ -1,0 +1,497 @@
+/*
+ * (C) 2007-2013 Alibaba Group Holding Limited
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ *
+ * Version: $Id: tair_mc_client_api.hpp 1245 2013-05-07 14:57:16Z huan.wanghuan@alibaba-inc.com $
+ *
+ * Authors:
+ *   yunhen <huan.wanghuan@alibaba-inc.com>
+ *
+ */
+#ifndef TAIR_MC_CLIENT_API
+#define TAIR_MC_CLIENT_API
+
+#include "diamond_manager.hpp"
+#include "cluster_controller.hpp"
+
+namespace tair
+{
+   class diamond_manager;
+   using namespace std;
+
+   class tair_mc_client_api: public DIAMOND::SubscriberListener
+   {
+   public:
+      tair_mc_client_api();
+      
+      ~tair_mc_client_api();
+
+      void set_net_device_name(const string& net_device_name);
+
+      /**
+       * @brief connect to tair cluster
+       *
+       * @param config_id      diamond config_id of the tair cluster which you will connect to
+       *
+       * @return true -- success, false -- fail
+       */
+      bool startup(const string& config_id);
+
+      /**
+       * @brief close tairclient, release resource
+       */
+      void close();
+
+      const string& get_config_id();
+
+      const string& get_data_group_id();
+
+      /**
+       * @brief put data to tair
+       *
+       * @param area     namespace
+       * @param key      key
+       * @param data     data
+       * @param expire   expire time,realtive time
+       * @param version  version,if you don't care the version,set it to 0
+       * @param fill_cache whether fill cache when put(only meaningful when server support embedded cache).
+       *
+       * @return 0 -- success, otherwise fail,you can use get_error_msg(ret) to get more information.
+       */
+      int put(int area,
+              const data_entry &key,
+              const data_entry &data,
+              int expire,
+              int version,
+              bool fill_cache = true);
+
+      /**
+       * @brief get data from tair cluster
+       *
+       * @param area    namespace
+       * @param key     key
+       * @param data    data,a pointer,the caller must release the memory.
+       *
+       * @return 0 -- success, otherwise fail.
+       */
+      int get(int area,
+              const data_entry &key,
+              data_entry*& data);
+
+      /**
+       * @brief get multi  data from tair cluster
+       *
+       * @param area    namespace
+       * @param keys    keys list, vector type
+       * @param data    data,data hash map,the caller must release the memory.
+       *
+       * @return 0 -- success, TAIR_RETURN_PARTIAL_SUCCESS -- partly success, otherwise fail.
+       */
+      int mget(int area,
+               const vector<data_entry *> &keys,
+               tair_keyvalue_map& data);
+
+      /**
+       * @brief  remove data from tair cluster
+       *
+       * @param area    namespace
+       * @param key     key
+       *
+       * @return  0 -- success, otherwise fail.
+       */
+      int remove(int area,
+                 const data_entry &key);
+
+
+      /**
+       * @brief delete data from tair cluster
+       *
+       * @param area    namespace
+       * @param key     key
+       * @param groupname    group's name.
+       *
+       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
+       */
+      int invalidate(int area, const data_entry &key, const char *groupname, bool is_sync = true);
+
+      /**
+       * @brief delete data from tair cluster
+       *
+       * @param area    namespace
+       * @param key     key
+       *
+       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
+       */
+      int invalidate(int area, const data_entry &key, bool is_sync = true);
+
+      /**
+       * @brief delete data with prefix key from tair cluster
+       *
+       * @param area    namespace
+       * @param key     key
+       * @param groupname    group's name.
+       *
+       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
+       */
+      int prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync = true);
+
+      /**
+       * @brief delete data with prefix key from tair cluster
+       *
+       * @param area    namespace
+       * @param pkey     key
+       * @param skey     key
+       *
+       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
+       */
+      int prefix_invalidate(int area, const data_entry &key, const data_entry &skey, bool is_sync = true);
+
+      /**
+       * @brief hide data
+       *
+       * @param area    namespace
+       * @param key     key
+       * @param groupname    group's name.
+       *
+       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
+       */
+      int hide_by_proxy(int area, const data_entry &key, const char* groupname, bool is_sync = true);
+
+      /**
+       * @brief hide data
+       *
+       * @param area    namespace
+       * @param key     key
+       *
+       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
+       */
+      int hide_by_proxy(int area, const data_entry &key, bool is_sync = true);
+
+      /**
+       * @brief hide data with prefix key
+       *
+       * @param area    namespace
+       * @param key     key
+       * @param groupname    group's name.
+       *
+       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
+       */
+      int prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync = true);
+
+      /**
+       * @brief hide data with prefix key
+       *
+       * @param area    namespace
+       * @param key     key
+       *
+       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
+       */
+      int prefix_hide_by_proxy(int area, const data_entry &pkey, const data_entry &skey, bool is_sync = true);
+
+      /**
+       * @brief to hide one item
+       * @param area: namespace
+       * @param key: key to hide
+       */
+      int hide(int area, const data_entry &key);
+
+      /**
+       * @brief to get one hidden item
+       * @param area: namespace
+       * @param key: key to get
+       * @param value: ptr holding the value returned
+       */
+      int get_hidden(int area, const data_entry &key, data_entry *&value);
+      /**
+       * @brief to get one item with prefix key
+       * @param area: namespace
+       * @param pkey: primary key
+       * @param skey: secondary key
+       * @param value: ptr holding the value returned
+       */
+      int prefix_get(int area, const data_entry &pkey, const data_entry &skey, data_entry *&value);
+
+      /**
+       * @brief to put one item with prefix key
+       * @param area: namespace
+       * @param pkey & skey: primary key & secondary key
+       * @param value: value to put
+       * @param expire&version: expire & version
+       */
+      int prefix_put(int area, const data_entry &pkey, const data_entry &skey,
+                     const data_entry &value, int expire, int version);
+      /**
+       * @brief to hide one item with prefix key
+       * @param area: namespace
+       * @param pkey & skey: primary & secondary key
+       */
+      int prefix_hide(int area, const data_entry &pkey, const data_entry &skey);
+
+      /**
+       * @brief like prefix_hide, but with multiple skeys
+       * @param pkey: primary key
+       * @param skey_set: set of skeys
+       * @param key_code_map: return code of each failed key, would be cleared before filled
+       * @return success, partial success, or others
+       */
+      int prefix_hides(int area, const data_entry &pkey, const tair_dataentry_set &skey_set, key_code_map_t &key_code_map);
+
+      /**
+       * @brief to get one hidden item with prefix key
+       * @param pkey & skey: primary & secondary key
+       * @param value: to receive the result
+       */
+      int prefix_get_hidden(int area, const data_entry &pkey, const data_entry &skey, data_entry *&value);
+
+      /**
+       * @brief to remove one item with prefix key
+       * @param area: namespace
+       * @param pkey & skey: primary & secondary key
+       */
+      int prefix_remove(int area, const data_entry &pkey, const data_entry &skey);
+
+      /**
+       * @brief like prefix_remove, but with multiple skeys
+       * @param pkey: primary key
+       * @param skey_set: set of skeys
+       * @param key_code_map: return code of each failed skey, would be cleared before filled
+       * @return success, partial success, or others
+       */
+      int prefix_removes(int area, const data_entry &pkey, const tair_dataentry_set &skey_set, key_code_map_t &key_code_map);
+
+      /**
+       * @brief
+       * @param pkey: primary key for range query
+       * @param start_key: start skey to seek, seek from the first skey if equals ""
+       * @param end_key: end skey to seek, seek to the last skey if equals ""
+       * @param offset: skip first N skey
+       * @param limit: limit response less than N skey
+       * @param values: result skey with ascending sortting, free memory by user.
+       * @param type: CMD_RANGE_ALL means get key&value response,
+       *              CMD_RANGE_VALUE_ONL means get only values,
+       *              CMD_RANGE_KEY_ONL means get only keys.
+       * @return TAIR_RETURN_SUCCESS -- success, <0 -- fail, or TAIR_HAS_MORE_DATA -- limit by package size(1M default).
+       */
+      int get_range(int area, const data_entry &pkey, const data_entry &start_key, const data_entry &end_key,
+                    int offset, int limit, vector<data_entry *> &values, short type=CMD_RANGE_ALL);
+
+      /**
+       * @brief remove multiple items, which were merged with the same prefix key
+       * @param mkey_set: set of merged keys
+       * @param key_code_map: return code of each failed skey, would be cleared before filled
+       * @return success, partial success, or others
+       */
+      //!NOTE called by invalid server
+      int removes(int area, const tair_dataentry_set &mkey_set, key_code_map_t &key_code_map);
+
+      /**
+       * @brief hide multiple items, which were merged with the same prefix key
+       * @param mkey_set: set of merged keys
+       * @param key_code_map: return code of each failed skey, would be cleared before filled
+       * @return success, partial success, or others
+       */
+      //!NOTE called by invalid server
+      int hides(int area, const tair_dataentry_set &mkey_set, key_code_map_t &key_code_map);
+
+      /**
+       * @brief remove multi  data from tair cluster
+       *
+       * @param area    namespace
+       * @param keys    key list, vector type
+       *
+       * @return  0 -- success, TAIR_RETURN_PARTIAL_SUCCESS partly success, otherwise fail.
+       */
+      int mdelete(int area,
+                  const vector<data_entry*> &key);
+      /**
+       * @brief invalid multi  data from tair cluster
+       *
+       * @param area    namespace
+       * @param keys    key list, vector type
+       *
+       * @return  0 -- success, TAIR_RETURN_PARTIAL_SUCCESS partly success, otherwise fail.
+       */
+      int minvalid(int area,
+                   vector<data_entry*> &key);
+      /**
+       * @brief incr
+       *
+       * @param area            namespace
+       * @param key             key
+       * @param count           add (count) to original value.
+       * @param retCount                the latest value
+       * @param expire          expire time
+       * @param initValue               initialize value
+       *
+       * @return 0 -- success, otherwise fail.
+       */
+      int incr(int area,
+               const data_entry& key,
+               int count,
+               int *ret_count,
+               int init_value = 0,
+               int expire = 0);
+      // opposite to incr
+      int decr(int area,
+               const data_entry& key,
+               int count,
+               int *ret_count,
+               int init_value = 0,
+               int expire = 0);
+
+      /**
+       *
+       * ******this method is deprecated,don't use******
+       *
+       * @brief   add count
+       *
+       * @param area            namespace
+       * @param key             key
+       * @param count           add (count) to original value.
+       * @param retCount                the latest value
+       * @param initValue               the initialize value
+       *
+       * @return  0 -- success ,otherwise fail.
+       */
+      int add_count(int area,
+                    const data_entry &key,
+                    int count,
+                    int *ret_count,
+                    int init_value = 0);
+
+      /**
+       * @brief set count to key's value, ignore whether this key exists or is not
+       *        count type.
+       *
+       * @param area            namespace
+       * @param key             key
+       * @param count           set count value
+       * @param expire          expire time
+       * @param version         version
+       *
+       * @return 0 -- success, otherwise fail.
+       */
+      int set_count(int area, const data_entry& key, int count, int expire = 0, int version = 0);
+
+      /**
+       * @brief Once a key is locked, it can NOT be updated(put/incr/decr), can only
+       *        be get or delete. A locked key can be unlocked(unlock)
+       *
+       * @param area            namespace
+       * @param key             key
+       *
+       * @return TAIR_RETURN_SUCCESS -- success, TAIR_RETURN_LOCK_EXIST -- fail: already locked
+       *         otherwise -- fail
+       */
+      int lock(int area, const data_entry& key);
+
+      /**
+       * @brief opposite to lock
+       *
+       * @param area            namespace
+       * @param key             key
+       *
+       * @return TAIR_RETURN_SUCCESS -- success,
+       *         TAIR_RETURN_LOCK_NOT_EXIST -- fail: key is not locked
+       *         otherwise -- fail
+       */
+      int unlock(int area, const data_entry& key);
+
+      /**
+       * @brief set the expire time
+       *
+       * @param area     namespace
+       * @param key      key
+       * @param expire   expire time,realtive time
+       *
+       * @return 0 -- success, otherwise fail.
+       */
+      int expire(int area,
+                 const data_entry& key,
+                 int expire);
+
+      /**
+       * @brief set log level
+       *
+       * @param level    "DEBUG"|"WARN"|"INFO"|"ERROR"
+       */
+      void set_log_level(const char* level);
+
+      /**
+       * @brief set log file
+       *
+       * @param log_file  the filename of log file
+       */
+      void set_log_file(const char* log_file);
+
+      /**
+       * @brief set timout of each method, ms
+       *
+       * @param timeout
+       */
+      void set_timeout(int timeout);
+
+      /**
+       * @brief set read from random server
+       *
+       * @param rand_flag: true means read from all replicas.
+       */
+      void set_randread(bool rand_flag);
+
+#ifdef WITH_COMPRESS
+
+      /**
+       * @brief set the compress algorithm type
+       *
+       * @param type: the type of compress algorithm, 0 means zlib
+       */
+      void set_compress_type(TAIR_COMPRESS_TYPE type);
+
+      /**
+       * @brief set the compress threshold
+       *
+       * @param threshold: the threshold of compress, if the size of data is lower than
+       *                   this value, skip the compress method. the unit is byte.
+       */
+      void set_compress_threshold(int threshold);
+#endif
+
+      const char *get_error_msg(int ret);
+
+      /*** Following interface is specially useful for multi-cluster (FastDump, etc.). ***/
+      /**
+       ** @brief batch put data to tair
+       ** @ NOTE: This interface is specially for dump data to server
+       **         in some specific condition(FastDump etc.).
+       **         Do NOT use it only when you konw what you're doing.
+       **
+       ** @param area     namespace
+       ** @param kvs      key && value
+       ** @param fail_request fail_keys
+       ** @param compress whether compress data
+       **
+       ** @return 0 -- success, otherwise fail,you can use get_error_msg(ret) to get more information.
+       **/
+
+      int mput(int area,
+               const tair_client_kv_map& kvs,
+               int& fail_request,
+               bool compress = true);
+   private:
+      //@override
+      void configOnChanged(const char* dataId, const char* groupId, const char* newContent);
+
+   private:
+
+      int timeout_ms;
+
+      diamond_manager* diamond_client;
+      cluster_controller controller;
+   };
+}
+
+#endif

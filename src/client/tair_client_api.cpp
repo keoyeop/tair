@@ -52,6 +52,16 @@ namespace tair {
       cache_impl[area] = new data_entry_local_cache(capacity);
   }
 
+  void tair_client_api::setup_cache(int area, size_t capacity, uint64_t expire_time)
+  {
+    if (area < 0 || area >= TAIR_MAX_AREA_COUNT)
+      return ;
+    if (cache_impl[area] == NULL) {
+      cache_impl[area] = new data_entry_local_cache(capacity);
+      cache_impl[area]->set_expire(expire_time);
+    }
+  }
+
   bool tair_client_api::startup(const char *master_addr,const char *slave_addr,const char *group_name)
   {
     bool ret = false;
@@ -431,7 +441,7 @@ namespace tair {
   void tair_client_api::set_compress_type(TAIR_COMPRESS_TYPE type)
   {
     if ((type >= 0) && (type < TAIR_COMPRESS_TYPE_NUM)) {
-      tair::common::data_entry::compress_type = type;
+       tair::common::data_entry::compress_type = type;
     }
   }
 
