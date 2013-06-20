@@ -116,7 +116,7 @@ TEST_F(configuration_right, test_device_name)
    ASSERT_STREQ("yunhen-test-CM3", tair_mc_client.get_data_group_id().c_str());
    tair_mc_client.close();
 
-   tair_mc_client.set_net_device_name("wlan0");
+   tair_mc_client.set_net_device_name("eth0:0");
    ASSERT_TRUE(tair_mc_client.startup("yunhen-test"));
    ASSERT_STREQ("yunhen-test-CM4", tair_mc_client.get_data_group_id().c_str());
    tair_mc_client.close();
@@ -314,6 +314,11 @@ TEST(configuration_wrong, change_to_a_wrong_data_group)
    fprintf(stderr, "\n\nstart to change from CM3 to CM4\n");
    ASSERT_TRUE(set_diamond_config("yunhen-test", "yunhen-test-GROUP", GROUP_right_choose_CM4));
    sleep(5);
+   ASSERT_STREQ("yunhen-test-CM3", tair_mc_client.get_data_group_id().c_str());
+   
+   fprintf(stderr, "\n\nCM3 and CM4 changed");
+   ASSERT_TRUE(set_diamond_config("yunhen-test", "yunhen-test-CM3", CM3_right_another));
+   ASSERT_TRUE(set_diamond_config("yunhen-test", "yunhen-test-CM4", CM4_right));
    ASSERT_STREQ("yunhen-test-CM3", tair_mc_client.get_data_group_id().c_str());
 }
 

@@ -15,31 +15,31 @@
 
 const char* GROUP_right_choose_CM3=
    "10.235.177.=yunhen-test-CM3\r\n"
-   "10.12.1.=yunhen-test-CM3\r\n" // my ip match
+   "10.232.4.=yunhen-test-CM3\r\n" // my ip match
    "10.207.=yunhen-test-CM3\r\n"
    "10.238.=yunhen-test-CM4\r\n";
 
 const char* GROUP_wrong=
    "10.235.177.=yunhen-test-CM3\r\n"
-   "10.12.1.=-test-CM4\r\n" // my ip match
+   "10.232.4.=-test-CM4\r\n" // my ip match
    "10.207.=yunhen-test-CM3\r\n"
    "10.238.=yunhen-test-CM4\r\n";
 
 
 const char* GROUP_right_netdevice_test=
    "10.235.177.=yunhen-test-CM3\r\n"
-   "10.12.1.=yunhen-test-CM3\r\n" // my ip match eth0
+   "10.232.4.=yunhen-test-CM3\r\n" // my ip match eth0
    "10.207.=yunhen-test-CM3\r\n"
    "10.238.=yunhen-test-CM4\r\n"
-   "10.7.=yunhen-test-CM4\n\n";  // wlan0
+   "10.7.=yunhen-test-CM4\n\n";  // eth0:0
 
 const char* GROUP_wrong_choose_CM3_nofatal=
    "10.23.1\r\n"
    "= yunehntste\r\n"
    "10.25=\r\n"
-   "10.12.1. yunhen-test-CM3 \r\n"
+   "10.232.4. yunhen-test-CM3 \r\n"
    "10.235.177.=yunhen-test-CM3\r\n"
-   "10.12.1.=yunhen-test-CM3\r\n" // my ip match
+   "10.232.4.=yunhen-test-CM3\r\n" // my ip match
    "10.207.=yunhen-test-CM3\r\n"
    "10.238.=yunhen-test-CM4\r\n";
 
@@ -47,27 +47,27 @@ const char* GROUP_wrong_choose_CM3_fatal=
    "10.23.1\r\n"
    "= yunehntste\r\n"
    "10.25=\r\n"
-   "10.12.1. yunhen-test-CM3 \r\n"
+   "10.232.4. yunhen-test-CM3 \r\n"
    "10.235.177.=yunhen-test-CM3\r\n"
-   "10.12.1.=\r\n" // my ip match
+   "10.232.4.=\r\n" // my ip match
    "10.207.=yunhen-test-CM3\r\n"
    "10.238.=yunhen-test-CM4\r\n";
 
 const char* GROUP_right_choose_CM3_another=
    "10.235.177.=yunhen-test-CM4\r\n"
-   "10.12.1.=yunhen-test-CM3\r\n" // my ip match
+   "10.232.4.=yunhen-test-CM3\r\n" // my ip match
    "10.238.=yunhen-test-CM4\r\n";
 
 const char* GROUP_right_choose_CM4=
    "10.235.177.=yunhen-test-CM3\r\n"
-   "10.12.1.=yunhen-test-CM4\r\n" // my ip match
+   "10.232.4.=yunhen-test-CM4\r\n" // my ip match
    "10.207.=yunhen-test-CM3\r\n"
    "10.238.=yunhen-test-CM4\r\n";
 
 const char* GROUP_right_choose_CM4_another=
-//   " 10.12.1.177 \r\n"
+//   " 10.232.4.177 \r\n"
    "  10.235.177.=yunhen-test-CM3 \r\n"
-   "  10.12.1. = yunhen-test-CM4 \r\n" // my ip match
+   "  10.232.4. = yunhen-test-CM4 \r\n" // my ip match
    "10.207.=yunhen-test-CM3\r\n"
    "  10.238.=yunhen-test-CM4\r\n";
 
