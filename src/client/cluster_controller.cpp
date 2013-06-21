@@ -32,6 +32,8 @@ namespace tair
       read_cluster.reset(new client_vector());
       write_cluster.reset(new client_vector());
       tair_client_wrapper_sptr  tair_client_non_init(new tair_client_wrapper());
+      tair_client_non_init->read_weight = 1;
+      tair_client_non_init->write_weight = 1;
       all_cluster->push_back(tair_client_non_init);
       read_cluster->push_back(tair_client_non_init);
       write_cluster->push_back(tair_client_non_init);
