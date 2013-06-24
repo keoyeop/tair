@@ -61,5 +61,5 @@ libtairmcclientapi_la_LIBADD=libtairclientapi.la  -LDIAMOND -ldiamond  -ljsoncpp
 
 include_HEADERS=tair_client_api.hpp tair_client_capi.hpp tair_mc_client_api.hpp diamond_manager.hpp cluster_controller.hpp DiamondClient.h local_cache.h local_cache.hpp data_entry_local_cache.h
 
-diamondlibdir = ${libdir}
+diamondlibdir=${libdir}
 diamondlib_DATA=DIAMOND/libdiamond.a DIAMOND/libdiamond.so
