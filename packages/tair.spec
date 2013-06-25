@@ -79,10 +79,11 @@ rm  -f /etc/ld.so.conf.d/tair-%{VERSION}.conf
 %files devel
 %{_prefix}/include
 %{_prefix}/lib/libtairclientapi.*
-%{_prefix}/lib/libtairmcclientapi.*
 %{_prefix}/lib/libtairclientapi_c.*
 %{_prefix}/lib/libmdb.*
 %{_prefix}/lib/libmdb_c.*
+%{_prefix}/lib/libtairmcclientapi.*
+%{_prefix}/lib/libdiamond.*
 
 %changelog
 
