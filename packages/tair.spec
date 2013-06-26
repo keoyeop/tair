@@ -22,7 +22,6 @@ Requires: google-perftools = 1.7
 #Requires: automake >= 1.7.0
 #Requires: libtool >= 1.5.0
 Requires: snappy >= 1.0.1
-Requires: jsoncpp
 
 %description
 Tair is a high performance, distribution key/value storage system.
