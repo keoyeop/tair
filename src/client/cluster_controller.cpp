@@ -211,6 +211,24 @@ namespace tair
    }
 #endif
 
+   void cluster_controller::setup_cache(int area, size_t capacity)
+   {
+      client_vector_sptr temp_all_cluster = all_cluster;
+      if (!temp_all_cluster.get())
+         return ;
+      for (client_vector::iterator it = temp_all_cluster->begin(); it != temp_all_cluster->end(); ++it)
+         (*it)->delegate.setup_cache(area, capacity);
+   }
+
+   void cluster_controller::setup_cache(int area, size_t capacity, uint64_t expire_time)
+   {
+      client_vector_sptr temp_all_cluster = all_cluster;
+      if (!temp_all_cluster.get())
+         return ;
+      for (client_vector::iterator it = temp_all_cluster->begin(); it != temp_all_cluster->end(); ++it)
+         (*it)->delegate.setup_cache(area, capacity, expire_time);
+   }
+
    void cluster_controller::set_timeout_ms(int a_timeout_ms)
    {
       timeout_ms = a_timeout_ms;

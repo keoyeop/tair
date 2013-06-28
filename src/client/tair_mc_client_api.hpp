@@ -42,6 +42,18 @@ namespace tair
       bool startup(const string& config_id);
 
       /**
+       * @brief setup local cache, now, just support cache read.
+       *        If you use it, you should call it after startup(), or it will do nothing.
+       *        If in diamond server config info, local cache had beed set, it will do nothing too.
+       *
+       * @param area          namesapce
+       * @param capability    cache size, unit number
+       * @param expire        entry expire time, unit ms, default 300ms
+       */
+      void setup_cache(int area, size_t capacity = 30);
+      void setup_cache(int area, size_t capacity, uint64_t expire_time);
+
+      /**
        * @brief close tairclient, release resource
        */
       void close();

@@ -43,6 +43,16 @@ namespace tair
       return diamond_client->connect(config_id, this);
    }
 
+   void tair_mc_client_api::setup_cache(int area, size_t capacity)
+   {
+      controller.setup_cache(area, capacity);
+   }
+   
+   void tair_mc_client_api::setup_cache(int area, size_t capacity, uint64_t expire_time)
+   {
+      controller.setup_cache(area, capacity, expire_time);
+   }
+
    void tair_mc_client_api::close()
    {
       controller.close();

@@ -73,6 +73,8 @@ namespace tair
       void set_compress_type(TAIR_COMPRESS_TYPE type);
       void set_compress_threshold(int theshold);
 #endif
+      void setup_cache(int area, size_t capacity);
+      void setup_cache(int area, size_t capacity, uint64_t expire_time);
       void set_timeout_ms(int a_timeout_ms);
       void set_randread(bool rand_flag);
       client_vector_sptr choose_client_wrapper_for_write()
