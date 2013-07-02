@@ -82,7 +82,6 @@ rm  -f /etc/ld.so.conf.d/tair-%{VERSION}.conf
 %{_prefix}/lib/libmdb.*
 %{_prefix}/lib/libmdb_c.*
 %{_prefix}/lib/libtairmcclientapi.*
-%{_prefix}/lib/libdiamond.*
 
 %changelog
 

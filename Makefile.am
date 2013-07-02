@@ -13,9 +13,7 @@ EXTRA_DIST=bootstrap.sh \
 	   scripts/Makefile.am scripts/Makefile.in scripts/mdbshm_reader.py scripts/set_shm.sh \
 		 scripts/tair.sh scripts/stat.sh scripts/check_version.sh \
 	   libtool \
-	   packages/tair.spec \
-           src/client/DIAMOND/libdiamond.a \
-           src/client/DIAMOND/libdiamond.so
+	   packages/tair.spec 
 
 TMP_DIR:=/tmp/tair-tmp.$(shell echo $$$$)
 #PREFIX:=$(shell [ x$(PREFIX) = x ] && PREFIX=/home/admin/tair && echo "$${PREFIX}")

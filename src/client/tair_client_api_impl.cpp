@@ -148,12 +148,12 @@ namespace tair {
 
     start_tbnet();
 
+    inited = true;
     if (!retrieve_server_addr()){
       TBSYS_LOG(ERROR,"retrieve_server_addr falied.\n");
       close();
       return false;
     }
-    inited = true;
     return true;
   }
 

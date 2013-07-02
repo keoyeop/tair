@@ -57,9 +57,6 @@ libtairclientapi_impl_la_SOURCES=${api_source_list}
 libtairclientapi_c_la_SOURCES=${api_source_list} tair_client_capi.cpp
 libtairclientapi_c_la_LIBADD=libtairclientapi.la
 libtairmcclientapi_la_SOURCES=${mc_impl_source}
-libtairmcclientapi_la_LIBADD=libtairclientapi.la  -LDIAMOND -ldiamond  -ljsoncpp
+libtairmcclientapi_la_LIBADD=libtairclientapi.la -ljsoncpp
 
-include_HEADERS=tair_client_api.hpp tair_client_capi.hpp tair_mc_client_api.hpp diamond_manager.hpp cluster_controller.hpp DiamondClient.h local_cache.h local_cache.hpp data_entry_local_cache.h
-
-diamondlibdir=${libdir}
-diamondlib_DATA=DIAMOND/libdiamond.a DIAMOND/libdiamond.so
+include_HEADERS=tair_client_api.hpp tair_client_capi.hpp tair_mc_client_api.hpp diamond_manager.hpp cluster_controller.hpp local_cache.h local_cache.hpp data_entry_local_cache.h
