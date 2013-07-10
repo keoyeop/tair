@@ -90,6 +90,39 @@ AS_IF([test x$with_compress = xyes],
   [ CXXFLAGS="${CXXFLAGS} -DWITH_COMPRESS" ],)
 AM_CONDITIONAL([WITH_COMPRESS],[test x$with_compress = xyes])
 
+AC_ARG_WITH([diamond],
+         AS_HELP_STRING([--with-diamond],
+               [with diamond surport, only used in alibaba-inc (default is NO)]),
+         [
+           if test "$withval" = "yes"; then
+              with_diamond=yes
+              AC_CHECK_HEADER(json/json.h, [],
+                          [
+                              AC_MSG_ERROR([jsoncpp lib have not been installed])
+                              exit 1;
+                          ]
+                          )
+              AC_CHECK_LIB(jsoncpp, _ZNK4Json5Value4sizeEv, [],
+                          [
+                              AC_MSG_ERROR([jsoncpp lib have not been installed])
+                              exit 1;
+                          ]
+                          )
+              #only DiamondClient.h is needed while compile.
+              AC_CHECK_HEADER(DiamondClient.h, [],
+                          [
+                              AC_MSG_ERROR([t-diamond lib have not been installed])
+                              exit 1;
+                          ]
+                          )
+           fi
+         ],
+         [ with_diamond=no ]
+         )
+AS_IF([test x$with_diamond = xyes],
+  [ CXXFLAGS="${CXXFLAGS} -DWITH_DIAMOND" ],)
+AM_CONDITIONAL([WITH_DIAMOND],[test x$with_diamond = xyes])
+
 AC_ARG_WITH([kdb],
 		AS_HELP_STRING([--with-kdb],
 			[with kdb (default is yes)]),

@@ -16,9 +16,14 @@ LDADD=$(TBLIB_ROOT)/lib/libtbnet.a \
 multi_cluster_impl_source=tair_multi_cluster_client_impl.hpp tair_multi_cluster_client_impl.cpp \
 			  cluster_handler_manager.hpp cluster_handler_manager.cpp \
 			  cluster_info_updater.hpp cluster_info_updater.cpp
+
 #daimond
+if WITH_DIAMOND
 mc_impl_source=diamond_manager.hpp diamond_manager.cpp  cluster_controller.hpp cluster_controller.cpp \
 					tair_mc_client_api.hpp  tair_mc_client_api.cpp
+mc_impl_lib=libtairmcclientapi.la
+mc_impl_header=tair_mc_client_api.hpp diamond_manager.hpp cluster_controller.hpp 
+endif
 
 api_source_list=tair_client_api.cpp i_tair_client_impl.hpp i_tair_client_impl.cpp tair_client_api_impl.cpp \
 		${top_srcdir}/src/packets/packet_factory.cpp \
@@ -41,7 +46,7 @@ endif
 
 AM_LDFLAGS=-lpthread -lz -lrt ${GCOV_LIB} ${COMPRESS_LDFLAGS}
 
-lib_LTLIBRARIES=libtairclientapi.la libtairclientapi_c.la libtairclientapi_impl.la libtairmcclientapi.la
+lib_LTLIBRARIES=libtairclientapi.la libtairclientapi_c.la libtairclientapi_impl.la ${mc_impl_lib}
 sbin_PROGRAMS=tairclient keycleantool
 
 tairclient_SOURCES=tair_client.cpp
@@ -56,7 +61,9 @@ libtairclientapi_la_SOURCES=${api_source_list}
 libtairclientapi_impl_la_SOURCES=${api_source_list}
 libtairclientapi_c_la_SOURCES=${api_source_list} tair_client_capi.cpp
 libtairclientapi_c_la_LIBADD=libtairclientapi.la
+if WITH_DIAMOND
 libtairmcclientapi_la_SOURCES=${mc_impl_source}
 libtairmcclientapi_la_LIBADD=libtairclientapi.la -ljsoncpp
+endif
 
-include_HEADERS=tair_client_api.hpp tair_client_capi.hpp tair_mc_client_api.hpp diamond_manager.hpp cluster_controller.hpp local_cache.h local_cache.hpp data_entry_local_cache.h
+include_HEADERS=tair_client_api.hpp tair_client_capi.hpp local_cache.h local_cache.hpp data_entry_local_cache.h ${mc_impl_header}
