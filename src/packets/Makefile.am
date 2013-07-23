@@ -63,5 +63,9 @@ libtair_packets_a_SOURCES=packet_factory.cpp	\
         prefix_get_hiddens_packet.hpp \
         lock_packet.hpp \
         op_cmd_packet.hpp \
-        packet_streamer.hpp \
-        packet_streamer.cpp get_range_packet.hpp retry_all_packet.hpp inval_stat_packet.hpp
+				packet_streamer.hpp \
+				packet_streamer.cpp \
+				get_range_packet.hpp \
+				retry_all_packet.hpp \
+				inval_stat_packet.hpp \
+				inval_heartbeat_packet.hpp

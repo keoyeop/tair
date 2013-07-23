@@ -62,6 +62,7 @@
 
 #include "retry_all_packet.hpp"
 #include "inval_stat_packet.hpp"
+#include "inval_heartbeat_packet.hpp"
   namespace tair {
     tbnet::Packet *tair_packet_factory::createPacket(int pcode)
     {
@@ -249,6 +250,12 @@
             break;
          case TAIR_RESP_INVAL_STAT_PACKET:
             packet = new response_inval_stat();
+            break;
+         case TAIR_REQ_INVAL_HEARTBEAT_PACKET:
+            packet = new request_inval_heartbeat();
+            break;
+         case TAIR_RESP_INVAL_HEARTBEAT_PACKET:
+            packet = new response_inval_heartbeat();
             break;
         default:
           log_error("createpacket error: pcode=%d", pcode);
