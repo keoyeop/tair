@@ -482,4 +482,55 @@
       }
       return buffer.str();
     }
+
+    int InvalLoader::check_config()
+    {
+      int ret = CONFIG_OK;
+      const char* p_cluster_list = TBSYS_CONFIG.getString(INVALSERVER_SECTION, "cluster_list", NULL);
+      log_info("cluster list: %s", p_cluster_list);
+      if (p_cluster_list != NULL)
+      {
+        //get the cluster name list from the config file
+        std::vector<std::string> cluster_name_list;
+        parse_cluster_list(p_cluster_list, cluster_name_list);
+        log_info("cluster list_size: %d", cluster_name_list.size());
+        if (cluster_name_list.empty())
+        {
+          ret = CONFIG_CLUSTER_NAME_LIST_ILLEGAL;
+        }
+        if (ret == CONFIG_OK)
+        {
+          vector<std::string> cluster_name_list_registed;
+          for (cluster_info_map_t::iterator it = clusters.begin(); it != clusters.end(); ++it)
+          {
+            if (it->second != NULL)
+            {
+              ClusterInfo &ci = *(it->second);
+              cluster_name_list_registed.push_back(ci.cluster_name);
+            }
+          }
+          //sort
+          std::sort(cluster_name_list.begin(), cluster_name_list.end());
+          std::sort(cluster_name_list_registed.begin(), cluster_name_list_registed.end());
+          std::vector<std::string> intersection(std::max<size_t>(cluster_name_list.size(),
+                cluster_name_list_registed.size()));
+          //the intersection
+          std::vector<std::string>::const_iterator it = std::set_intersection(
+              cluster_name_list.begin(), cluster_name_list.end(),
+              cluster_name_list_registed.begin(), cluster_name_list_registed.end(),
+              intersection.begin());
+          intersection.resize(it - intersection.begin());
+          if (intersection.size() != cluster_name_list.size() || intersection.size() != cluster_name_list_registed.size())
+          {
+            log_error("cluster name list was modified.");
+            ret = CONFIG_CLUSTER_NAME_LIST_MODIFIED;
+          }
+        }
+      }
+      else {
+        log_error("cluster name list was not exist.");
+        ret = CONFIG_CLUSTER_NAME_LIST_NOT_EXIST;
+      }
+      return ret;
+    }
   }

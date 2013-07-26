@@ -46,6 +46,20 @@ namespace tair {
 
     void setThreadParameter(int max_failed_count);
 
+    //the return value of the funciton `check_config
+    enum
+    {
+      //ok, relax
+      CONFIG_OK = 0,
+      //config file was exist, but the item named `cluster_list was not contained.
+      CONFIG_CLUSTER_NAME_LIST_NOT_EXIST = 1,
+      //can not fetch the `cluster_name_list from the config
+      CONFIG_CLUSTER_NAME_LIST_ILLEGAL = 2,
+      //the config file which hold by the running inval_server was modified.
+      //in this case, the inval_server should be restarted.
+      CONFIG_CLUSTER_NAME_LIST_MODIFIED = 3,
+    };
+    int check_config();
   protected:
     //map group name to `TairGroup
     typedef __gnu_cxx::hash_map<std::string, TairGroup*, tbsys::str_hash > group_info_map_t;
