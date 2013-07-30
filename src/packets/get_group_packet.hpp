@@ -95,7 +95,6 @@ namespace tair {
          output->writeInt32(config_version);
          // config
          int size = config_map.size();
-
          output->writeInt32(size);
          tbsys::STR_STR_MAP::iterator it;
          for (it=config_map.begin(); it!=config_map.end(); ++it) {
@@ -107,7 +106,7 @@ namespace tair {
          if (hash_table_size > 0 && hash_table_data != NULL) {
             output->writeBytes(hash_table_data, hash_table_size);
          }
-         // avilable server
+         // avilable server and inval server
          output->writeInt32(available_server_ids.size());
          set<uint64_t>::iterator it_as = available_server_ids.begin();
          for (; it_as != available_server_ids.end(); ++it_as) {
@@ -143,7 +142,7 @@ namespace tair {
             log_warn("buffer data too few.");
             return false;
          }
-         // data
+         // hashtable
          set_hash_table(NULL, input->readInt32());
          if (hash_table_size > 0 && hash_table_data != NULL) {
             input->readBytes(hash_table_data, hash_table_size);
@@ -158,6 +157,13 @@ namespace tair {
          return true;
       }
 
+      void set_available_inval_servers(const std::set<uint64_t> &available_inval_servers)
+      {
+        for (std::set<uint64_t>::const_iterator i = available_inval_servers.begin();
+            i != available_inval_servers.end(); ++i) {
+          this->available_server_ids.insert(*i);
+        }
+      }
    public:
       uint32_t  bucket_count;
       uint32_t  copy_count;
