@@ -44,7 +44,7 @@ namespace tair {
 
     std::string get_info();
 
-    void setThreadParameter(int max_failed_count);
+    void set_thread_parameter(int max_failed_count, std::string config_file_name);
 
     //the return value of the funciton `check_config
     enum
@@ -58,6 +58,12 @@ namespace tair {
       //the config file which hold by the running inval_server was modified.
       //in this case, the inval_server should be restarted.
       CONFIG_CLUSTER_NAME_LIST_MODIFIED = 3,
+
+      //config file was not exist
+      CONFIG_FILE_NOT_EXIST = 4,
+
+      //config cluster name error
+      CONFIG_CLUSTER_NAME_ERROR = 5,
     };
     int check_config();
   protected:
@@ -97,6 +103,12 @@ namespace tair {
     void fetch_info(const std::string &cluster_name);
     //parse the cluster's name list in the config file
     void parse_cluster_list(const char *p_cluster_list, std::vector<std::string> &cluster_name_list);
+
+    //return true if the `section_name was registed in the `base_section_names, otherwise return false.
+    bool is_base_section_name(const std::string &section_name);
+
+    //return true if the two vectors contain the same elements.
+    bool is_same_content(std::vector<std::string> &left, std::vector<std::string> &right);
   protected:
     bool loading;
     CLIENT_HELPER_MAP client_helper_map;
@@ -108,6 +120,11 @@ namespace tair {
     int max_failed_count;
     static const int LOADER_SLEEP_TIME = 5;
     static const int MAX_ROTATE_TIME = (60 * 60 * 24) / LOADER_SLEEP_TIME;
+    int config_file_version;
+    std::string config_file_name;
+
+    //base section name in the config file
+    static std::vector<std::string> base_section_names;
   };
 }
 #endif

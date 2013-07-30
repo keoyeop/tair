@@ -31,6 +31,7 @@ namespace tair {
     InvalServer();
     ~InvalServer();
 
+    void set_config_file_name(std::string file_name);
     void start();
     void stop();
 
@@ -105,6 +106,7 @@ namespace tair {
     //'upper_limit_ratio * MAX_CACHED_PACKET_COUNT;
     static const float upper_limit_ratio = 0.8;
     static const float lower_limit_ratio = 0.2;
+    std::string config_file_name;
   };
 
   class RetryWorkThread : public tbsys::CDefaultRunnable {

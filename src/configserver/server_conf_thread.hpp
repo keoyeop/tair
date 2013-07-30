@@ -103,7 +103,6 @@ namespace tair {
 
       void load_group_file(const char *file_name, uint32_t version,
                            uint64_t sync_server_id);
-      uint32_t get_file_time(const char *file_name);
       void check_server_status(uint32_t loop_count);
       void check_config_server_status(uint32_t loop_count);
       void load_config_server();

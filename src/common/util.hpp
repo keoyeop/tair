@@ -240,12 +240,24 @@ namespace tair
       class file_util {
       public:
         static int change_conf(const char *group_file_name, const char *section_name, const char *key, const char *value);
+        //get file time
+        static uint32_t get_file_time(const char *file_name)
+        {
+          if(file_name == NULL) {
+            return 0;
+          }
+          struct stat stats;
+          if(lstat(file_name, &stats) == 0) {
+            return stats.st_mtime;
+          }
+          return 0;
+        }
       };
 
-     class coding_util {
-     public:
-       static void encode_fixed32(char* buf, uint32_t value)
-       {
+      class coding_util {
+      public:
+        static void encode_fixed32(char* buf, uint32_t value)
+        {
          buf[0] = value & 0xff;
          buf[1] = (value >> 8) & 0xff;
          buf[2] = (value >> 16) & 0xff;

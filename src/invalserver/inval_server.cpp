@@ -13,6 +13,11 @@
     {
     }
 
+    void InvalServer::set_config_file_name(std::string file_name)
+    {
+      this->config_file_name = file_name;
+    }
+
     void InvalServer::start()
     {
       //~ initialization
@@ -528,7 +533,7 @@
           TAIR_INVAL_MAX_FAILED_COUNT, TAIR_INVAL_DEFAULT_MAX_FAILED_COUNT);
       if (max_failed_count <=0)
         max_failed_count = TAIR_INVAL_DEFAULT_MAX_FAILED_COUNT;
-      invalid_loader.setThreadParameter(max_failed_count);
+      invalid_loader.set_thread_parameter(max_failed_count, config_file_name);
       return true;
     }
 
@@ -757,6 +762,7 @@ int main(int argc, char **argv)
 
     //~ function starts.
     invalid_server = new tair::InvalServer();
+    invalid_server->set_config_file_name(configfile);
     log_info("starting invalid server.");
     invalid_server->start();
     delete invalid_server;

@@ -101,17 +101,6 @@ namespace tair {
       }
       return tbnet::IPacketHandler::KEEP_CHANNEL;
     }
-    uint32_t server_conf_thread::get_file_time(const char *file_name)
-    {
-      if(file_name == NULL) {
-        return 0;
-      }
-      struct stat stats;
-      if(lstat(file_name, &stats) == 0) {
-        return stats.st_mtime;
-      }
-      return 0;
-    }
 
     void server_conf_thread::load_group_file(const char *file_name,
                                              uint32_t version,
@@ -357,7 +346,7 @@ namespace tair {
           return;
         }
 
-        uint32_t curr_version = get_file_time(group_file_name);
+        uint32_t curr_version = util::file_util::get_file_time(group_file_name);
         load_group_file(group_file_name, curr_version, 0);
       }
       log_warn("MASTER_CONFIG changed %s",
@@ -429,7 +418,7 @@ namespace tair {
         return;
       }
 
-      uint32_t config_version_from_file = get_file_time(group_file_name);
+      uint32_t config_version_from_file = util::file_util::get_file_time(group_file_name);
       //bool rebuild_group = true;
       bool rebuild_this_group = false;
       load_group_file(group_file_name, config_version_from_file,
@@ -516,7 +505,7 @@ namespace tair {
         loop_count++;
         if(loop_count <= 0)
           loop_count = TAIR_SERVER_DOWNTIME + 1;
-        uint32_t curver = get_file_time(group_file_name);
+        uint32_t curver = util::file_util::get_file_time(group_file_name);
         if(curver > config_version_from_file) {
           log_info("groupFile: %s, curver:%d configVersion:%d",
                    group_file_name, curver, config_version_from_file);
