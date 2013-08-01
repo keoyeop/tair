@@ -31,9 +31,16 @@ namespace tair {
       GROUP_AUTO_ACCEPT_STRATEGY
     };
 
+    //to define the server type
+    enum ServerType
+    {
+      DATA_SERVER = 0,
+      INVAL_SERVER = 1,
+    };
+
     class group_info:public tbnet::IPacketHandler {
     public:
-      group_info(const char *group_name, server_info_map * serverInfoMap,
+      group_info(const char *group_name, server_info_map * serverInfoMap, server_info_map* invalServerInfoMap,
                  tbnet::ConnectionManager * connmgr);
        ~group_info();
       // IPacketHandler interface
@@ -62,7 +69,8 @@ namespace tair {
       int get_server_down_time() const;
 
       bool load_config(tbsys::CConfig & config, uint32_t version,
-                       std::set<uint64_t> &server_id_list);
+                       std::set<uint64_t> &server_id_list,
+                       std::set<uint64_t> &inval_server_id_list);
       void correct_server_info(bool is_sync);
       void set_force_rebuild();
       void rebuild(uint64_t slave_server_id,
@@ -138,7 +146,7 @@ namespace tair {
 
       node_info_set get_node_info() const
       {
-        return node_list;
+        return ds_node_list;
       }
 
       void get_migrating_machines(vector<pair <uint64_t,uint32_t > >&vec_server_id_count) const;
@@ -169,22 +177,27 @@ namespace tair {
       }
 
       void send_server_table_packet(uint64_t slave_server_id);
-      void find_available_server();
+      void find_available_server(int server_type);
       void inc_version(const uint32_t inc_step = 1);
+      void inc_client_version(const uint32_t inc_step = 1);
       void do_proxy_report(const request_heartbeat & req);
       void set_stat_info(uint64_t server_id, const node_stat_info &);
       void get_stat_info(uint64_t server_id, node_stat_info &) const;
 
       int add_down_server(uint64_t server_id);
       int clear_down_server(const vector<uint64_t>& server_ids);
+
+      //asscess the `living_inval_server_set;
+      const std::set<uint64_t>& get_available_inval_servers();
     private:
       group_info(const group_info &);
       group_info & operator =(const group_info &);
       int fill_migrate_machine();
       void deflate_hash_table();
       // parse server list
-      void parse_server_list(node_info_set & list, const char *server_list,
-                             std::set<uint64_t> &server_id_list);
+      void parse_server_list(node_info_set &list, const char *server_list,
+                             std::set<uint64_t> &server_id_list, int server_type);
+
       void parse_plugins_list(vector<const char *>& plugins);
       void parse_area_capacity_list(vector<const char *>&);
       void get_up_node(std::set<node_info *>&up_node_list);
@@ -193,18 +206,25 @@ namespace tair {
       int select_build_strategy(const std::set<node_info*>& ava_server);
     private:
       tbsys::STR_STR_MAP common_map;
-      node_info_set node_list;
+      //the `node_info list for dataservers
+      node_info_set ds_node_list;
+      //the `node_info list for invalservers
+      node_info_set ivls_node_list;
 
       char *group_name;
       conf_server_table_manager server_table_manager;
 
-      server_info_map *server_info_maps;        //  => server
+      //data server's info map
+      server_info_map *data_server_info_maps;
+      //inval server's info map
+      server_info_map *inval_server_info_maps;
       int need_rebuild_hash_table;
       int need_send_server_table;
       uint32_t load_config_count;
       int data_need_move;
       uint32_t min_config_version;
-      uint32_t min_data_server_count;        // if we can not get at lesat min_data_server_count data servers,
+      // if we can not get at lesat min_data_server_count data servers,
+      uint32_t min_data_server_count;
       //config server will stop serve this group;
       std::map<uint64_t, int>migrate_machine;
       tbnet::ConnectionManager * connmgr;
@@ -219,20 +239,28 @@ namespace tair {
       int server_down_time;
       float diff_ratio;
       uint64_t pos_mask;
-      int pre_load_flag;  // 1: need preload; 0: no need; default 0
+      // 1: need preload; 0: no need; default 0
+      int pre_load_flag;
       std::set<uint64_t> available_server;
 
       std::set<uint64_t> reported_serverid;
-      std::map<uint32_t, uint64_t> area_capacity_info;        //<area, capacity>
-      bool always_update_capacity_info;                       // whether update capacity info everytime
+      //<area, capacity>
+      std::map<uint32_t, uint64_t> area_capacity_info;
+      // whether update capacity info everytime
+      bool always_update_capacity_info;
 
-      std::map<uint64_t, node_stat_info> stat_info;        //<server_id, statInfo>
-      mutable tbsys::CRWSimpleLock stat_info_rw_locker;        //node_stat_info has its own lock, this only for the map stat_info
+      //<server_id, statInfo>
+      std::map<uint64_t, node_stat_info> stat_info;
+      //node_stat_info has its own lock, this only for the map stat_info
+      mutable tbsys::CRWSimpleLock stat_info_rw_locker;
       uint32_t interval_seconds;
 
-      std::set<uint64_t> tmp_down_server;  //save tmp down server in DATA_PRE_LOAD_MODE
+      //save tmp down server in DATA_PRE_LOAD_MODE
+      std::set<uint64_t> tmp_down_server;
       tbsys::CThreadMutex hash_table_set_mutex;
-
+      //store the living inval_server. client needs the living inval_server set
+      //to update the `inval_server_list maintained by itself.
+      std::set<uint64_t> available_inval_server_set;
     };
     typedef __gnu_cxx::hash_map <const char *, group_info *,
       __gnu_cxx::hash <const char *>, tbsys::char_equal> group_info_map;

@@ -102,6 +102,33 @@ namespace tair {
       return tbnet::IPacketHandler::KEEP_CHANNEL;
     }
 
+    //caller must hold the write-lock to avoid other thread reads the {data, inval}_server_info_map
+    void server_conf_thread::remove_server_info(const set<uint64_t> &server_id_set, int type)
+    {
+      //remove the `server_info which belong to server_infos but in the set of `server_id_set
+      server_info_map *server_infos_ptr = NULL;
+      if (type == DATA_SERVER) {
+        server_infos_ptr = &data_server_info_map;
+      }
+      else if (type == INVAL_SERVER) {
+        server_infos_ptr = &inval_server_info_map;
+      }
+      else {
+        log_error("unknown server type: %d", type);
+        return;
+      }
+
+      for (server_info_map::iterator i = server_infos_ptr->begin(); i != server_infos_ptr->end(); ) {
+        if (i->second->server_id != 0 && server_id_set.find(i->second->server_id) == server_id_set.end()) {
+          i->second->server_id = 0;
+          server_infos_ptr->erase(i++);
+        }
+        else {
+          i++;
+        }
+      }
+    }
+
     void server_conf_thread::load_group_file(const char *file_name,
                                              uint32_t version,
                                              uint64_t sync_config_server_id)
@@ -114,8 +141,7 @@ namespace tair {
         return;
       }
 
-      log_info("begin load group file, filename: %s, version: %d", file_name,
-               version);
+      log_info("begin load group file, filename: %s, version: %d", file_name, version);
       vector<string> section_list;
       config.getSectionName(section_list);
       // start up, get hash table from an other config server if exist one.
@@ -123,8 +149,7 @@ namespace tair {
          && sync_config_server_id != util::local_server_ip::ip) {
         get_server_table(sync_config_server_id, NULL, GROUP_CONF);
         for(size_t i = 0; i < section_list.size(); i++) {
-          get_server_table(sync_config_server_id,
-                           (char *) section_list[i].c_str(), GROUP_DATA);
+          get_server_table(sync_config_server_id, (char *) section_list[i].c_str(), GROUP_DATA);
         }
         // here we need reload group configfile, since the file has been synced
         if(config.load((char *) file_name) == EXIT_FAILURE) {
@@ -133,7 +158,8 @@ namespace tair {
         }
       }
 
-      set<uint64_t> server_id_list;
+      set<uint64_t> data_server_id_list;
+      set<uint64_t> inval_server_id_list;
       group_info_rw_locker.wrlock();
       server_info_rw_locker.wrlock();
       for(size_t i = 0; i < section_list.size(); i++) {
@@ -141,83 +167,60 @@ namespace tair {
           group_info_map_data.find(section_list[i].c_str());
         group_info *group_info_tmp = NULL;
         if(it == group_info_map_data.end()) {
-          group_info_tmp =
-            new group_info((char *) section_list[i].c_str(),
-                           &data_server_info_map, connmgr);
-          group_info_map_data[group_info_tmp->get_group_name()] =
-            group_info_tmp;
+          group_info_tmp = new group_info((char *) section_list[i].c_str(),
+                           &data_server_info_map, &inval_server_info_map, connmgr);
+          group_info_map_data[group_info_tmp->get_group_name()] = group_info_tmp;
         }
         else {
           group_info_tmp = it->second;
         }
-        group_info_tmp->load_config(config, version, server_id_list);
-        group_info_tmp->find_available_server();
+        group_info_tmp->load_config(config, version, data_server_id_list, inval_server_id_list);
+        group_info_tmp->find_available_server(DATA_SERVER);
+        group_info_tmp->find_available_server(INVAL_SERVER);
       }
 
-      set <uint64_t> map_id_list;
-      set <uint64_t> should_del_id_list;
-      server_info_map::iterator sit;
-      for(sit = data_server_info_map.begin();
-          sit != data_server_info_map.end(); ++sit) {
-        map_id_list.insert(sit->second->server_id);
-      }
-      std::set_difference(map_id_list.begin(), map_id_list.end(),
-                          server_id_list.begin(), server_id_list.end(),
-                          inserter(should_del_id_list,
-                                   should_del_id_list.begin()));
-      for(set<uint64_t>::iterator it = should_del_id_list.begin();
-          it != should_del_id_list.end(); ++it) {
-        sit = data_server_info_map.find(*it);
-        if(sit != data_server_info_map.end()) {
-          sit->second->server_id = 0;
-          data_server_info_map.erase(sit);
-        }
-      }
+      //remove illeagal `server_info from `data_server_info_map.
+      remove_server_info(data_server_id_list, DATA_SERVER);
+
+      //remove illeagal `server_info from `inval_server_info_map.
+      remove_server_info(inval_server_id_list, INVAL_SERVER);
+
       for(group_info_map::iterator it = group_info_map_data.begin();
           it != group_info_map_data.end(); ++it) {
         it->second->correct_server_info(sync_config_server_id
                                         && sync_config_server_id !=
                                         util::local_server_ip::ip);
       }
-      log_info("machine count: %lu, group count: %lu",
-               data_server_info_map.size(), group_info_map_data.size());
+      log_info("machine count: %lu, group count: %lu", data_server_info_map.size(), group_info_map_data.size());
       server_info_rw_locker.unlock();
       group_info_rw_locker.unlock();
     }
 
-    void server_conf_thread::check_server_status(uint32_t loop_count)
+    void server_conf_thread::do_check_data_server_status(set<group_info*> &change_group_info_list)
     {
-      set<group_info *>change_group_info_list;
-
-      group_info_map::iterator it;
-      for(it = group_info_map_data.begin(); it != group_info_map_data.end();
-          ++it) {
-        if(it->second->is_need_rebuild()) {
-          change_group_info_list.insert(it->second);
-        }
-      }
-
-      server_info_map::iterator sit;
+      server_info_map::const_iterator sit;
       for(sit = data_server_info_map.begin();
           sit != data_server_info_map.end(); ++sit) {
         //a bad one is alive again, we do not mark it ok unless some one tould us to.
         //administrator can touch group.conf to let these data serve alive again.
-        uint32_t now;                // this decide how many seconds since last heart beat, we will mark this data server as a bad one.
+        // this decide how many seconds since last heart beat, we will mark this data server as a bad one.
+        uint32_t now;
         if(sit->second->group_info_data) {
-          now =
-            heartbeat_curr_time -
-            sit->second->group_info_data->get_server_down_time();
+          now = heartbeat_curr_time - sit->second->group_info_data->get_server_down_time();
         }
         else {
           now = heartbeat_curr_time - TAIR_SERVER_DOWNTIME;
         }
         if(sit->second->status != server_info::DOWN) {
-          if((sit->second->last_time < now && (sit->second->status == server_info::ALIVE && !tbnet::ConnectionManager::isAlive(sit->second->server_id))) || sit->second->status == server_info::FORCE_DOWN) {        // downhost
+          if((sit->second->last_time < now
+                && (sit->second->status == server_info::ALIVE
+                  && !tbnet::ConnectionManager::isAlive(sit->second->server_id)))
+              || sit->second->status == server_info::FORCE_DOWN) {        // downhost
             change_group_info_list.insert(sit->second->group_info_data);
             sit->second->status = server_info::DOWN;
             log_warn("HOST DOWN: %s lastTime is %u now is %u ",
-                     tbsys::CNetUtil::addrToString(sit->second->server_id).
-                     c_str(), sit->second->last_time, heartbeat_curr_time);
+                tbsys::CNetUtil::addrToString(sit->second->server_id).
+                c_str(), sit->second->last_time, heartbeat_curr_time);
 
             // if (need add down server config) then set downserver in group.conf
             if (sit->second->group_info_data->get_pre_load_flag() == 1)
@@ -231,7 +234,85 @@ namespace tair {
           }
         }
       }
-      // only master config server can update hashtable.
+    }
+
+    //need the read-lock of `group_info_rw_locker
+    void server_conf_thread::do_check_inval_server_status()
+    {
+      log_info("check inval servers size: %d", inval_server_info_map.size());
+      //check inval server status
+      server_info_map::const_iterator sit;
+      for (sit = inval_server_info_map.begin(); sit != inval_server_info_map.end(); ++sit) {
+        uint32_t now;
+        if(sit->second->group_info_data) {
+          now = heartbeat_curr_time - sit->second->group_info_data->get_server_down_time();
+        }
+        else {
+          now = heartbeat_curr_time - TAIR_SERVER_DOWNTIME;
+        }
+        if(sit->second->status == server_info::ALIVE) {
+          if(sit->second->last_time < now && (!tbnet::ConnectionManager::isAlive(sit->second->server_id))) {
+            sit->second->status = server_info::DOWN;
+            group_info_rw_locker.wrlock();
+            int old_client_version = sit->second->group_info_data->get_client_version();
+            //hashtable will not be rebuilt, available `inval_server list, belong to this group,  will be updated
+            sit->second->group_info_data->find_available_server(INVAL_SERVER);
+            //we will increase the `client_version.
+            //detecting the `client_version changed, client will update its `hashtable which contined the current
+            //available `inval_server list.
+            sit->second->group_info_data->inc_client_version(inval_server_changed_inc_step);
+            log_warn("INVALSERVER HOST DOWN: %s lastTime is %u now is %u , client version from : %d to %d.",
+                tbsys::CNetUtil::addrToString(sit->second->server_id).
+                c_str(), sit->second->last_time, heartbeat_curr_time,
+                old_client_version, sit->second->group_info_data->get_client_version());
+            group_info_rw_locker.unlock();
+          }
+        }
+        else if (sit->second->status == server_info::DOWN) {
+          if (sit->second->last_time > now && tbnet::ConnectionManager::isAlive(sit->second->server_id)) {
+            sit->second->status = server_info::ALIVE;
+            group_info_rw_locker.wrlock();
+            //we will increase the `client_version.
+            //detecting the `client_version changed, client will update its `hashtable which contined the current
+            //available `inval_server list.
+            int old_client_version = sit->second->group_info_data->get_client_version();
+            sit->second->group_info_data->find_available_server(INVAL_SERVER);
+            sit->second->group_info_data->inc_client_version(inval_server_changed_inc_step);
+            log_warn("INVALSERVER HOST UP: %s lastTime is %u now is %u , client version from : %d to %d.",
+                tbsys::CNetUtil::addrToString(sit->second->server_id).
+                c_str(), sit->second->last_time, heartbeat_curr_time,
+                old_client_version, sit->second->group_info_data->get_client_version());
+            group_info_rw_locker.unlock();
+          }
+        }
+        else {
+          log_error("INVALSERVER HOST: %s, hold the unknown status: %d",
+              tbsys::CNetUtil::addrToString(sit->second->server_id).c_str(), sit->second->status);
+        }
+      }
+    }
+
+    void server_conf_thread::check_server_status(uint32_t loop_count)
+    {
+      set<group_info *>change_group_info_list;
+
+      group_info_map::iterator it;
+      for(it = group_info_map_data.begin(); it != group_info_map_data.end(); ++it) {
+        if(it->second->is_need_rebuild()) {
+          change_group_info_list.insert(it->second);
+        }
+      }
+
+      //check data sever status
+      do_check_data_server_status(change_group_info_list);
+
+      //check inval server status, increase the `client_version if the count of the living `inval_server was changed.
+      //after detecting the change of `client_version, Tair-Client will grap the available `inval_server list from
+      //the `config_server.
+      //hashtable will not be rebuilt, if the available inval_server list was changed.
+      do_check_inval_server_status();
+
+      //only master config server can update hashtable.
       if(master_config_server_id != util::local_server_ip::ip) {
         return;
       }
@@ -402,12 +483,10 @@ namespace tair {
         tmp_master_config_server_id = get_slave_server_id();
       }
       if(tmp_master_config_server_id)
-        sync_config_server_id =
-          get_master_config_server(tmp_master_config_server_id, 1);
+        sync_config_server_id = get_master_config_server(tmp_master_config_server_id, 1);
       if(sync_config_server_id) {
         log_info("syncConfigServer: %s",
-                 tbsys::CNetUtil::addrToString(sync_config_server_id).
-                 c_str());
+                 tbsys::CNetUtil::addrToString(sync_config_server_id).c_str());
       }
 
       // groupFile
@@ -421,8 +500,7 @@ namespace tair {
       uint32_t config_version_from_file = util::file_util::get_file_time(group_file_name);
       //bool rebuild_group = true;
       bool rebuild_this_group = false;
-      load_group_file(group_file_name, config_version_from_file,
-                      sync_config_server_id);
+      load_group_file(group_file_name, config_version_from_file, sync_config_server_id);
       //if (syncConfigServer != 0) {
       //    rebuild_group = false;
       //}
@@ -434,9 +512,7 @@ namespace tair {
               && config_server_info_list[1]->server_id ==
               util::local_server_ip::ip))) {
         master_config_server_id = util::local_server_ip::ip;
-        log_info("set MASTER_CONFIG: %s",
-                 tbsys::CNetUtil::addrToString(master_config_server_id).
-                 c_str());
+        log_info("set MASTER_CONFIG: %s", tbsys::CNetUtil::addrToString(master_config_server_id). c_str());
         {
           group_info_map::iterator it;
           group_info_rw_locker.rdlock();
@@ -496,8 +572,7 @@ namespace tair {
           request_conf_heartbeart *new_packet = new request_conf_heartbeart();
           new_packet->server_id = util::local_server_ip::ip;
           new_packet->loop_count = loop_count;
-          if(connmgr_heartbeat->
-             sendPacket(server_info_it->server_id, new_packet) == false) {
+          if(connmgr_heartbeat->sendPacket(server_info_it->server_id, new_packet) == false) {
             delete new_packet;
           }
         }
@@ -507,8 +582,7 @@ namespace tair {
           loop_count = TAIR_SERVER_DOWNTIME + 1;
         uint32_t curver = util::file_util::get_file_time(group_file_name);
         if(curver > config_version_from_file) {
-          log_info("groupFile: %s, curver:%d configVersion:%d",
-                   group_file_name, curver, config_version_from_file);
+          log_info("groupFile: %s, curver:%d configVersion:%d", group_file_name, curver, config_version_from_file);
           load_group_file(group_file_name, curver, 0);
           config_version_from_file = curver;
           send_group_file_packet();
@@ -568,6 +642,10 @@ namespace tair {
                                                                          server_flag));
       resp->available_server_ids =
         group_info_found->get_available_server_id();
+
+      //available `inval_server set will be stored in the `availabe_server of the response packet.
+      //parsing the `available, client has the oppertunity to update the its available `inval_server list.
+      resp->set_available_inval_servers(group_info_found->get_available_inval_servers());
       group_info_rw_locker.unlock();
     }
 
@@ -792,6 +870,7 @@ namespace tair {
           // inc table version and force rebuild table for send server table to slave asynchronously
           if (p_server->group_info_data != NULL && p_server->group_info_data->get_send_server_table() == 0)
           {
+            //bug: need write-lock ?
             p_server->group_info_data->inc_version(server_up_inc_step);
             p_server->group_info_data->set_force_send_table();
             log_warn("ds up, set force send table. version changed. group name: %s, client version: %u, server version: %u",
@@ -849,6 +928,7 @@ namespace tair {
       resp->data_need_move = group_info_founded->get_data_need_move();
       tair_stat *stat = req->get_stat();
 
+      //log_info("cunrret client version: %d", group_info_founded->get_client_version());
       if(stat) {
         log_debug("have stat info");
         node_stat_info node_stat;
@@ -918,7 +998,9 @@ namespace tair {
                              get_hash_table_deflate_data(req->server_flag),
                              group_info_founded->
                              get_hash_table_deflate_size(req->server_flag));
-        log_info("config verion diff, return hash table size: %d",
+        log_info("config verion diff, request version: %d, current version: %d, return hash table size: %d",
+                 req->config_version,
+                 group_info_founded->get_server_version(),
                  resp->get_hash_table_size());
       }
       else {
@@ -989,8 +1071,7 @@ namespace tair {
     }
 
     // do_conf_heartbeat_packet
-    void server_conf_thread::
-      do_conf_heartbeat_packet(request_conf_heartbeart * req)
+    void server_conf_thread::do_conf_heartbeat_packet(request_conf_heartbeart * req)
     {
       server_info_map::iterator it =
         config_server_info_map.find(req->server_id);
@@ -1000,8 +1081,26 @@ namespace tair {
       it->second->last_time = heartbeat_curr_time;
     }
 
-    int server_conf_thread::do_finish_migrate_packet(request_migrate_finish *
-                                                     req)
+    void server_conf_thread::do_inval_heartbeat_packet(request_inval_heartbeat * req, response_inval_heartbeat* resp)
+    {
+      group_info_rw_locker.rdlock();
+      server_info_rw_locker.rdlock();
+      server_info_map::iterator it = inval_server_info_map.find(req->server_id);
+      if(it == inval_server_info_map.end()) {
+        server_info_rw_locker.unlock();
+        group_info_rw_locker.unlock();
+        log_warn("recieve the heartbeat packet from unknown inval server: %s",
+            tbsys::CNetUtil::addrToString(req->server_id).c_str());
+        return;
+      }
+      it->second->last_time = heartbeat_curr_time;
+      resp->set_config_server_version(it->second->group_info_data->get_client_version());
+      server_info_rw_locker.unlock();
+      group_info_rw_locker.unlock();
+    }
+
+
+    int server_conf_thread::do_finish_migrate_packet(request_migrate_finish *req)
     {
       int ret = 0;
       log_info("receive migrate finish packet from [%s]",

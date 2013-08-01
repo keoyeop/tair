@@ -34,6 +34,7 @@
 #include "wait_object.hpp"
 #include "packet_streamer.hpp"
 #include "op_cmd_packet.hpp"
+#include "inval_heartbeat_packet.hpp"
 
 namespace tair {
   namespace config_server {
@@ -72,6 +73,8 @@ namespace tair {
 
       void do_conf_heartbeat_packet(request_conf_heartbeart * req);
 
+      void do_inval_heartbeat_packet(request_inval_heartbeat * req, response_inval_heartbeat* resp);
+
       bool do_set_server_table_packet(response_get_server_table * packet);
 
       //return vaule -1 response it as error 0 response it ok 1 noresponse
@@ -91,6 +94,7 @@ namespace tair {
                                   response_get_migrate_machine * resp);
 
       void do_op_cmd(request_op_cmd *req);
+
 
     private:
       enum
@@ -123,10 +127,18 @@ namespace tair {
       int do_reset_ds_packet(response_op_cmd *resp, const std::vector<std::string>& params);
       int do_force_migrate_bucket(response_op_cmd *resp, const std::vector<std::string>& params);
 
+      void do_check_data_server_status(set<group_info*> &change_group_info_list);
+
+      void do_check_inval_server_status();
+
+      //remove server info, which belong to the server_infos but in the set of `server_id_set, from server_info_map.
+      //the caller must hold the write-lock of server_info_map.
+      void remove_server_info(const set<uint64_t> &server_id_set, int type);
     private:
       group_info_map group_info_map_data;
       server_info_map data_server_info_map;
       server_info_map config_server_info_map;
+      server_info_map inval_server_info_map;
       vector<server_info *>config_server_info_list;
       tbsys::CThreadMutex mutex_grp_need_build;
       tbsys::CRWSimpleLock group_info_rw_locker;
@@ -143,6 +155,7 @@ namespace tair {
       bool is_ready;
 
       static const uint32_t server_up_inc_step = 100;
+      static const uint32_t inval_server_changed_inc_step = 5;
     private:
         class table_builder_thread:public tbsys::CDefaultRunnable
       {

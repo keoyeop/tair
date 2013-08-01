@@ -234,6 +234,21 @@ namespace tair {
             do_conf_heartbeat_packet((request_conf_heartbeart *) packet);
         }
         break;
+      case TAIR_REQ_INVAL_HEARTBEAT_PACKET: 
+        {
+          request_inval_heartbeat* req = dynamic_cast<request_inval_heartbeat*>(packet);
+          if (req != NULL) {
+            response_inval_heartbeat *resp = new response_inval_heartbeat();
+            my_server_conf_thread.do_inval_heartbeat_packet(req, resp);
+            resp->setChannelId(req->getChannelId());
+            if (req->get_connection()->postPacket(resp) == false) {
+              log_error("send req query info packet to invalserver error");
+              delete resp;
+            }
+            send_ret = false;
+          }
+        }
+        break;
       case TAIR_REQ_SETMASTER_PACKET:{
           if(my_server_conf_thread.
              do_set_master_packet((request_set_master *) packet) == false) {
