@@ -267,6 +267,7 @@
 #define TAIR_STR_BUILD_DIFF_RATIO       "_build_diff_ratio"
 #define TAIR_BUILD_DIFF_RATIO           "0.6"
 #define TAIR_STR_SERVER_LIST            "_server_list"
+#define TAIR_STR_INVAL_SERVER_LIST      "invalidate_server"
 #define TAIR_STR_PLUGINS_LIST           "_plugIns_list"
 #define TAIR_STR_AREA_CAPACITY_LIST     "_areaCapacity_list"
 #define TAIR_STR_POS_MASK               "_pos_mask"
