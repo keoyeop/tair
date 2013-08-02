@@ -1094,7 +1094,16 @@ namespace tair {
         return;
       }
       it->second->last_time = heartbeat_curr_time;
-      resp->set_config_server_version(it->second->group_info_data->get_client_version());
+      //inval server only accepts master configserver's version.
+      //master config server's version is never equal to zero.
+      if (master_config_server_id == util::local_server_ip::ip) {
+        //master configserver
+        resp->set_config_server_version(it->second->group_info_data->get_client_version());
+      }
+      else {
+        //slave configserver
+        resp->set_config_server_version(0);
+      }
       server_info_rw_locker.unlock();
       group_info_rw_locker.unlock();
     }
