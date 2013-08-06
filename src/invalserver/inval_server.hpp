@@ -25,6 +25,8 @@
 #include "inval_request_storage.hpp"
 #include "op_cmd_packet.hpp"
 #include "inval_request_packet_wrapper.hpp"
+#include "inval_heartbeat_thread.hpp"
+#include "inval_periodic_worker.hpp"
 namespace tair {
   class InvalServer: public tbnet::IServerAdapter, public tbnet::IPacketQueueHandler {
   public:
@@ -87,6 +89,8 @@ namespace tair {
     InvalLoader invalid_loader;
     RequestProcessor processor;
     InvalRetryThread retry_thread;
+    //interacting with configserver, `inval_server notifies `config_server that it's still alive.
+    InvalHeartbeatThread heartbeat_thread;
 
     //local storage for request packet.
     InvalRequestStorage request_storage;
@@ -106,7 +110,11 @@ namespace tair {
     //'upper_limit_ratio * MAX_CACHED_PACKET_COUNT;
     static const float upper_limit_ratio = 0.8;
     static const float lower_limit_ratio = 0.2;
+
+    //inval_server's config file name
     std::string config_file_name;
+    //perioidic task worker
+    PeriodicTaskWorker periodic_task_worker;
   };
 
   class RetryWorkThread : public tbsys::CDefaultRunnable {

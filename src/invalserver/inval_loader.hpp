@@ -16,11 +16,12 @@
 #include "log.hpp"
 #include "inval_stat_helper.hpp"
 #include<string>
+#include "inval_periodic_worker.hpp"
 namespace tair {
   class TairGroup;
   typedef __gnu_cxx::hash_map<std::string, std::vector<TairGroup*>, tbsys::str_hash > CLIENT_HELPER_MAP;
 
-  class InvalLoader: public tbsys::CDefaultRunnable {
+  class InvalLoader: public PeriodicTask {
   public:
     InvalLoader();
     virtual ~InvalLoader();
@@ -33,14 +34,14 @@ namespace tair {
       return (got && groups != NULL) ? groups->size() : 0;
     }
 
-    void run(tbsys::CThread *thread, void *arg);
-
-    inline bool is_loading() const
-    {
-      return loading;
-    }
-
+    void runTimerTask();
+    void start();
     void stop();
+
+    inline bool load_success() const
+    {
+      return !load_failure;
+    }
 
     std::string get_info();
 
@@ -110,7 +111,7 @@ namespace tair {
     //return true if the two vectors contain the same elements.
     bool is_same_content(std::vector<std::string> &left, std::vector<std::string> &right);
   protected:
-    bool loading;
+    bool load_failure;
     CLIENT_HELPER_MAP client_helper_map;
     std::vector<std::string> group_names;
     std::vector<TairGroup*> tair_groups;
@@ -120,8 +121,12 @@ namespace tair {
     int max_failed_count;
     static const int LOADER_SLEEP_TIME = 5;
     static const int MAX_ROTATE_TIME = (60 * 60 * 24) / LOADER_SLEEP_TIME;
+
+    //for rotate log
+    int log_rotate_time;
     int config_file_version;
     std::string config_file_name;
+    int config_file_status;
 
     //base section name in the config file
     static std::vector<std::string> base_section_names;

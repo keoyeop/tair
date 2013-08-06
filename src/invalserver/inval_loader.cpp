@@ -24,13 +24,15 @@ namespace tair {
     groups.clear();
   }
 
-  InvalLoader::InvalLoader()
+  InvalLoader::InvalLoader() : PeriodicTask("inval_loader", LOADER_SLEEP_TIME)
   {
-    loading = true;
+    load_failure = true;
     max_failed_count = 0;
     config_file_version = 0;
     base_section_names.push_back("public");
     base_section_names.push_back("invalserver");
+    config_file_status = CONFIG_OK;
+    log_rotate_time = ((time(NULL) - timezone)) % 86400;
   }
 
   InvalLoader::~InvalLoader()
@@ -59,7 +61,7 @@ namespace tair {
       log_error("groupname is NULL!");
       return false;
     }
-    if (loading)
+    if (load_failure)
     {
       return false;
     }
@@ -79,13 +81,9 @@ namespace tair {
 
   void InvalLoader::load_group_name()
   {
-    //connect to groups
-    if (!_stop)
-    {
-      //read the cluster infos from the configeration file.
-      fetch_cluster_infos();
-      do_reload_work();
-    }
+    //read the cluster infos from the configeration file.
+    fetch_cluster_infos();
+    do_reload_work();
   }
 
   void InvalLoader::do_reload_work()
@@ -141,7 +139,7 @@ namespace tair {
         }
       }
       //finish the loading group name task
-      loading = false;
+      load_failure = false;
       //set the group name to `stat_helper.
       if (!group_names.empty())
       {
@@ -154,32 +152,26 @@ namespace tair {
     }
   }
 
-  void InvalLoader::run(tbsys::CThread *thread, void *arg)
+  void InvalLoader::start()
   {
     load_group_name();
-    if (!loading)
+  }
+
+  void InvalLoader::runTimerTask()
+  {
+    if (load_failure)
     {
-      log_info("load groupname complete.");
+      //loading
+      do_reload_work();
     }
-
-    const char *pkey = "invalid_server_counter";
-    data_entry key(pkey, strlen(pkey), false);
-    int value = 0;
-    int ret = TAIR_RETURN_SUCCESS;
-
-    int update_max_interval_time = (60 * 60) / LOADER_SLEEP_TIME;
-    int update_rotate_start_time = update_max_interval_time - (60/LOADER_SLEEP_TIME);
-    int rotate_start_time = MAX_ROTATE_TIME - (60 / LOADER_SLEEP_TIME);
-    int log_rotate_time = ((time(NULL) - timezone)) % MAX_ROTATE_TIME;
-    int alive_count = 0;
-    int check_config_file = CONFIG_OK;
-    while (!_stop)
+    else
     {
-      if (loading)
-      {
-        //loading
-        do_reload_work();
-      }
+
+      const char *pkey = "invalid_server_counter";
+      data_entry key(pkey, strlen(pkey), false);
+      int value = 0;
+      int ret = TAIR_RETURN_SUCCESS;
+      int alive_count = 0;
 
       //sampling and keepalive.
       alive_count = 0;
@@ -205,42 +197,36 @@ namespace tair {
             }
           }
         }
-
-        //check config file
-        int config_file_version_current = util::file_util::get_file_time(config_file_name.c_str());
-        if (config_file_version_current > config_file_version || check_config_file != CONFIG_OK)
-        {
-          config_file_version = config_file_version_current;
-          check_config_file = check_config();
-          log_info("config version was changed, result: %d", check_config_file);
-        }
-
-        if (_stop)
-        {
-          break;
-        }
       }
       log_info("KeepAlive group count: %d, total: %lu", alive_count, tair_groups.size());
 
+      //check config file
+      int config_file_version_current = util::file_util::get_file_time(config_file_name.c_str());
+      if (config_file_version_current > config_file_version || config_file_status != CONFIG_OK)
+      {
+        config_file_version = config_file_version_current;
+        config_file_status = check_config();
+        log_info("config version was changed, result: %d", config_file_status);
+      }
+
+
+      //rotate log
       log_rotate_time ++;
-      if ((log_rotate_time % MAX_ROTATE_TIME) == rotate_start_time)
+      if ((log_rotate_time % 86400) == 86340)
       {
         log_info("rotatelog end");
         TBSYS_LOGGER.rotateLog(NULL, "%d");
         log_info("rotatelog start");
       }
-      if (((log_rotate_time % update_max_interval_time) == update_rotate_start_time))
+      if (((log_rotate_time % 3600) == 3000))
       {
-        log_rotate_time = ((time(NULL) - timezone)) % MAX_ROTATE_TIME;
+        log_rotate_time = ((time(NULL) - timezone)) % 86400;
       }
-
-      TAIR_SLEEP(_stop, LOADER_SLEEP_TIME);
     }
   }
 
   void InvalLoader::stop()
   {
-    _stop = true;
     for (size_t i = 0; i < tair_groups.size(); ++i)
     {
       tair_client_impl *tair_client = tair_groups[i]->get_tair_client();
@@ -469,7 +455,7 @@ namespace tair {
   std::string InvalLoader::get_info()
   {
     stringstream buffer;
-    buffer << " inval loader, loading: " << (loading ? "YES" : "NO") << endl;
+    buffer << " inval loader, load config status: " << (load_failure ? "FAILURE" : "SUCCESS") << endl;
     int idx = 0;
     for (cluster_info_map_t::iterator it = clusters.begin(); it != clusters.end(); ++it)
     {

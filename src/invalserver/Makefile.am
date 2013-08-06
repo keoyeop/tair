@@ -30,5 +30,6 @@ inval_server_SOURCES=inval_server.cpp inval_server.hpp \
 					 inval_stat_helper.cpp inval_stat_helper.hpp \
 					 inval_request_storage.cpp inval_request_storage.hpp \
 					 inval_request_packet_wrapper.hpp \
-					 inval_group.hpp inval_group.cpp
-
+					 inval_group.hpp inval_group.cpp \
+					 inval_heartbeat_thread.cpp inval_heartbeat_thread.hpp \
+					 inval_periodic_worker.hpp inval_periodic_worker.cpp

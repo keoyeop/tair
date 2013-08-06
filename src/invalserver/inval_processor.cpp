@@ -5,6 +5,7 @@
 #include "base_packet.hpp"
 #include "inval_group.hpp"
 #include "inval_request_packet_wrapper.hpp"
+#include "inval_heartbeat_thread.hpp"
 namespace tair {
   //map pcode to operation_name
   std::map<int, int> RequestProcessor::pcode_opname_map;
@@ -21,10 +22,13 @@ namespace tair {
     dump_key_switch = false;
   }
 
-  void RequestProcessor::setThreadParameter(InvalRetryThread *retry_thread, InvalRequestStorage *request_storage)
+  void RequestProcessor::set_thread_parameter(InvalRetryThread *retry_thread,
+      InvalRequestStorage *request_storage,
+      InvalHeartbeatThread* heartbeat_thread)
   {
     this->retry_thread = retry_thread;
     this->request_storage = request_storage;
+    this->heartbeat_thread = heartbeat_thread;
   }
 
   void RequestProcessor::do_process_request(PROCESS_RH_FUNC_T pproc, PacketWrapper *wrapper)
@@ -279,7 +283,7 @@ namespace tair {
   {
     if (wrapper->get_packet()->get_direction() == DIRECTION_RECEIVE)
     {
-      tair_packet_factory::set_return_packet(wrapper->get_packet(), ret, msg, 0);
+      tair_packet_factory::set_return_packet(wrapper->get_packet(), ret, msg, heartbeat_thread->get_config_server_version());
     }
   }
 

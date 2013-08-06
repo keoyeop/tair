@@ -18,7 +18,7 @@
 namespace tair {
   InvalStatHelper InvalStatHelper::inval_stat_helper_instance;
 
-  InvalStatHelper::InvalStatHelper()
+  InvalStatHelper::InvalStatHelper() : PeriodicTask("StatHelper", STAT_HELPER_SLEEP_TIME)
   {
     last_update_time = tbsys::CTimeUtil::getTime();
     compressed_data = NULL;
@@ -32,7 +32,6 @@ namespace tair {
 
   InvalStatHelper::~InvalStatHelper()
   {
-    _stop = true;
     wait();
     if (compressed_data != NULL)
     {
@@ -53,26 +52,14 @@ namespace tair {
     }
   }
 
-  void InvalStatHelper::run(tbsys::CThread *thread, void *arg)
+  void InvalStatHelper::runTimerTask()
   {
-    log_info("inval_stat_helper starts working...");
-    while (_stop == false)
-    {
       if (atomic_read(&work_now) == WAIT)
       {
-        TAIR_SLEEP(_stop, 10);
-        log_debug("waiting for group names...");
-        if (_stop)
-        {
-          break;
-        }
-        continue;
+        return;
       }
       //reset the state.
       reset();
-      //sleep
-      TAIR_SLEEP(_stop, 10);
-    }
   }
 
   // threadsafe

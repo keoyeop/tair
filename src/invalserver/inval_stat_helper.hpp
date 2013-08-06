@@ -22,11 +22,12 @@
 
 #include <tbnet.h>
 #include "inval_stat.hpp"
+#include "inval_periodic_worker.hpp"
 namespace tair {
 #define TAIR_INVAL_STAT tair::InvalStatHelper::inval_stat_helper_instance
 
   class CThreadMutex;
-  class InvalStatHelper : public tbsys::CDefaultRunnable {
+  class InvalStatHelper : public PeriodicTask {
   public:
     //inval_stat_helper needs nessary parameters(group names) to start working.
     //it will wait(sleep) until obaining the parameters.
@@ -44,7 +45,7 @@ namespace tair {
     InvalStatHelper();
     ~InvalStatHelper();
 
-    void run(tbsys::CThread *thread, void *arg);
+    void runTimerTask();
 
     //get the compressed statistics data of the group(s).
     //it will allocate the needed memory,
@@ -89,6 +90,8 @@ namespace tair {
     atomic_t need_compressed;
 
     tbsys::CThreadMutex mutex;
+
+    static const int STAT_HELPER_SLEEP_TIME = 10;
   }; //end of class
 } // end of namespace
 

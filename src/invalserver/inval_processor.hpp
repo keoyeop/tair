@@ -34,11 +34,15 @@ namespace tair {
   class PacketWrapper;
   class SingleWrapper;
   class MultiWrapper;
+  class InvalHeartbeatThread;
   class RequestProcessor {
   public:
     RequestProcessor();
 
-    void setThreadParameter(InvalRetryThread *retry_thread, InvalRequestStorage *request_storage);
+    void set_thread_parameter(InvalRetryThread *retry_thread,
+        InvalRequestStorage *request_storage,
+        InvalHeartbeatThread *heartbeat_thread);
+
     void set_dumpkey_switch(bool on_or_off);
   public:
     static RequestProcessor request_processor_instance;
@@ -91,6 +95,7 @@ namespace tair {
 
     InvalRetryThread *retry_thread;
     InvalRequestStorage *request_storage;
+    InvalHeartbeatThread *heartbeat_thread;
 
     //just used as the parameter, not to insert any data.
     key_code_map_t failed_key_code_map;

@@ -26,16 +26,29 @@
         return ;
       }
 
-      //~ start the thread to save the request packets.
+      // start the thread to save the request packets.
       request_storage.start();
-      //~ start thread that retrieves the group infos.
+
+      // start thread that retrieves the group infos.
       invalid_loader.start();
-      //~ start the retry threads.
+
+      // start the retry threads.
       retry_thread.start();
-      //~ start the threads handling the packets received from clients.
+
+      // start the threads handling the packets received from clients.
       task_queue_thread.start();
-      //~ start the stat thread
+
+      // start the stat thread
       TAIR_INVAL_STAT.start();
+
+      //start the heartbeat thread.
+      heartbeat_thread.start();
+
+
+      //regist periodic task work
+      periodic_task_worker.regist_task(&invalid_loader);
+      periodic_task_worker.regist_task(&TAIR_INVAL_STAT);
+      periodic_task_worker.start();
 
       char spec[32];
       bool ret = true;
@@ -66,12 +79,13 @@
       }
 
       //~ wait threads to complete.
-      invalid_loader.wait();
       task_queue_thread.wait();
       retry_thread.wait();
-      TAIR_INVAL_STAT.wait();
       request_storage.wait();
       transport.wait();
+      heartbeat_thread.wait();
+      periodic_task_worker.stop();
+
 
       destroy();
     }
@@ -94,6 +108,9 @@
         log_warn("stopping stat_helper");
         request_storage.stop();
         log_warn("stopping request_storage");
+        heartbeat_thread.stop();
+        log_warn("stopping heartbeat_thread");
+
       }
     }
 
@@ -188,7 +205,7 @@
           }
         case TAIR_REQ_PING_PACKET:
           {
-            if (invalid_loader.is_loading())
+            if (invalid_loader.load_success() == false)
             {
               log_warn("ping packet received, but clients are still not ready");
               ret = TAIR_RETURN_FAILED;
@@ -198,7 +215,7 @@
             request_ping *req = dynamic_cast<request_ping*>(bp);
             if (req != NULL)
             {
-              log_warn("ping packet received, config_version: %u, value: %d", req->config_version, req->value);
+              //log_warn("ping packet received, config_version: %u, value: %d", req->config_version, req->value);
               ret = TAIR_RETURN_SUCCESS;
             }
             else
@@ -281,7 +298,7 @@
       //just send the return packet to client
       if (req != NULL && req->request_time > 0)
       {
-        if (invalid_loader.is_loading())
+        if (invalid_loader.load_success() == false)
         {
           send_return_packet(req, TAIR_RETURN_FAILED, "inval server is not ready.");
           log_warn("inval server is still loading group name, request packet will be cached. pcode: %d, group name: %s",
@@ -528,12 +545,13 @@
       task_queue_thread.setThreadParameter(thread_count, this, NULL);
       retry_thread.setThreadParameter(&invalid_loader, &request_storage);
       sync_task_thread_count = thread_count;
-      REQUEST_PROCESSOR.setThreadParameter(&retry_thread, &request_storage);
+      REQUEST_PROCESSOR.set_thread_parameter(&retry_thread, &request_storage, &heartbeat_thread);
       int max_failed_count = TBSYS_CONFIG.getInt(INVALSERVER_SECTION,
           TAIR_INVAL_MAX_FAILED_COUNT, TAIR_INVAL_DEFAULT_MAX_FAILED_COUNT);
       if (max_failed_count <=0)
         max_failed_count = TAIR_INVAL_DEFAULT_MAX_FAILED_COUNT;
       invalid_loader.set_thread_parameter(max_failed_count, config_file_name);
+      heartbeat_thread.set_thread_parameters(&streamer, &transport);
       return true;
     }
 
