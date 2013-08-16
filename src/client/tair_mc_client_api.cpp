@@ -109,25 +109,10 @@ namespace tair
       return code;
    }
 
-   int tair_mc_client_api::invalidate(int area, const data_entry &key, const char *groupname, bool is_sync)
-   {
-      const client_vector_sptr write_clients = controller.choose_client_wrapper_for_write();
-      // after init, we can make sure that write_client != NULL, and is non empty.
-      return (*write_clients)[0]->delegate.invalidate(area, key, groupname, is_sync);
-      //      return TAIR_RETURN_INVAL_CONN_ERROR;
-   }
-
    int tair_mc_client_api::invalidate(int area, const data_entry &key, bool is_sync)
    {
       const client_vector_sptr write_clients = controller.choose_client_wrapper_for_write();
       return (*write_clients)[0]->delegate.invalidate(area, key, is_sync);
-      //      return TAIR_RETURN_INVAL_CONN_ERROR;
-   }
-
-   int tair_mc_client_api::prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync)
-   {
-      const client_vector_sptr write_clients = controller.choose_client_wrapper_for_write();
-      return (*write_clients)[0]->delegate.prefix_invalidate(area, pkey, skey, groupname, is_sync);
    }
 
    int tair_mc_client_api::prefix_invalidate(int area, const data_entry &key, const data_entry &skey, bool is_sync)

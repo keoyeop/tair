@@ -118,20 +118,8 @@ namespace tair
       int remove(int area,
                  const data_entry &key);
 
-
       /**
-       * @brief delete data from tair cluster
-       *
-       * @param area    namespace
-       * @param key     key
-       * @param groupname    group's name.
-       *
-       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
-       */
-      int invalidate(int area, const data_entry &key, const char *groupname, bool is_sync = true);
-
-      /**
-       * @brief delete data from tair cluster
+       * @brief delete data from tair cluster, if there is no invalserver, it acts as remove().
        *
        * @param area    namespace
        * @param key     key
@@ -141,18 +129,7 @@ namespace tair
       int invalidate(int area, const data_entry &key, bool is_sync = true);
 
       /**
-       * @brief delete data with prefix key from tair cluster
-       *
-       * @param area    namespace
-       * @param key     key
-       * @param groupname    group's name.
-       *
-       * @return TAIR_RETURN_SUCCESS -- success, otherwise fail.
-       */
-      int prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync = true);
-
-      /**
-       * @brief delete data with prefix key from tair cluster
+       * @brief delete data with prefix key from tair cluster, if there is no invalserver, it acts as prefix_remove().
        *
        * @param area    namespace
        * @param pkey     key

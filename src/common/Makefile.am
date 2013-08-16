@@ -41,7 +41,7 @@ base_src=data_dumpper.cpp	\
 
 noinst_LIBRARIES=libtair_common.a
 
-include_HEADERS=item_data_info.hpp data_entry.hpp define.hpp util.hpp hash.hpp log.hpp inval_stat.hpp $(COMPRESS_CPPFLAGS)
+include_HEADERS=item_data_info.hpp data_entry.hpp define.hpp util.hpp hash.hpp log.hpp inval_stat.hpp key_value_pack.hpp $(COMPRESS_CPPFLAGS)
 
 libtair_common_a_SOURCES = ${base_src}
 

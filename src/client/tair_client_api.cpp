@@ -219,14 +219,17 @@ namespace tair {
     return ret;
   }
 
-  int tair_client_api::invalidate( int area, const data_entry &key, const char *groupname, bool is_sync)
-  {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->invalidate(area, key, groupname, is_sync);
-  }
-
   int tair_client_api::invalidate(int area, const data_entry &key, bool is_sync)
   {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->invalidate(area, key, is_sync);
+    int ret = impl == NULL ? TAIR_RETURN_NOT_INIT : impl->invalidate(area, key, is_sync);
+    if (TAIR_RETURN_SUCCESS == ret ||
+        TAIR_RETURN_DATA_NOT_EXIST == ret) {
+       cache_type *cache = cache_impl[area];
+       if (cache != NULL) {
+          cache->remove(key);
+       }
+    }
+    return ret;
   }
 
   int tair_client_api::hide(int area, const data_entry &key)
@@ -595,11 +598,6 @@ namespace tair {
     {
       return TAIR_CLUSTER_TYPE_SINGLE_CLUSTER;
     }
-  }
-
-  int tair_client_api::prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, const char *groupname, bool is_sync)
-  {
-    return impl == NULL ? TAIR_RETURN_NOT_INIT : impl->prefix_invalidate(area, pkey, skey, groupname, is_sync);
   }
 
   int tair_client_api::prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, bool is_sync)

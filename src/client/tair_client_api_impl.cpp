@@ -1229,7 +1229,10 @@ FAIL:
 
   int tair_client_impl::invalidate(int area, const data_entry &key, bool is_sync)
   {
-    return invalidate(area, key, group_name.c_str(), is_sync);
+    if (invalid_server_list.empty())
+      return remove(area, key);
+    else
+      return invalidate(area, key, group_name.c_str(), is_sync);
   }
 
   int tair_client_impl::hide(int area, const data_entry &key)
@@ -1989,7 +1992,9 @@ FAIL:
 
     TBSYS_LOG(DEBUG,"mdelete keys size: %lu, send success: %d, return packet size: %lu",
         keys.size(), send_success, tpk.size());
-    if (keys.size() != send_success)
+    // here we are sure that tpk.size() >= 1
+    // if send_success == 0, all failed
+    if (send_success && (tpk.size() != send_success))
     {
       ret = TAIR_RETURN_PARTIAL_SUCCESS;
     }
@@ -2700,7 +2705,10 @@ FAIL:
   //removed the data with prefix key by invalid server.
   int tair_client_impl::prefix_invalidate(int area, const data_entry &pkey, const data_entry &skey, bool is_sync)
   {
-    return prefix_invalidate(area, pkey, skey, group_name.c_str(), is_sync);
+    if (invalid_server_list.empty())
+      return prefix_remove(area, pkey, skey);
+    else
+      return prefix_invalidate(area, pkey, skey, group_name.c_str(), is_sync);
   }
 
   //removed the data with prefix key by invalid server.
