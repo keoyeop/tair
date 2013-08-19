@@ -1,3 +1,6 @@
+[public]
+config_server=192.168.1.1:5198
+config_server=192.168.1.2:5198
 
 [invalserver]
 port=5196

@@ -24,12 +24,12 @@
 
     PeriodicTaskWorker::PeriodicTaskWorker()
     {
-      timer = new tbutil::Timer();
+      timer_ptr = new tbutil::Timer();
     }
 
     PeriodicTaskWorker::~PeriodicTaskWorker()
     {
-      if (timer != 0)
+      if (timer_ptr != 0)
       {
         stop();
       }
@@ -45,10 +45,11 @@
 
     void PeriodicTaskWorker::stop()
     {
-      if (timer != 0)
+      //smart pointer
+      if (timer_ptr != 0)
       {
-        timer->destroy();
-        timer = 0;
+        //NOTE: do not release the PeriodictTask instance by timer. those instances were maintainted by `inval_server
+        timer_ptr = 0;
       }
     }
     void PeriodicTaskWorker::start()
@@ -57,7 +58,7 @@
       {
         if (i->second != NULL)
         {
-        int ret = timer->scheduleRepeated(i->second, tbutil::Time::seconds(i->second->get_periodic_time()));
+        int ret = timer_ptr->scheduleRepeated(i->second, tbutil::Time::seconds(i->second->get_periodic_time()));
         log_info("start periodic task: %s, periodic time: %d, result: %d",
             i->second->get_task_name().c_str(), i->second->get_periodic_time(), ret);
         }

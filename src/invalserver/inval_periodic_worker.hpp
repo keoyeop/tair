@@ -41,7 +41,7 @@ namespace tair {
     void stop();
   protected:
     periodic_task_map_t periodic_task_map;
-    tbutil::TimerPtr timer;
+    tbutil::TimerPtr timer_ptr;
   };
 }
 #endif
