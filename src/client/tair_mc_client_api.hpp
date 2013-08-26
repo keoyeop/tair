@@ -203,6 +203,21 @@ namespace tair
        * @param value: ptr holding the value returned
        */
       int prefix_get(int area, const data_entry &pkey, const data_entry &skey, data_entry *&value);
+      /**
+       * @brief to get multiple items with prefix key
+       * @param area: namespace
+       * @param pkey: primary key
+       * @param skey_set skeys: secondary keys
+       *        in set or vector, choose for your concerns
+       * @param value: ptr holding the value returned
+       * @return code: like normal
+       *         failed_map: error code for each failed skey, if any
+       */
+      int prefix_gets(int area, const data_entry &pkey, const tair_dataentry_set &skey_set,
+                      tair_keyvalue_map &result_map, key_code_map_t &failed_map);
+
+      int prefix_gets(int area, const data_entry &pkey, const tair_dataentry_vector &skeys,
+                      tair_keyvalue_map &result_map, key_code_map_t &failed_map);
 
       /**
        * @brief to put one item with prefix key
@@ -213,6 +228,18 @@ namespace tair
        */
       int prefix_put(int area, const data_entry &pkey, const data_entry &skey,
                      const data_entry &value, int expire, int version);
+      /**
+       * @brief to put multiple items with prefix key
+       * @param area: namespace
+       * @param pkey: primary key
+       * @param skey_value_packs: {skey, value, version, expire} packs
+       * @param value: ptr holding the value returned
+       * @return code: like normal
+       *         failed_map: error code for each failed skey, if any
+       */
+      int prefix_puts(int area, const data_entry &pkey,
+                      const vector<key_value_pack_t*> &skey_value_packs, key_code_map_t &failed_map);
+
       /**
        * @brief to hide one item with prefix key
        * @param area: namespace

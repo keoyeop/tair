@@ -170,6 +170,20 @@ namespace tair
       return read_client->delegate.prefix_get(area, pkey, skey, value);
    }
 
+   int tair_mc_client_api::prefix_gets(int area, const data_entry &pkey, const tair_dataentry_set &skey_set,
+                                       tair_keyvalue_map &result_map, key_code_map_t &failed_map)
+   {
+      tair_client_wrapper_sptr read_client = controller.choose_client_wrapper_for_read();
+      return read_client->delegate.prefix_gets(area, pkey, skey_set, result_map, failed_map);
+   }
+
+   int tair_mc_client_api::prefix_gets(int area, const data_entry &pkey, const tair_dataentry_vector &skeys,
+                                       tair_keyvalue_map &result_map, key_code_map_t &failed_map)
+   {
+      tair_client_wrapper_sptr read_client = controller.choose_client_wrapper_for_read();
+      return read_client->delegate.prefix_gets(area, pkey, skeys, result_map, failed_map);
+   }
+
    int tair_mc_client_api::prefix_put(int area, const data_entry &pkey, const data_entry &skey,
                                       const data_entry &value, int expire, int version)
    {
@@ -179,6 +193,20 @@ namespace tair
       {
          int code = (*it)->delegate.prefix_put(area, pkey, skey, value, expire, version);
          if (code != TAIR_RETURN_SUCCESS)
+            return code;
+      }
+      return code;
+   }
+
+   int tair_mc_client_api::prefix_puts(int area, const data_entry &pkey,
+                                       const vector<key_value_pack_t*> &skey_value_packs, key_code_map_t &failed_map)
+   {
+      const client_vector_sptr write_clients = controller.choose_client_wrapper_for_write();
+      int code = TAIR_RETURN_SUCCESS;
+      for (client_vector::const_iterator it = write_clients->begin(); it != write_clients->end(); ++it)
+      {
+         code = (*it)->delegate.prefix_puts(area, pkey, skey_value_packs, failed_map);
+         if (code != TAIR_RETURN_SUCCESS && code != TAIR_RETURN_PARTIAL_SUCCESS)
             return code;
       }
       return code;
