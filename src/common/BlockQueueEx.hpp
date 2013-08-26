@@ -8,6 +8,7 @@
 #else
 #include <unistd.h>
 #endif
+//!TODO remove this old dog
 
 using namespace std;
 
@@ -18,6 +19,7 @@ public:
 	BlockQueueEx(); 
 	~BlockQueueEx(); 
 	bool isEmpty();
+  void stop();
 	unsigned long size();
 	bool put(const T& value); 
 	T get();
@@ -29,6 +31,7 @@ private:
 #else
 	pthread_mutex_t write_mutex;
 	pthread_cond_t more;
+  bool is_running;
 #endif 
 };
 
@@ -51,6 +54,7 @@ BlockQueueEx<T>::BlockQueueEx()
 #else
 	pthread_mutex_init(&write_mutex, NULL);
 	pthread_cond_init(&more, NULL);
+  is_running = true;
 #endif
 }
 
@@ -75,6 +79,15 @@ unsigned long BlockQueueEx<T>::size()
 {
     return (unsigned long)inQueue.Size();
 
+}
+
+template <class T>
+void BlockQueueEx<T>::stop()
+{
+  pthread_mutex_lock(&write_mutex);
+  is_running = false;
+  pthread_mutex_unlock(&write_mutex);
+  pthread_cond_signal(&more);
 }
 
 template <class T>
@@ -156,10 +169,14 @@ T BlockQueueEx<T>::get(int tmms)
 
     pthread_mutex_lock(&write_mutex);
 	//while( count <= 0 && retcode != ETIMEDOUT)
-	while(inQueue.Empty() && retcode != ETIMEDOUT)
+	while(is_running && inQueue.Empty() && retcode != ETIMEDOUT)
 	{
 		retcode = pthread_cond_timedwait(&more, &write_mutex, &timeout);
 	}
+  if (!is_running) {
+    pthread_mutex_unlock(&write_mutex);
+    return NULL;
+  }
 	if(ETIMEDOUT == retcode)
 	{
 		pthread_mutex_unlock(&write_mutex);

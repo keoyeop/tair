@@ -243,6 +243,7 @@ FAIL_1:
     is_stop = true;
     stop_tbnet();
     wait_tbnet();
+    m_return_object_queue.stop();
     thread.join();
     response_thread.join();
     if (connmgr)
